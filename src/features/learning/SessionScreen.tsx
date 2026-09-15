@@ -103,7 +103,7 @@ export function SessionScreen(){
     <div className="progress"><i style={{width:`${(position/session.items.length)*100}%`}}/></div>
     <span className="counter" aria-label={`Упражнение ${position+1} из ${session.items.length}`}>{position+1} / {session.items.length}</span>
    </div>
-   <div className="center">{view}</div>
+   <div className="session-body">{view}</div>
    {problem&&<p className="error" role="alert">{problem}</p>}
   </main>
  );

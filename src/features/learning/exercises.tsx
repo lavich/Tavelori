@@ -10,6 +10,15 @@ export interface Answer {correct:boolean|null;rating:1|2|3|4;text:string;status?
 /** onAnswer возвращает false, если запись не удалась: тогда упражнение остаётся открытым для повтора. */
 interface Props {item:SessionItem;onAnswer:(answer:Answer)=>Promise<boolean>;onNext:()=>void}
 
+/** Раскрытый ответ подводим к верху области прокрутки: иначе он остаётся под закреплённой кнопкой. */
+function useRevealed(active:boolean){
+ const ref=useRef<HTMLDivElement>(null);
+ useEffect(()=>{
+  if(active)requestAnimationFrame(()=>ref.current?.scrollIntoView({block:'start',behavior:'smooth'}));
+ },[active]);
+ return ref;
+}
+
 const GRADES:{rating:1|2|3|4;title:string;hint:string}[]=[
  {rating:1,title:'Не вспомнил',hint:'покажем снова сегодня'},
  {rating:2,title:'С трудом',hint:'короткий интервал'},
@@ -20,21 +29,23 @@ const GRADES:{rating:1|2|3|4;title:string;hint:string}[]=[
 export function Introduction({word,onReady}:{word:Word;onReady:()=>void}){
  return (
   <>
-   <p className="prompt">Новое слово</p>
-   <WordArt word={word}/>
-   <div className="row between" style={{width:'100%',gap:12,marginTop:14}}>
-    <div className="grow" style={{minWidth:0,textAlign:'left'}}>
-     <p className="greek" style={{margin:0}}>{word.greek}</p>
-     {word.ipa&&<p className="ipa" style={{margin:0}}>{word.ipa}</p>}
-     <p style={{fontSize:19,margin:'6px 0 0'}}>{word.russian}</p>
+   <div className="center">
+    <p className="prompt">Новое слово</p>
+    <WordArt word={word}/>
+    <div className="row between" style={{width:'100%',gap:12}}>
+     <div className="grow" style={{minWidth:0,textAlign:'left'}}>
+      <p className="greek" style={{margin:0}}>{word.greek}</p>
+      {word.ipa&&<p className="ipa" style={{margin:0}}>{word.ipa}</p>}
+      <p style={{fontSize:19,margin:'6px 0 0'}}>{word.russian}</p>
+     </div>
+     <SpeakButton word={word}/>
     </div>
-    <SpeakButton word={word}/>
+    <div style={{width:'100%',textAlign:'left'}}>
+     <ReadingNotes word={word}/>
+     {word.examples[0]&&<ExampleBox example={word.examples[0]}/>}
+    </div>
    </div>
-   <div style={{width:'100%',textAlign:'left',marginTop:14}}>
-    <ReadingNotes word={word}/>
-    {word.examples[0]&&<ExampleBox example={word.examples[0]}/>}
-   </div>
-   <button className="btn" onClick={onReady} style={{marginTop:8}}>Запомнил — проверим</button>
+   <div className="dock"><button className="btn" onClick={onReady}>Запомнил — проверим</button></div>
   </>
  );
 }
@@ -44,43 +55,48 @@ export function Recall({item,onAnswer,onNext}:Props){
  const [done,setDone]=useState(false);
  const [saving,setSaving]=useState(false);
  useEffect(()=>{setOpen(false);setDone(false);setSaving(false)},[item.id]);
+ const revealed=useRevealed(open);
  const word=item.word;
  return (
   <>
-   <p className="prompt">Вспомни слово</p>
-   <p className="greek" style={{margin:'6px 0'}}>{word.russian}</p>
-   <p className="prompt">Как это будет по-гречески?</p>
-   <WordArt word={word}/>
-   {!open?(
-    <div className="actions" style={{width:'100%'}}>
-     <button className="btn" onClick={()=>setOpen(true)}>Показать ответ</button>
-     <p className="hint">Сначала попробуй вспомнить самостоятельно</p>
-    </div>
-   ):(
-    <div style={{width:'100%'}}>
-     <div className="row between" style={{gap:12}}>
-      <div className="grow" style={{minWidth:0,textAlign:'left'}}>
-       <p className="greek" style={{margin:0}}>{word.greek}</p>
-       {word.ipa&&<p className="ipa" style={{margin:0}}>{word.ipa}</p>}
-      </div>
-      <SpeakButton word={word}/>
-     </div>
-     {word.examples[0]&&<div style={{textAlign:'left',marginTop:12}}><ExampleBox example={word.examples[0]}/></div>}
-     {!done?(
-      <>
-       <p className="prompt" style={{marginTop:10}}>Насколько легко вспомнилось?</p>
-       <div className="grades">
-        {GRADES.map(grade=>(
-         <button key={grade.rating} className="grade" disabled={saving}
-          onClick={async()=>{setSaving(true);const saved=await onAnswer({correct:null,rating:grade.rating,text:''});setSaving(false);setDone(saved)}}>
-          <b>{grade.title}</b><span>{grade.hint}</span>
-         </button>
-        ))}
+   <div className="center">
+    <p className="prompt">Вспомни слово</p>
+    <p className="greek" style={{margin:'6px 0'}}>{word.russian}</p>
+    <p className="prompt">Как это будет по-гречески?</p>
+    <WordArt word={word}/>
+    {open&&(
+     <div style={{width:'100%'}} ref={revealed}>
+      <div className="row between" style={{gap:12}}>
+       <div className="grow" style={{minWidth:0,textAlign:'left'}}>
+        <p className="greek" style={{margin:0}}>{word.greek}</p>
+        {word.ipa&&<p className="ipa" style={{margin:0}}>{word.ipa}</p>}
        </div>
-      </>
-     ):<button className="btn" style={{marginTop:14}} onClick={onNext}>Далее</button>}
-    </div>
-   )}
+       <SpeakButton word={word}/>
+      </div>
+      {word.examples[0]&&<div style={{textAlign:'left',marginTop:12}}><ExampleBox example={word.examples[0]}/></div>}
+     </div>
+    )}
+   </div>
+   <div className="dock">
+    {!open?(
+     <>
+      <button className="btn" onClick={()=>setOpen(true)}>Показать ответ</button>
+      <p className="hint">Сначала попробуй вспомнить самостоятельно</p>
+     </>
+    ):!done?(
+     <>
+      <p className="prompt">Насколько легко вспомнилось?</p>
+      <div className="grades">
+       {GRADES.map(grade=>(
+        <button key={grade.rating} className="grade" disabled={saving}
+         onClick={async()=>{setSaving(true);const saved=await onAnswer({correct:null,rating:grade.rating,text:''});setSaving(false);setDone(saved)}}>
+         <b>{grade.title}</b><span>{grade.hint}</span>
+        </button>
+       ))}
+      </div>
+     </>
+    ):<button className="btn" onClick={onNext}>Далее</button>}
+   </div>
   </>
  );
 }
@@ -89,31 +105,34 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
  const [picked,setPicked]=useState<string|null>(null);
  const [saving,setSaving]=useState(false);
  useEffect(()=>{setPicked(null);setSaving(false)},[item.id]);
+ const revealed=useRevealed(!!picked);
  return (
   <>
-   <p className="prompt">{prompt}</p>
-   {head}
-   {art&&<WordArt word={item.word}/>}
-   <div className="options" style={{width:'100%',marginTop:10}}>
-    {options.map(option=>(
-     <button key={option} className={`option ${picked?option===correct?'correct':option===picked?'wrong':'':''}`} disabled={!!picked||saving}
-      onClick={async()=>{
-       setSaving(true);
-       const saved=await onAnswer({correct:option===correct,rating:option===correct?3:1,text:option});
-       setSaving(false);
-       if(saved)setPicked(option);
-      }}>{option}</button>
-    ))}
-   </div>
-   {picked&&(
-    <div style={{width:'100%'}}>
-     <div className={`feedback ${picked===correct?'ok':'bad'}`}>
-      {picked===correct?'Правильно!':`Правильный ответ: ${correct}`}
-     </div>
-     {item.word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={item.word.examples[0]}/></div>}
-     <button className="btn" onClick={onNext}>Далее</button>
+   <div className="center">
+    <p className="prompt">{prompt}</p>
+    {head}
+    {art&&<WordArt word={item.word}/>}
+    <div className="options" style={{width:'100%'}}>
+     {options.map(option=>(
+      <button key={option} className={`option ${picked?option===correct?'correct':option===picked?'wrong':'':''}`} disabled={!!picked||saving}
+       onClick={async()=>{
+        setSaving(true);
+        const saved=await onAnswer({correct:option===correct,rating:option===correct?3:1,text:option});
+        setSaving(false);
+        if(saved)setPicked(option);
+       }}>{option}</button>
+     ))}
     </div>
-   )}
+    {picked&&(
+     <div style={{width:'100%'}} ref={revealed}>
+      <div className={`feedback ${picked===correct?'ok':'bad'}`} style={{marginTop:0}}>
+       {picked===correct?'Правильно!':`Правильный ответ: ${correct}`}
+      </div>
+      {item.word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={item.word.examples[0]}/></div>}
+     </div>
+    )}
+   </div>
+   {picked&&<div className="dock"><button className="btn" onClick={onNext}>Далее</button></div>}
   </>
  );
 }
@@ -138,6 +157,7 @@ export function Spelling({item,onAnswer,onNext}:Props){
  const [result,setResult]=useState<{status:'correct'|'almost'|'wrong';message:string}|null>(null);
  const [saving,setSaving]=useState(false);
  useEffect(()=>{setValue('');setResult(null);setSaving(false)},[item.id]);
+ const revealed=useRevealed(!!result);
  const word=item.word;
  const submit=async(event:React.FormEvent)=>{
   event.preventDefault();
@@ -150,30 +170,37 @@ export function Spelling({item,onAnswer,onNext}:Props){
  };
  return (
   <>
-   <p className="prompt">Напишите по-гречески</p>
-   <p className="greek" style={{margin:'6px 0'}}>{word.russian}</p>
-   <WordArt word={word}/>
-   <form style={{width:'100%',marginTop:12}} onSubmit={submit}>
-    <input className="answer" type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={!!result||saving}
-     autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Ваш ответ по-гречески" lang="el"/>
-    {!result&&<button className="btn" type="submit" style={{marginTop:12}} disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</button>}
-   </form>
-   {result&&(
-    <div style={{width:'100%'}}>
-     <div className={`feedback ${result.status==='correct'?'ok':result.status==='almost'?'almost':'bad'}`}>
-      <div>{result.message}</div>
-      {result.status!=='correct'&&(
-       <p className="chars" style={{margin:'6px 0 0'}}>
-        {diffChars(value,word.greek).map((part,index)=>part.type==='same'?<b key={index}>{part.text}</b>:part.type==='wrong'?<s key={index}>{part.text}</s>:<u key={index}>{part.text}</u>)}
-       </p>
-      )}
-      {result.status!=='correct'&&<p className="small" style={{margin:'4px 0 0',opacity:.85}}>Зелёное — совпало, красное — лишнее, подчёркнутое — пропущено.</p>}
-      {result.status!=='correct'&&<p className="small" style={{margin:'6px 0 0'}}>Правильно: {word.greek}</p>}
+   <div className="center">
+    <p className="prompt">Напишите по-гречески</p>
+    <p className="greek" style={{margin:'6px 0'}}>{word.russian}</p>
+    <WordArt word={word}/>
+    {result&&(
+     <div style={{width:'100%'}} ref={revealed}>
+      <div className={`feedback ${result.status==='correct'?'ok':result.status==='almost'?'almost':'bad'}`} style={{marginTop:0}}>
+       <div>{result.message}</div>
+       {result.status!=='correct'&&(
+        <>
+         <p className="chars" style={{margin:'6px 0 0'}}>
+          {diffChars(value,word.greek).map((part,index)=>part.type==='same'?<b key={index}>{part.text}</b>:part.type==='wrong'?<s key={index}>{part.text}</s>:<u key={index}>{part.text}</u>)}
+         </p>
+         <p className="small" style={{margin:'4px 0 0',opacity:.85}}>Зелёное — совпало, красное — лишнее, подчёркнутое — пропущено.</p>
+         <p className="small" style={{margin:'6px 0 0'}}>Правильно: {word.greek}</p>
+        </>
+       )}
+      </div>
+      {word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={word.examples[0]}/></div>}
      </div>
-     {word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={word.examples[0]}/></div>}
-     <button className="btn" onClick={onNext}>Далее</button>
-    </div>
-   )}
+    )}
+   </div>
+   <div className="dock">
+    {!result?(
+     <form onSubmit={submit}>
+      <input className="answer" type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
+       autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Ваш ответ по-гречески" lang="el"/>
+      <button className="btn" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</button>
+     </form>
+    ):<button className="btn" onClick={onNext}>Далее</button>}
+   </div>
   </>
  );
 }
