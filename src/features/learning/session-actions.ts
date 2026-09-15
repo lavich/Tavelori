@@ -1,9 +1,10 @@
 import {makeSession} from '../../domain/learning';
+import {hasGreekVoice} from '../../shared/audio';
 import type {Session, Snapshot} from '../../domain/types';
 import {db} from '../../storage/db';
 
 export async function startSession(data:Snapshot,now:Date,options:{wordIds?:string[];mode?:'scheduled'|'practice'}={}):Promise<Session|null>{
- const session=makeSession({data,now,...options});
+ const session=makeSession({data,now,hasVoice:hasGreekVoice(),...options});
  if(!session.items.length)return null;
  await db.sessions.add(session);
  return session;

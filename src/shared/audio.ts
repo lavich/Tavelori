@@ -5,6 +5,8 @@ import type {Word} from '../domain/types';
 export type AudioKind='file'|'voice'|'none';
 let cachedVoice:SpeechSynthesisVoice|null|undefined;
 let current:HTMLAudioElement|null=null;
+// Список голосов приходит асинхронно, поэтому сбрасываем кеш, когда браузер его обновил.
+if(typeof speechSynthesis!=='undefined'){speechSynthesis.getVoices();speechSynthesis.addEventListener('voiceschanged',()=>{cachedVoice=undefined})}
 
 function greekVoice():SpeechSynthesisVoice|null{
  if(typeof speechSynthesis==='undefined')return null;
@@ -14,6 +16,7 @@ function greekVoice():SpeechSynthesisVoice|null{
  cachedVoice=voices.find(voice=>voice.lang?.toLowerCase().startsWith('el'))??null;
  return cachedVoice;
 }
+export const hasGreekVoice=()=>!!greekVoice();
 export function audioKind(word:Word|undefined):AudioKind{
  if(!word)return 'none';
  if(word.audioAssetId)return 'file';

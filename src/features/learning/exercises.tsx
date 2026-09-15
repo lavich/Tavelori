@@ -7,7 +7,8 @@ import {playWord, useAudioKind} from '../../shared/audio';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from '../words/WordCardView';
 
 export interface Answer {correct:boolean|null;rating:1|2|3|4;text:string;status?:'correct'|'almost'|'wrong'}
-interface Props {item:SessionItem;onAnswer:(answer:Answer)=>void;onNext:()=>void}
+/** onAnswer возвращает false, если запись не удалась: тогда упражнение остаётся открытым для повтора. */
+interface Props {item:SessionItem;onAnswer:(answer:Answer)=>Promise<boolean>;onNext:()=>void}
 
 const GRADES:{rating:1|2|3|4;title:string;hint:string}[]=[
  {rating:1,title:'Не вспомнил',hint:'покажем снова сегодня'},
@@ -41,7 +42,8 @@ export function Introduction({word,onReady}:{word:Word;onReady:()=>void}){
 export function Recall({item,onAnswer,onNext}:Props){
  const [open,setOpen]=useState(false);
  const [done,setDone]=useState(false);
- useEffect(()=>{setOpen(false);setDone(false)},[item.id]);
+ const [saving,setSaving]=useState(false);
+ useEffect(()=>{setOpen(false);setDone(false);setSaving(false)},[item.id]);
  const word=item.word;
  return (
   <>
@@ -69,7 +71,8 @@ export function Recall({item,onAnswer,onNext}:Props){
        <p className="prompt" style={{marginTop:10}}>Насколько легко вспомнилось?</p>
        <div className="grades">
         {GRADES.map(grade=>(
-         <button key={grade.rating} className="grade" onClick={()=>{setDone(true);onAnswer({correct:null,rating:grade.rating,text:''})}}>
+         <button key={grade.rating} className="grade" disabled={saving}
+          onClick={async()=>{setSaving(true);const saved=await onAnswer({correct:null,rating:grade.rating,text:''});setSaving(false);setDone(saved)}}>
           <b>{grade.title}</b><span>{grade.hint}</span>
          </button>
         ))}
@@ -84,7 +87,8 @@ export function Recall({item,onAnswer,onNext}:Props){
 
 function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{prompt:string;head:React.ReactNode;options:string[];correct:string;art:boolean}){
  const [picked,setPicked]=useState<string|null>(null);
- useEffect(()=>setPicked(null),[item.id]);
+ const [saving,setSaving]=useState(false);
+ useEffect(()=>{setPicked(null);setSaving(false)},[item.id]);
  return (
   <>
    <p className="prompt">{prompt}</p>
@@ -92,8 +96,13 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
    {art&&<WordArt word={item.word}/>}
    <div className="options" style={{width:'100%',marginTop:10}}>
     {options.map(option=>(
-     <button key={option} className={`option ${picked?option===correct?'correct':option===picked?'wrong':'':''}`} disabled={!!picked}
-      onClick={()=>{setPicked(option);onAnswer({correct:option===correct,rating:option===correct?3:1,text:option})}}>{option}</button>
+     <button key={option} className={`option ${picked?option===correct?'correct':option===picked?'wrong':'':''}`} disabled={!!picked||saving}
+      onClick={async()=>{
+       setSaving(true);
+       const saved=await onAnswer({correct:option===correct,rating:option===correct?3:1,text:option});
+       setSaving(false);
+       if(saved)setPicked(option);
+      }}>{option}</button>
     ))}
    </div>
    {picked&&(
@@ -127,14 +136,17 @@ export function Listening(props:Props){
 export function Spelling({item,onAnswer,onNext}:Props){
  const [value,setValue]=useState('');
  const [result,setResult]=useState<{status:'correct'|'almost'|'wrong';message:string}|null>(null);
- useEffect(()=>{setValue('');setResult(null)},[item.id]);
+ const [saving,setSaving]=useState(false);
+ useEffect(()=>{setValue('');setResult(null);setSaving(false)},[item.id]);
  const word=item.word;
- const submit=(event:React.FormEvent)=>{
+ const submit=async(event:React.FormEvent)=>{
   event.preventDefault();
-  if(!value.trim()||result)return;
+  if(!value.trim()||result||saving)return;
   const checked=checkAnswer(value,word.greek);
-  setResult(checked);
-  onAnswer({correct:checked.status==='correct',rating:checked.status==='correct'?3:1,text:value,status:checked.status});
+  setSaving(true);
+  const saved=await onAnswer({correct:checked.status==='correct',rating:checked.status==='correct'?3:1,text:value,status:checked.status});
+  setSaving(false);
+  if(saved)setResult(checked);
  };
  return (
   <>
@@ -142,9 +154,9 @@ export function Spelling({item,onAnswer,onNext}:Props){
    <p className="greek" style={{margin:'6px 0'}}>{word.russian}</p>
    <WordArt word={word}/>
    <form style={{width:'100%',marginTop:12}} onSubmit={submit}>
-    <input className="answer" type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={!!result}
+    <input className="answer" type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={!!result||saving}
      autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Ваш ответ по-гречески" lang="el"/>
-    {!result&&<button className="btn" type="submit" style={{marginTop:12}} disabled={!value.trim()}>Проверить</button>}
+    {!result&&<button className="btn" type="submit" style={{marginTop:12}} disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</button>}
    </form>
    {result&&(
     <div style={{width:'100%'}}>

@@ -22,19 +22,22 @@ export function SessionScreen(){
   if(!session||sessionId)return;
   setSessionId(session.id);
   setCursor(session.items.findIndex(entry=>!entry.eventId)); // продолжаем с первого неотвеченного
+  active.current={ms:session.activeTimeMs,since:Date.now()}; // время прошлых заходов не теряется
  },[session?.id]);
  const [cursor,setCursor]=useState<number|null>(null);
- const [phase,setPhase]=useState<'intro'|'check'>('intro');
+ const [introduced,setIntroduced]=useState<string|null>(null);
  const [problem,setProblem]=useState('');
  const shown=useRef(Date.now());
  const active=useRef({ms:0,since:Date.now()});
+ const previous=useRef<string|undefined>(undefined);
  const position=cursor??session?.items.findIndex(entry=>!entry.eventId)??0;
  const item=session&&position>=0?session.items[position]:undefined;
 
  useEffect(()=>{
   shown.current=Date.now();
+  if(previous.current&&!document.hidden)active.current.ms+=Date.now()-active.current.since;
+  previous.current=item?.id;
   active.current.since=Date.now();
-  setPhase(item?.isNew?'intro':'check');
   stopAudio();
  },[item?.id]);
  useEffect(()=>{
@@ -62,7 +65,7 @@ export function SessionScreen(){
  }
 
  const activeMs=()=>active.current.ms+(document.hidden?0:Date.now()-active.current.since);
- const answer=async({correct,rating,text}:Answer)=>{
+ const answer=async({correct,rating,text}:Answer):Promise<boolean>=>{
   setProblem('');
   try{
    await submitAnswer({
@@ -70,8 +73,10 @@ export function SessionScreen(){
     responseTimeMs:Date.now()-shown.current,activeTimeMs:activeMs(),
     timezone:data.settings.timezone,
    });
+   return true;
   }catch(error){
    setProblem(error instanceof ConflictError?error.message:'Не удалось сохранить ответ. Проверьте место на устройстве и попробуйте ещё раз.');
+   return false;
   }
  };
  const next=()=>{
@@ -83,12 +88,13 @@ export function SessionScreen(){
   await endSession({...session,activeTimeMs:activeMs()});
   navigate('/');
  };
- const view=phase==='intro'&&item.isNew
-  ?<Introduction word={item.word} onReady={()=>{shown.current=Date.now();setPhase('check')}}/>
-  :item.type==='recognition'?<Recognition item={item} onAnswer={answer} onNext={next}/>
-  :item.type==='listening'?<Listening item={item} onAnswer={answer} onNext={next}/>
-  :item.type==='spelling'?<Spelling item={item} onAnswer={answer} onNext={next}/>
-  :<Recall item={item} onAnswer={answer} onNext={next}/>;
+ // key по упражнению: иначе следующее слово успевает показаться с ответом предыдущего.
+ const view=item.isNew&&introduced!==item.id
+  ?<Introduction key={item.id} word={item.word} onReady={()=>{shown.current=Date.now();setIntroduced(item.id)}}/>
+  :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next}/>
+  :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next}/>
+  :item.type==='spelling'?<Spelling key={item.id} item={item} onAnswer={answer} onNext={next}/>
+  :<Recall key={item.id} item={item} onAnswer={answer} onNext={next}/>;
 
  return (
   <main className="session">

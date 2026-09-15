@@ -23,8 +23,8 @@ export function progress(data:Snapshot,now:Date):Progress{
  });
  const live=new Set(data.words.filter(word=>!word.deletedAt).map(word=>word.id));
  const states=data.states.filter(state=>live.has(state.wordId));
- const at=(date:string)=>Date.parse(`${date}T23:59:59Z`)+ (0);
- const dueBefore=(date:string)=>states.filter(state=>new Date(state.card.due).getTime()<=at(date)).length;
+ // Срок сравниваем по календарной дате в зоне пользователя, а не по границе суток UTC.
+ const dueBefore=(date:string)=>states.filter(state=>localDay(new Date(state.card.due),timezone)<=date).length;
  return {
   days,skills,
   due:{today:dueBefore(today),tomorrow:dueBefore(addDays(today,1)),week:dueBefore(addDays(today,7))},

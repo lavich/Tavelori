@@ -93,6 +93,19 @@ describe('дневной бюджет и состав занятия',()=>{
   const plan=makePlan(base({words:pool,states}),now);
   expect(plan.reviews.map(review=>review.word.id)).toEqual([ids[2],ids[1],ids[0]]);
  });
+ it('аудирование доступно и без своего файла, если есть системный греческий голос',()=>{
+  const history=(['recall','recognition','spelling'] as ExerciseType[]).map((type,index)=>({
+   id:`${type}`,sessionId:'s',itemId:`${type}`,wordId:ids[0],snapshot:{greek:'',russian:''},
+   type,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',
+   createdAt:`2026-09-1${index}T09:00:00Z`,localDate:`2026-09-1${index}`,responseTimeMs:900,
+  }));
+  const data=base({words:pool,states:[learned(ids[0],'2026-09-14T08:00:00Z')],events:history});
+  const silent=makeSession({data,now,random:()=>0.5,hasVoice:false}).items.find(item=>item.wordId===ids[0])!;
+  expect(silent.type).not.toBe('listening');
+  const spoken=makeSession({data,now,random:()=>0.5,hasVoice:true}).items.find(item=>item.wordId===ids[0])!;
+  expect(spoken.type).toBe('listening');
+  expect(new Set(spoken.options).size).toBe(4);
+ });
  it('ручная тренировка набора берёт указанные слова в режиме practice',()=>{
   const data=base({words:pool,lessons:[lesson('l1',ids,'2026-09-18')]});
   const session=makeSession({data,now,random:()=>0.5,mode:'practice',wordIds:ids.slice(0,3)});
@@ -183,6 +196,17 @@ describe('статистика',()=>{
   expect(stats.skills.every(skill=>skill.rate===null)).toBe(true);
   expect(stats.days).toHaveLength(7);
   expect(stats.groups.fresh).toBe(3);
+ });
+ it('сроки считает по календарю выбранной зоны, а не по суткам UTC',()=>{
+  const pool=words(2);
+  // 22:00 UTC — это уже 01:00 следующего дня в Никосии, значит «сегодня» такое повторение не готово.
+  const states=[
+   {...learned(pool[0].id,'2026-09-15T22:00:00Z')},
+   {...learned(pool[1].id,'2026-09-15T12:00:00Z')},
+  ];
+  const stats=progress(base({words:pool,states}),now);
+  expect(stats.due.today).toBe(1);
+  expect(stats.due.tomorrow).toBe(2);
  });
  it('считает дни по локальной полуночи выбранной зоны',()=>{
   const pool=words(2);

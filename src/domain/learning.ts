@@ -105,8 +105,8 @@ export function optionsFor(word:Word,pool:Word[],type:ExerciseType,random:()=>nu
  return shuffle([key(word),...shuffle(unique,random).slice(0,3).map(key)],random);
 }
 
-export interface SessionInput {data:Snapshot;now:Date;random?:()=>number;mode?:'scheduled'|'practice';wordIds?:string[]}
-export function makeSession({data,now,random=Math.random,mode='scheduled',wordIds}:SessionInput):Session{
+export interface SessionInput {data:Snapshot;now:Date;random?:()=>number;mode?:'scheduled'|'practice';wordIds?:string[];hasVoice?:boolean}
+export function makeSession({data,now,random=Math.random,mode='scheduled',wordIds,hasVoice=false}:SessionInput):Session{
  const plan=makePlan(data,now);
  const pool=alive(data.words);
  const states=new Map(data.states.map(s=>[s.wordId,s]));
@@ -124,7 +124,7 @@ export function makeSession({data,now,random=Math.random,mode='scheduled',wordId
  }
  const id=`s-${now.getTime().toString(36)}-${Math.floor(random()*1e6).toString(36)}`;
  const items:SessionItem[]=chosen.map((entry,index)=>{
-  const hasAudio=!!entry.word.audioAssetId;
+  const hasAudio=!!entry.word.audioAssetId||hasVoice; // системный греческий голос тоже даёт аудирование
   const type:ExerciseType=entry.isNew?'recall':chooseType(entry.word.id,data.events,hasAudio,pool.length>=4);
   const options=type==='recognition'||type==='listening'?optionsFor(entry.word,pool,type,random):[];
   const fallback:ExerciseType=(type==='recognition'||type==='listening')&&options.length===0?'recall':type;
