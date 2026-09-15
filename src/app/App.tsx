@@ -1,4 +1,6 @@
-import {Suspense, useEffect, useState} from 'react';
+import {Suspense, useEffect} from 'react';
+import {toast} from 'sonner';
+import {Toaster} from '@/components/ui/sonner';
 import {Navigate, Route, Routes, useLocation} from 'react-router-dom';
 import {Nav} from './Nav';
 import {updateReady} from '../main';
@@ -16,17 +18,20 @@ import {SettingsScreen} from '../features/more/SettingsScreen';
 import {ImportScreen} from '../features/more/ImportScreen';
 import {BackupScreen} from '../features/backup/BackupScreen';
 import ui from '../shared/ui.module.css';
-import {cx} from '../shared/cx';
 
 export function App(){
  const {pathname}=useLocation();
  const immersive=pathname.startsWith('/session');
- const [update,setUpdate]=useState(updateReady.value);
  useEffect(()=>{
-  const notice=()=>setUpdate(true);
+  // Обновление предлагаем между занятиями, чтобы не прервать ответ.
+  const notice=()=>{
+   if(immersive)return;
+   toast('Есть обновление приложения',{duration:Infinity,action:{label:'Обновить',onClick:()=>updateReady.apply()}});
+  };
+  if(updateReady.value)notice();
   window.addEventListener('lexi:update',notice);
   return()=>window.removeEventListener('lexi:update',notice);
- },[]);
+ },[immersive]);
  return (
   <div className={ui.app}>
    <Suspense fallback={null}>
@@ -47,13 +52,7 @@ export function App(){
      <Route path="*" element={<Navigate to="/" replace/>}/>
     </Routes>
    </Suspense>
-   {/* Обновление применяем только между занятиями, чтобы не прервать ответ. */}
-   {update&&!immersive&&(
-    <div className={ui.toast} role="status">
-     Есть обновление приложения
-     <button className={cx(ui.btn, ui.btnSmall, ui.ghost)} style={{marginLeft:12,display:'inline-flex'}} onClick={()=>updateReady.apply()}>Обновить</button>
-    </div>
-   )}
+   <Toaster position="bottom-center" offset={immersive?16:88}/>
    {!immersive&&<Nav/>}
   </div>
  );

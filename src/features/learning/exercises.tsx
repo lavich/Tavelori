@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
+import {Button} from '@/components/ui/button';
 import {Volume2} from 'lucide-react';
 import type {SessionItem, Word} from '../../domain/types';
 import {checkAnswer} from '../../domain/import';
@@ -49,7 +50,7 @@ export function Introduction({word,onReady}:{word:Word;onReady:()=>void}){
      {word.examples[0]&&<ExampleBox example={word.examples[0]}/>}
     </div>
    </div>
-   <div className={s.dock}><button className={ui.btn} onClick={onReady}>Запомнил — проверим</button></div>
+   <div className={s.dock}><Button size="xl" onClick={onReady}>Запомнил — проверим</Button></div>
   </>
  );
 }
@@ -84,7 +85,7 @@ export function Recall({item,onAnswer,onNext}:Props){
    <div className={s.dock}>
     {!open?(
      <>
-      <button className={ui.btn} onClick={()=>setOpen(true)}>Показать ответ</button>
+      <Button size="xl" onClick={()=>setOpen(true)}>Показать ответ</Button>
       <p className={ui.hint}>Сначала попробуй вспомнить самостоятельно</p>
      </>
     ):!done?(
@@ -92,14 +93,16 @@ export function Recall({item,onAnswer,onNext}:Props){
       <p className={s.prompt} data-testid="prompt">Насколько легко вспомнилось?</p>
       <div className={s.grades}>
        {GRADES.map(grade=>(
-        <button key={grade.rating} className={s.grade} data-testid="grade" disabled={saving}
+        <Button key={grade.rating} variant="outline" data-testid="grade" disabled={saving}
+         className="h-14 flex-col gap-0.5 rounded-[14px] font-semibold"
          onClick={async()=>{setSaving(true);const saved=await onAnswer({correct:null,rating:grade.rating,text:''});setSaving(false);setDone(saved)}}>
-         <b>{grade.title}</b><span>{grade.hint}</span>
-        </button>
+         <span>{grade.title}</span>
+         <span className="text-xs font-normal text-muted-foreground">{grade.hint}</span>
+        </Button>
        ))}
       </div>
      </>
-    ):<button className={ui.btn} onClick={onNext}>Далее</button>}
+    ):<Button size="xl" onClick={onNext}>Далее</Button>}
    </div>
   </>
  );
@@ -118,13 +121,14 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
     {art&&<WordArt word={item.word}/>}
     <div className={s.options} style={{width:'100%'}}>
      {options.map(option=>(
-      <button key={option} data-testid="option" className={cx(s.option, picked&&(option===correct?s.correct:option===picked?s.wrong:''))} disabled={!!picked||saving}
+      <Button key={option} data-testid="option" variant="outline" disabled={!!picked||saving}
+       className={cx('h-14 justify-start rounded-[14px] text-[17px]', picked&&(option===correct?s.correct:option===picked?s.wrong:''))}
        onClick={async()=>{
         setSaving(true);
         const saved=await onAnswer({correct:option===correct,rating:option===correct?3:1,text:option});
         setSaving(false);
         if(saved)setPicked(option);
-       }}>{option}</button>
+       }}>{option}</Button>
      ))}
     </div>
     {picked&&(
@@ -136,7 +140,7 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
      </div>
     )}
    </div>
-   {picked&&<div className={s.dock}><button className={ui.btn} onClick={onNext}>Далее</button></div>}
+   {picked&&<div className={s.dock}><Button size="xl" onClick={onNext}>Далее</Button></div>}
   </>
  );
 }
@@ -153,7 +157,7 @@ export function Listening(props:Props){
  const played=useRef(false);
  useEffect(()=>{if(!played.current){played.current=true;playWord(word)}},[word.id]);
  return <Choice {...props} prompt="Что вы услышали?" art={false} correct={word.greek} options={props.item.options}
-  head={<button className={wordCss.speak} style={{width:76,height:76}} disabled={kind==='none'} aria-label="Повторить аудио" onClick={()=>playWord(word)}><Volume2 size={32} aria-hidden/></button>}/>;
+  head={<Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={()=>playWord(word)}><Volume2 aria-hidden/></Button>}/>;
 }
 
 export function Spelling({item,onAnswer,onNext}:Props){
@@ -201,9 +205,9 @@ export function Spelling({item,onAnswer,onNext}:Props){
      <form onSubmit={submit}>
       <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
        autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Ваш ответ по-гречески" lang="el"/>
-      <button className={ui.btn} type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</button>
+      <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
      </form>
-    ):<button className={ui.btn} onClick={onNext}>Далее</button>}
+    ):<Button size="xl" onClick={onNext}>Далее</Button>}
    </div>
   </>
  );

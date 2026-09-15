@@ -1,6 +1,9 @@
 import {useState} from 'react';
-import {Pencil} from 'lucide-react';
+import {Button} from '@/components/ui/button';
+import {Info, Pencil} from 'lucide-react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
+import {Alert, AlertDescription} from '@/components/ui/alert';
+import {Badge} from '@/components/ui/badge';
 import {BackBar} from '../../app/TopBar';
 import {useNow} from '../../shared/clock';
 import {shortTitle} from '../../shared/format';
@@ -28,7 +31,7 @@ export function WordScreen(){
  return (
   <>
    <BackBar title={lessons[0]?lessons[0].title:'Слово'}
-    right={<Link className={ui.iconBtn} to={`/words/${word.id}/edit`} aria-label="Редактировать слово"><Pencil size={22}/></Link>}/>
+    right={<Button variant="ghost" size="icon-lg" className="size-11" aria-label="Редактировать слово" render={<Link to={`/words/${word.id}/edit`}/>}><Pencil/></Button>}/>
    <main className={ui.screen}>
     <WordArt word={word}/>
     <div className={cx(ui.row, ui.between)} style={{margin:'16px 0 2px',gap:12}}>
@@ -43,9 +46,11 @@ export function WordScreen(){
     <ReadingNotes word={word}/>
     {word.examples.length
      ?word.examples.map((example,index)=><ExampleBox key={index} example={example}/>)
-     :<section className={cx(ui.card, ui.flat, ui.small, ui.muted)}>Примера употребления пока нет. <Link to={`/words/${word.id}/edit`}>Добавить пример</Link></section>}
-    <p>{lessons.map(lesson=><Link key={lesson.id} to={`/lessons/${lesson.id}`} style={{textDecoration:'none',marginRight:8}}><span className={ui.chip}>{shortTitle(lesson.title)}</span></Link>)}</p>
-    <button className={cx(ui.btn, ui.ghost)} onClick={practice}>Потренировать слово</button>
+     :<Alert className="mb-3"><Info/><AlertDescription>
+       Примера употребления пока нет. <Link to={`/words/${word.id}/edit`}>Добавить пример</Link>
+      </AlertDescription></Alert>}
+    <p>{lessons.map(lesson=><Link key={lesson.id} to={`/lessons/${lesson.id}`} style={{textDecoration:'none',marginRight:8}}><Badge variant="soft" className="h-7 px-3 text-sm">{shortTitle(lesson.title)}</Badge></Link>)}</p>
+    <Button variant="soft" size="xl" onClick={practice}>Потренировать слово</Button>
     {problem&&<p className={ui.error}>{problem}</p>}
    </main>
   </>

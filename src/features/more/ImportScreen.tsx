@@ -1,5 +1,11 @@
 import {useMemo, useState} from 'react';
+import {Button} from '@/components/ui/button';
 import {useNavigate} from 'react-router-dom';
+import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
+import {Field, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
+import {Textarea} from '@/components/ui/textarea';
 import {BackBar} from '../../app/TopBar';
 import {parseImport, wordKey} from '../../domain/import';
 import {withCount, WORDS} from '../../shared/format';
@@ -42,11 +48,13 @@ export function ImportScreen(){
    <BackBar title="Импорт слов"/>
    <main className={ui.screen}>
     <p className={cx(ui.muted, ui.small)}>Вставьте список из Quizlet: строки «слово / перевод» подряд или колонки через табуляцию. До нажатия «Сохранить» данные не меняются.</p>
-    <label htmlFor="text">Текст списка</label>
-    <textarea id="text" value={text} onChange={event=>setText(event.target.value)} placeholder={'το σπίτι\nдом\nτο νερό\nвода'}/>
+    <Field>
+     <FieldLabel htmlFor="text">Текст списка</FieldLabel>
+     <Textarea id="text" className="min-h-40" value={text} onChange={event=>setText(event.target.value)}
+      placeholder={'το σπίτι\nдом\nτο νερό\nвода'}/>
+    </Field>
     {text.trim()&&(
-     <section className={ui.card}>
-      <h3>Предпросмотр</h3>
+     <Card className="mt-3 mb-3"><CardHeader><CardTitle>Предпросмотр</CardTitle></CardHeader><CardContent>
       <p className={cx(ui.small, ui.muted)} style={{margin:'0 0 8px'}}>
        Режим: {parsed.mode==='tsv'?'колонки через табуляцию':'чередование строк'} · распознано {withCount(parsed.rows.length,WORDS)} ·
        служебных строк пропущено {parsed.ignored} · ошибок {parsed.errors.length}
@@ -60,25 +68,36 @@ export function ImportScreen(){
        ))}
        {parsed.rows.length>8&&<p className={cx(ui.small, ui.muted)} style={{margin:0}}>…и ещё {parsed.rows.length-8}</p>}
       </div>
-     </section>
+     </CardContent></Card>
     )}
-    <label htmlFor="target">Куда добавить</label>
-    <select id="target" value={target} onChange={event=>setTarget(event.target.value)}>
-     <option value="new">Новый набор</option>
-     {data.lessons.map(lesson=><option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
-    </select>
+    <Field>
+     <FieldLabel htmlFor="target">Куда добавить</FieldLabel>
+     <Select value={target} onValueChange={value=>setTarget(value??'new')}>
+      <SelectTrigger id="target" className="w-full"><SelectValue/></SelectTrigger>
+      <SelectContent>
+       <SelectGroup>
+        <SelectItem value="new">Новый набор</SelectItem>
+        {data.lessons.map(lesson=><SelectItem key={lesson.id} value={lesson.id}>{lesson.title}</SelectItem>)}
+       </SelectGroup>
+      </SelectContent>
+     </Select>
+    </Field>
     {target==='new'&&(
      <>
-      <label htmlFor="title">Название набора</label>
-      <input id="title" type="text" value={title} onChange={event=>setTitle(event.target.value)}/>
-      <label htmlFor="date">Дата занятия</label>
-      <input id="date" type="date" value={date} onChange={event=>setDate(event.target.value)}/>
+      <Field>
+       <FieldLabel htmlFor="title">Название набора</FieldLabel>
+       <Input id="title" value={title} onChange={event=>setTitle(event.target.value)}/>
+      </Field>
+      <Field>
+       <FieldLabel htmlFor="date">Дата занятия</FieldLabel>
+       <Input id="date" type="date" value={date} onChange={event=>setDate(event.target.value)}/>
+      </Field>
      </>
     )}
     {problem&&<p className={ui.error} role="alert">{problem}</p>}
-    <button className={ui.btn} style={{marginTop:16}} disabled={busy||!parsed.rows.length} onClick={save}>
+    <Button size="xl" style={{marginTop:16}} disabled={busy||!parsed.rows.length} onClick={save}>
      Сохранить {parsed.rows.length?withCount(parsed.rows.length,WORDS):''}
-    </button>
+    </Button>
    </main>
   </>
  );

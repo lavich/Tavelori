@@ -1,6 +1,12 @@
 import {useEffect, useMemo, useState} from 'react';
-import {ChevronRight} from 'lucide-react';
+import {ChevronRight, Inbox} from 'lucide-react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
+import {Button} from '@/components/ui/button';
+import {Card, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
+import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from '@/components/ui/empty';
+import {Field, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle} from '@/components/ui/item';
 import {BackBar} from '../../app/TopBar';
 import {makePlan} from '../../domain/learning';
 import {useNow} from '../../shared/clock';
@@ -9,7 +15,6 @@ import {useLesson, useSnapshot} from '../../shared/store';
 import {removeFromLesson, saveLesson} from '../../storage/ops';
 import {startSession} from '../learning/session-actions';
 import ui from '../../shared/ui.module.css';
-import {cx} from '../../shared/cx';
 
 export function LessonScreen(){
  const {id}=useParams();
@@ -36,35 +41,54 @@ export function LessonScreen(){
   <>
    <BackBar title={lesson.title}/>
    <main className={ui.screen}>
-    <section className={cx(ui.card, ui.soft)}>
-     <p className={ui.small} style={{margin:'0 0 4px',color:'#1d4ed8'}}>{lesson.targetDate?`Занятие ${dayMonth(lesson.targetDate)}`:'Дата не назначена'}</p>
-     <p style={{margin:'0 0 4px',fontSize:20,fontWeight:600}}>{withCount(words.length,WORDS)}, новых {notStarted}</p>
-     <p className={cx(ui.small, ui.muted)} style={{margin:0}}>
-      {deadline
-       ?deadline.daysLeft===0?'Сегодня день занятия — идёт догоняющая подготовка.':`${withCount(deadline.daysLeft,DAYS)} на подготовку, нужный темп — ${withCount(deadline.requiredPerDay,WORDS)} в день`
-       :lesson.status==='completed'?'Набор проведён, слова остаются в обычной очереди повторений.':'Дата в прошлом или не задана — слова идут в общей очереди.'}
-     </p>
-    </section>
-    <label htmlFor="date">Дата занятия</label>
-    <input id="date" type="date" value={date} onChange={event=>{setDate(event.target.value);setSaved(false)}}/>
-    <div className={ui.split} style={{marginTop:12}}>
-     <button className={ui.btn} onClick={applyDate}>Сохранить дату</button>
-     <button className={cx(ui.btn, ui.quiet)} onClick={toggle}>{lesson.status==='completed'?'Вернуть в предстоящие':'Отметить проведённым'}</button>
+    <Card className="mb-3 bg-soft ring-0">
+     <CardHeader>
+      <CardDescription className="text-accent-foreground">{lesson.targetDate?`Занятие ${dayMonth(lesson.targetDate)}`:'Дата не назначена'}</CardDescription>
+      <CardTitle className="text-xl font-semibold">{withCount(words.length,WORDS)}, новых {notStarted}</CardTitle>
+      <CardDescription>
+       {deadline
+        ?deadline.daysLeft===0?'Сегодня день занятия — идёт догоняющая подготовка.':`${withCount(deadline.daysLeft,DAYS)} на подготовку, нужный темп — ${withCount(deadline.requiredPerDay,WORDS)} в день`
+        :lesson.status==='completed'?'Набор проведён, слова остаются в обычной очереди повторений.':'Дата в прошлом или не задана — слова идут в общей очереди.'}
+      </CardDescription>
+     </CardHeader>
+    </Card>
+    <Field>
+     <FieldLabel htmlFor="date">Дата занятия</FieldLabel>
+     <Input id="date" type="date" value={date} onChange={event=>{setDate(event.target.value);setSaved(false)}}/>
+    </Field>
+    <div className="mt-3 grid grid-cols-2 gap-2.5">
+     <Button size="md" onClick={applyDate}>Сохранить дату</Button>
+     <Button size="md" variant="quiet" className="whitespace-normal leading-tight" onClick={toggle}>{lesson.status==='completed'?'Вернуть в предстоящие':'Отметить проведённым'}</Button>
     </div>
-    {saved&&<p className={ui.small} role="status" style={{color:'var(--ok)'}}>Дата сохранена, план пересчитан. История ответов не изменилась.</p>}
-    <button className={cx(ui.btn, ui.ghost)} style={{marginTop:12}} onClick={practice}>Потренировать набор</button>
+    {saved&&<p className="mt-2 text-sm text-(--ok)" role="status">Дата сохранена, план пересчитан. История ответов не изменилась.</p>}
+    <Button size="xl" variant="soft" className="mt-3" onClick={practice}>Потренировать набор</Button>
     <h2>Слова набора</h2>
-    {words.map(word=>word&&(
-     <div className={ui.item} key={word.id}>
-      <Link className={ui.grow} to={`/words/${word.id}`} style={{textDecoration:'none',color:'inherit'}}>
-       <span className={ui.title}>{word.greek}</span>
-       <span className={ui.sub}>{word.russian}</span>
-      </Link>
-      <button className={cx(ui.btn, ui.btnSmall, ui.quiet)} onClick={()=>removeFromLesson(lesson.id,word.id)}>Убрать</button>
-      <ChevronRight size={18} className={ui.badge} aria-hidden/>
-     </div>
-    ))}
-    {!words.length&&<p className={ui.muted}>В наборе пока нет слов. <Link to="/more/import">Импортируйте список</Link>.</p>}
+    <ItemGroup className="gap-2.5">
+     {words.map(word=>word&&(
+      <Item key={word.id} variant="outline" className="relative min-h-16 rounded-[var(--radius-card)] bg-card">
+       <ItemContent>
+        <ItemTitle className="text-base">
+         <Link to={`/words/${word.id}`} className="text-foreground no-underline after:absolute after:inset-0">{word.greek}</Link>
+        </ItemTitle>
+        <ItemDescription>{word.russian}</ItemDescription>
+       </ItemContent>
+       <ItemActions>
+        <Button size="sm" variant="quiet" className="relative z-10" onClick={()=>removeFromLesson(lesson.id,word.id)}>Убрать</Button>
+        <ChevronRight className="text-muted-foreground"/>
+       </ItemActions>
+      </Item>
+     ))}
+    </ItemGroup>
+    {!words.length&&(
+     <Empty>
+      <EmptyHeader>
+       <EmptyMedia variant="icon"><Inbox/></EmptyMedia>
+       <EmptyTitle>В наборе пока нет слов</EmptyTitle>
+       <EmptyDescription>Импортируйте список из Quizlet или добавьте слова вручную.</EmptyDescription>
+      </EmptyHeader>
+      <Button size="md" variant="soft" className="w-auto" render={<Link to="/more/import"/>}>Импортировать слова</Button>
+     </Empty>
+    )}
    </main>
   </>
  );

@@ -1,13 +1,17 @@
 import {useEffect, useState} from 'react';
 import {Trash2} from 'lucide-react';
 import {useNavigate, useParams} from 'react-router-dom';
+import {AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger} from '@/components/ui/alert-dialog';
+import {Button} from '@/components/ui/button';
+import {Card, CardContent} from '@/components/ui/card';
+import {Field, FieldDescription, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
 import {BackBar} from '../../app/TopBar';
 import type {Example, Word} from '../../domain/types';
 import {checkMedia} from '../../shared/media';
 import {useWord} from '../../shared/store';
 import {deleteWord, putAsset, saveWord} from '../../storage/ops';
 import ui from '../../shared/ui.module.css';
-import {cx} from '../../shared/cx';
 
 const emptyExample:Example={greek:'',russian:'',target:''};
 
@@ -18,6 +22,7 @@ export function WordEditorScreen(){
  const [draft,setDraft]=useState<Word|null>(null);
  const [problem,setProblem]=useState('');
  const [saved,setSaved]=useState(false);
+ const [confirming,setConfirming]=useState(false);
  useEffect(()=>{if(stored&&!draft)setDraft(stored)},[stored]);
  if(!draft)return <><BackBar title="Редактор"/><main className={ui.screen}><p className={ui.muted}>Слово не найдено.</p></main></>;
 
@@ -48,44 +53,82 @@ export function WordEditorScreen(){
    <BackBar title="Редактор слова"/>
    <main className={ui.screen}>
     <form onSubmit={submit}>
-     <label htmlFor="greek">Греческое слово (с артиклем)</label>
-     <input id="greek" type="text" value={draft.greek} onChange={event=>patch({greek:event.target.value})}/>
-     <label htmlFor="russian">Перевод</label>
-     <input id="russian" type="text" value={draft.russian} onChange={event=>patch({russian:event.target.value})}/>
-     <label htmlFor="ipa">Транскрипция IPA</label>
-     <input id="ipa" type="text" value={draft.ipa} onChange={event=>patch({ipa:event.target.value,verified:false})} placeholder="/to ˈspiti/"/>
-     <p className={cx(ui.small, ui.muted)}>{draft.verified?'Фонетика проверена при подготовке исходного набора.':'Ваша запись хранится как пользовательская и не считается проверенной.'}</p>
+     <FieldGroup>
+      <Field data-invalid={!!problem||undefined}>
+       <FieldLabel htmlFor="greek">Греческое слово (с артиклем)</FieldLabel>
+       <Input id="greek" value={draft.greek} aria-invalid={!!problem||undefined} onChange={event=>patch({greek:event.target.value})}/>
+      </Field>
+      <Field data-invalid={!!problem||undefined}>
+       <FieldLabel htmlFor="russian">Перевод</FieldLabel>
+       <Input id="russian" value={draft.russian} aria-invalid={!!problem||undefined} onChange={event=>patch({russian:event.target.value})}/>
+      </Field>
+      <Field>
+       <FieldLabel htmlFor="ipa">Транскрипция IPA</FieldLabel>
+       <Input id="ipa" value={draft.ipa} placeholder="/to ˈspiti/" onChange={event=>patch({ipa:event.target.value,verified:false})}/>
+       <FieldDescription>
+        {draft.verified?'Фонетика проверена при подготовке исходного набора.':'Ваша запись хранится как пользовательская и не считается проверенной.'}
+       </FieldDescription>
+      </Field>
+     </FieldGroup>
 
      <h2>Примеры употребления</h2>
      {draft.examples.map((example,index)=>(
-      <div className={ui.card} key={index}>
-       <label htmlFor={`ex-g-${index}`}>Предложение по-гречески</label>
-       <input id={`ex-g-${index}`} type="text" value={example.greek} onChange={event=>patchExample(index,{greek:event.target.value})}/>
-       <label htmlFor={`ex-r-${index}`}>Перевод</label>
-       <input id={`ex-r-${index}`} type="text" value={example.russian} onChange={event=>patchExample(index,{russian:event.target.value})}/>
-       <label htmlFor={`ex-t-${index}`}>Форма слова в предложении</label>
-       <input id={`ex-t-${index}`} type="text" value={example.target} onChange={event=>patchExample(index,{target:event.target.value})}/>
-       <button type="button" className={cx(ui.btn, ui.quiet)} style={{marginTop:10}}
-        onClick={()=>patch({examples:draft.examples.filter((_,i)=>i!==index)})}>Удалить пример</button>
-      </div>
+      <Card key={index} className="mb-3">
+       <CardContent>
+        <FieldGroup>
+         <Field>
+          <FieldLabel htmlFor={`ex-g-${index}`}>Предложение по-гречески</FieldLabel>
+          <Input id={`ex-g-${index}`} value={example.greek} onChange={event=>patchExample(index,{greek:event.target.value})}/>
+         </Field>
+         <Field>
+          <FieldLabel htmlFor={`ex-r-${index}`}>Перевод</FieldLabel>
+          <Input id={`ex-r-${index}`} value={example.russian} onChange={event=>patchExample(index,{russian:event.target.value})}/>
+         </Field>
+         <Field>
+          <FieldLabel htmlFor={`ex-t-${index}`}>Форма слова в предложении</FieldLabel>
+          <Input id={`ex-t-${index}`} value={example.target} onChange={event=>patchExample(index,{target:event.target.value})}/>
+         </Field>
+        </FieldGroup>
+        <Button size="md" variant="quiet" type="button" className="mt-2.5"
+         onClick={()=>patch({examples:draft.examples.filter((_,i)=>i!==index)})}>Удалить пример</Button>
+       </CardContent>
+      </Card>
      ))}
-     <button type="button" className={cx(ui.btn, ui.ghost)} onClick={()=>patch({examples:[...draft.examples,{...emptyExample}]})}>Добавить пример</button>
+     <Button size="xl" variant="soft" type="button" onClick={()=>patch({examples:[...draft.examples,{...emptyExample}]})}>Добавить пример</Button>
 
      <h2>Медиа</h2>
-     <label htmlFor="image">Изображение (PNG, JPEG, WebP, SVG, до 3 МБ)</label>
-     <input id="image" type="file" accept="image/*" onChange={event=>upload(event.target.files?.[0],'image')}/>
-     <label htmlFor="audio">Аудиофайл (MP3, OGG, WAV, M4A, до 5 МБ)</label>
-     <input id="audio" type="file" accept="audio/*" onChange={event=>upload(event.target.files?.[0],'audio')}/>
-     <p className={cx(ui.small, ui.muted)}>{draft.audioAssetId?'Аудиофайл сохранён в базе.':'Файла нет — слово озвучивается системным греческим голосом, если он доступен.'}</p>
+     <FieldGroup>
+      <Field>
+       <FieldLabel htmlFor="image">Изображение (PNG, JPEG, WebP, SVG, до 3 МБ)</FieldLabel>
+       <Input id="image" type="file" accept="image/*" onChange={event=>upload(event.target.files?.[0],'image')}/>
+      </Field>
+      <Field>
+       <FieldLabel htmlFor="audio">Аудиофайл (MP3, OGG, WAV, M4A, до 5 МБ)</FieldLabel>
+       <Input id="audio" type="file" accept="audio/*" onChange={event=>upload(event.target.files?.[0],'audio')}/>
+       <FieldDescription>
+        {draft.audioAssetId?'Аудиофайл сохранён в базе.':'Файла нет — слово озвучивается системным греческим голосом, если он доступен.'}
+       </FieldDescription>
+      </Field>
+     </FieldGroup>
 
      {problem&&<p className={ui.error} role="alert">{problem}</p>}
-     <button className={ui.btn} type="submit" style={{marginTop:16}}>Сохранить</button>
-     {saved&&<p className={ui.small} style={{color:'var(--ok)'}} role="status">Сохранено.</p>}
+     <Button size="xl" type="submit" className="mt-4">Сохранить</Button>
+     {saved&&<p className="mt-2 text-sm text-(--ok)" role="status">Сохранено.</p>}
     </form>
-    <button className={cx(ui.btn, ui.quiet)} style={{marginTop:24}}
-     onClick={async()=>{if(confirm('Убрать слово из тренировок? История ответов останется.')){await deleteWord(draft.id);navigate('/words')}}}>
-     <Trash2 size={18} aria-hidden/>Удалить слово
-    </button>
+
+    <AlertDialog open={confirming} onOpenChange={setConfirming}>
+     <AlertDialogTrigger render={<Button size="md" variant="quiet" className="mt-6"><Trash2 data-icon="inline-start"/>Удалить слово</Button>}/>
+     <AlertDialogContent>
+      <AlertDialogHeader>
+       <AlertDialogTitle>Убрать слово из тренировок?</AlertDialogTitle>
+       <AlertDialogDescription>История ответов останется, статистика не изменится. Слово исчезнет из очереди и наборов.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+       <AlertDialogCancel>Отмена</AlertDialogCancel>
+       <AlertDialogAction onClick={async()=>{setConfirming(false);await deleteWord(draft.id);navigate('/words')}}>Удалить</AlertDialogAction>
+      </AlertDialogFooter>
+     </AlertDialogContent>
+    </AlertDialog>
    </main>
   </>
  );

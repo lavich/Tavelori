@@ -1,10 +1,13 @@
 import {useEffect, useRef, useState} from 'react';
+import {Button} from '@/components/ui/button';
 import {X} from 'lucide-react';
 import {useLiveQuery} from 'dexie-react-hooks';
 import {useNavigate} from 'react-router-dom';
 import type {Grade} from 'ts-fsrs';
 import {stopAudio} from '../../shared/audio';
 import {useSnapshot} from '../../shared/store';
+import {Progress} from '@/components/ui/progress';
+import {Skeleton} from '@/components/ui/skeleton';
 import {db} from '../../storage/db';
 import {ConflictError, endSession, submitAnswer} from '../../storage/ops';
 import {Introduction, Listening, Recall, Recognition, Spelling, type Answer} from './exercises';
@@ -55,13 +58,17 @@ export function SessionScreen(){
   if(session&&session.items.length&&position<0)navigate(`/session/result/${session.id}`,{replace:true});
  },[session?.id,position]);
 
- if(session===undefined)return <main className={s.session}><p className={ui.muted}>Загружаем занятие…</p></main>;
+ if(session===undefined)return (
+  <main className={s.session}>
+   <div className="flex flex-col gap-3 py-6"><Skeleton className="h-8 w-40"/><Skeleton className="h-48 w-full"/><Skeleton className="h-14 w-full"/></div>
+  </main>
+ );
  if(!session||!item){
   const other=activeSession(data);
   return (
    <main className={s.session}>
     <p className={ui.muted}>Активного занятия нет.</p>
-    <button className={ui.btn} onClick={()=>navigate(other?'/session':'/')}>На главную</button>
+    <Button size="xl" onClick={()=>navigate(other?'/session':'/')}>На главную</Button>
    </main>
   );
  }
@@ -101,8 +108,8 @@ export function SessionScreen(){
  return (
   <main className={s.session}>
    <div className={s.top}>
-    <button className={ui.iconBtn} onClick={leave} aria-label="Закрыть занятие"><X size={24}/></button>
-    <div className={s.progress}><i style={{width:`${(position/session.items.length)*100}%`}}/></div>
+    <Button variant="ghost" size="icon-lg" className="size-11" onClick={leave} aria-label="Закрыть занятие"><X/></Button>
+    <Progress value={(position/session.items.length)*100} className="h-2 flex-1"/>
     <span className={s.counter} aria-label={`Упражнение ${position+1} из ${session.items.length}`}>{position+1} / {session.items.length}</span>
    </div>
    <div className={s.body}>{view}</div>

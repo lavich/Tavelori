@@ -40,10 +40,11 @@ test('полная копия переносит слова, правки и м�
  await fresh.getByRole('link',{name:/Копия данных/}).click();
  await fresh.locator('#backup').setInputFiles(file);
  await expect(fresh.getByText(/Файл проверен/)).toBeVisible();
- fresh.on('dialog',dialog=>dialog.accept());
+ await fresh.getByRole('button',{name:'Заменить данные копией'}).click();
+ await expect(fresh.getByRole('alertdialog')).toBeVisible();
  const [saved]=await Promise.all([
   fresh.waitForEvent('download'),
-  fresh.getByRole('button',{name:'Заменить данные копией'}).click(),
+  fresh.getByRole('button',{name:'Заменить',exact:true}).click(),
  ]);
  expect(saved.suggestedFilename()).toContain('before-restore');
  await expect(fresh.getByText('Данные восстановлены полностью.')).toBeVisible();

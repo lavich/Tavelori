@@ -1,4 +1,9 @@
 import {useState} from 'react';
+import {Button} from '@/components/ui/button';
+import {AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger} from '@/components/ui/alert-dialog';
+import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
+import {Field, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
 import {BackBar} from '../../app/TopBar';
 import {megabytes} from '../../shared/offline';
 import {useSnapshot} from '../../shared/store';
@@ -13,6 +18,7 @@ export function BackupScreen(){
  const [problem,setProblem]=useState('');
  const [status,setStatus]=useState('');
  const [busy,setBusy]=useState(false);
+ const [confirming,setConfirming]=useState(false);
 
  const pick=async(picked:File|undefined)=>{
   setReport(null);setProblem('');setStatus('');setFile(picked??null);
@@ -22,7 +28,6 @@ export function BackupScreen(){
  };
  const restore=async()=>{
   if(!file||!report)return;
-  if(!confirm('Заменить все данные на этом устройстве содержимым копии? Текущие слова, прогресс и настройки будут перезаписаны.'))return;
   setBusy(true);setProblem('');
   try{
    download(await exportFull(),`lexi-before-restore-${Date.now()}.json`);
@@ -36,20 +41,19 @@ export function BackupScreen(){
   <>
    <BackBar title="Копия данных"/>
    <main className={ui.screen}>
-    <section className={ui.card}>
-     <h3>Полная копия</h3>
+    <Card className="mb-3"><CardHeader><CardTitle>Полная копия</CardTitle></CardHeader><CardContent>
      <p className={cx(ui.small, ui.muted)}>Слова, наборы, картинки и аудио, прогресс FSRS, ответы, сессии и настройки. Этот файл переносит всё.</p>
-     <button className={ui.btn} onClick={async()=>{setBusy(true);download(await exportFull(),backupName());setBusy(false)}} disabled={busy}>Скачать полную копию</button>
-    </section>
-    <section className={ui.card}>
-     <h3>Только слова (TSV)</h3>
+     <Button size="xl" onClick={async()=>{setBusy(true);download(await exportFull(),backupName());setBusy(false)}} disabled={busy}>Скачать полную копию</Button>
+    </CardContent></Card>
+    <Card className="mb-3"><CardHeader><CardTitle>Только слова (TSV)</CardTitle></CardHeader><CardContent>
      <p className={cx(ui.small, ui.muted)}>Греческий, перевод и IPA для переноса в другие приложения. Прогресс обучения в этот файл не входит.</p>
-     <button className={cx(ui.btn, ui.ghost)} onClick={()=>download(exportWordsTsv(data),'lexi-words.tsv')}>Скачать TSV</button>
-    </section>
-    <section className={ui.card}>
-     <h3>Восстановление</h3>
-     <label htmlFor="backup">Файл полной копии</label>
-     <input id="backup" type="file" accept="application/json,.json" onChange={event=>pick(event.target.files?.[0])}/>
+     <Button variant="soft" size="xl" onClick={()=>download(exportWordsTsv(data),'lexi-words.tsv')}>Скачать TSV</Button>
+    </CardContent></Card>
+    <Card className="mb-3"><CardHeader><CardTitle>Восстановление</CardTitle></CardHeader><CardContent>
+     <Field>
+      <FieldLabel htmlFor="backup">Файл полной копии</FieldLabel>
+      <Input id="backup" type="file" accept="application/json,.json" onChange={event=>pick(event.target.files?.[0])}/>
+     </Field>
      {report&&(
       <div className={ui.small} style={{marginTop:10}}>
        <p style={{margin:'0 0 4px'}}>Файл проверен: база «{report.databaseName}», {megabytes(report.bytes)}{report.createdAt?`, копия от ${new Date(report.createdAt).toLocaleString('ru-RU')}`:''}.</p>
@@ -58,9 +62,24 @@ export function BackupScreen(){
      )}
      {problem&&<p className={ui.error} role="alert">{problem}</p>}
      {status&&<p className={ui.small} role="status" style={{color:'var(--ok)'}}>{status}</p>}
-     <button className={cx(ui.btn, ui.danger)} style={{marginTop:12}} disabled={!report||busy} onClick={restore}>Заменить данные копией</button>
+     <AlertDialog open={confirming} onOpenChange={setConfirming}>
+      <AlertDialogTrigger render={<Button variant="destructive" size="xl" className="mt-3" disabled={!report||busy}>Заменить данные копией</Button>}/>
+      <AlertDialogContent>
+       <AlertDialogHeader>
+        <AlertDialogTitle>Заменить все данные на этом устройстве?</AlertDialogTitle>
+        <AlertDialogDescription>
+         Текущие слова, прогресс, ответы и настройки будут перезаписаны содержимым копии.
+         Перед заменой Lexi сохранит текущие данные отдельным файлом.
+        </AlertDialogDescription>
+       </AlertDialogHeader>
+       <AlertDialogFooter>
+        <AlertDialogCancel>Отмена</AlertDialogCancel>
+        <AlertDialogAction onClick={()=>{setConfirming(false);restore()}}>Заменить</AlertDialogAction>
+       </AlertDialogFooter>
+      </AlertDialogContent>
+     </AlertDialog>
      <p className={cx(ui.small, ui.muted)}>Перед заменой Lexi сохранит текущие данные отдельным файлом.</p>
-    </section>
+    </CardContent></Card>
    </main>
   </>
  );

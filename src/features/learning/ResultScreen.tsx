@@ -1,4 +1,8 @@
 import {useMemo} from 'react';
+import {Info} from 'lucide-react';
+import {Alert, AlertDescription} from '@/components/ui/alert';
+import {Button} from '@/components/ui/button';
+import {Card, CardContent} from '@/components/ui/card';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useLiveQuery} from 'dexie-react-hooks';
 import {formatDay, localDay} from '../../domain/learning';
@@ -8,7 +12,6 @@ import {useSnapshot} from '../../shared/store';
 import {db} from '../../storage/db';
 import {startSession} from './session-actions';
 import ui from '../../shared/ui.module.css';
-import {cx} from '../../shared/cx';
 
 export function ResultScreen(){
  const {id}=useParams();
@@ -38,24 +41,30 @@ export function ResultScreen(){
   <main className={ui.screen} style={{paddingTop:24}}>
    <h1>Занятие завершено</h1>
    <div className={ui.tiles}>
-    <div className={ui.tile}><div className={ui.big}>{words.size}</div><div className={ui.tileLabel}>{plural(words.size,WORDS)} в занятии</div></div>
-    <div className={ui.tile}><div className={ui.big}>{events.length}</div><div className={ui.tileLabel}>упражнений выполнено</div></div>
+    <Card size="sm"><CardContent>
+     <div className="text-[30px] leading-tight font-bold text-primary">{words.size}</div>
+     <div className="text-sm text-muted-foreground">{plural(words.size,WORDS)} в занятии</div>
+    </CardContent></Card>
+    <Card size="sm"><CardContent>
+     <div className="text-[30px] leading-tight font-bold text-primary">{events.length}</div>
+     <div className="text-sm text-muted-foreground">упражнений выполнено</div>
+    </CardContent></Card>
    </div>
-   <section className={ui.card}>
-    <p style={{margin:'0 0 6px'}}>Ошибок: <b>{mistakes.length}</b></p>
-    <p className={cx(ui.small, ui.muted)} style={{margin:'0 0 6px'}}>
+   <Card className="mb-3"><CardContent className="flex flex-col gap-1.5">
+    <p className="m-0">Ошибок: <b>{mistakes.length}</b></p>
+    <p className="m-0 text-sm text-muted-foreground">
      {objective.length
       ?`Объективная точность (выбор, аудирование, написание): ${Math.round(objective.filter(event=>event.correct).length/objective.length*100)}% из ${withCount(objective.length,['ответа','ответов','ответов'])}`
       :'Объективных проверок в этом занятии не было — только самооценка.'}
     </p>
-    <p className={cx(ui.small, ui.muted)} style={{margin:0}}>Активное время: {minutes(session?.activeTimeMs??0)}</p>
-   </section>
+    <p className="m-0 text-sm text-muted-foreground">Активное время: {minutes(session?.activeTimeMs??0)}</p>
+   </CardContent></Card>
    {mistakeWords.length>0&&(
     readyAgain.length>0
-     ?<button className={cx(ui.btn, ui.ghost)} onClick={repeat}>Повторить ошибки ({readyAgain.length})</button>
-     :<p className={cx(ui.card, ui.flat, ui.small, ui.muted)}>Слова с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,data.settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</p>
+     ?<Button variant="soft" size="xl" onClick={repeat}>Повторить ошибки ({readyAgain.length})</Button>
+     :<Alert className="mb-3"><Info/><AlertDescription>Слова с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,data.settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</AlertDescription></Alert>
    )}
-   <button className={ui.btn} style={{marginTop:12}} onClick={()=>navigate('/')}>Готово</button>
+   <Button size="xl" style={{marginTop:12}} onClick={()=>navigate('/')}>Готово</Button>
   </main>
  );
 }

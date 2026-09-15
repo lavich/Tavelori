@@ -1,11 +1,12 @@
-import {ChevronRight, Download, Settings, Upload, BarChart3, WifiOff, Wifi} from 'lucide-react';
+import {BarChart3, ChevronRight, Download, Settings, Upload, Wifi, WifiOff} from 'lucide-react';
 import {Link} from 'react-router-dom';
+import {Card, CardContent} from '@/components/ui/card';
+import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
 import {withCount, WORDS} from '../../shared/format';
 import {megabytes, useOfflineStatus} from '../../shared/offline';
 import {liveWords, useSnapshot} from '../../shared/store';
 import ui from '../../shared/ui.module.css';
-import {cx} from '../../shared/cx';
 
 const LINKS=[
  {to:'/more/stats',label:'Статистика',sub:'Ответы, сроки и слабые навыки',Icon:BarChart3},
@@ -21,28 +22,35 @@ export function MoreScreen(){
    <BrandBar/>
    <main className={ui.screen}>
     <h1>Ещё</h1>
-    <section className={ui.card}>
-     <p className={ui.row} style={{gap:10,margin:'0 0 6px'}}>
-      {offline.ready?<Wifi size={20} className={ui.muted} aria-hidden/>:<WifiOff size={20} className={ui.muted} aria-hidden/>}
-      <b>{offline.checking?'Проверяем офлайн-режим…':offline.ready?'Готово офлайн':'Офлайн-пакет ещё готовится'}</b>
-     </p>
-     <p className={cx(ui.small, ui.muted)} style={{margin:0}}>
-      {offline.ready
-       ?'Приложение и исходные карточки открываются без сети.'
-       :'Оставьте страницу открытой на несколько секунд — файлы загружаются в кеш.'}
-      {offline.quota>0&&` Занято ${megabytes(offline.usage)} из ${megabytes(offline.quota)}.`}
-      {offline.persisted?' Хранилище защищено от автоочистки.':' Браузер может очистить данные — делайте полную копию.'}
-     </p>
-     {offline.problem&&<p className={ui.error} style={{marginBottom:0}}>{offline.problem}</p>}
-    </section>
-    {LINKS.map(({to,label,sub,Icon})=>(
-     <Link className={ui.item} key={to} to={to}>
-      <Icon size={20} className={ui.muted} aria-hidden/>
-      <span className={ui.grow}><span className={ui.title}>{label}</span><span className={ui.sub}>{sub}</span></span>
-      <ChevronRight size={20} className={ui.badge} aria-hidden/>
-     </Link>
-    ))}
-    <p className={cx(ui.small, ui.muted)} style={{marginTop:18}}>
+    <Card className="mb-3">
+     <CardContent className="flex flex-col gap-1.5">
+      <p className="m-0 flex items-center gap-2.5 font-semibold">
+       {offline.ready?<Wifi className="size-5 text-muted-foreground"/>:<WifiOff className="size-5 text-muted-foreground"/>}
+       {offline.checking?'Проверяем офлайн-режим…':offline.ready?'Готово офлайн':'Офлайн-пакет ещё готовится'}
+      </p>
+      <p className="m-0 text-sm text-muted-foreground">
+       {offline.ready
+        ?'Приложение и исходные карточки открываются без сети.'
+        :'Оставьте страницу открытой на несколько секунд — файлы загружаются в кеш.'}
+       {offline.quota>0&&` Занято ${megabytes(offline.usage)} из ${megabytes(offline.quota)}.`}
+       {offline.persisted?' Хранилище защищено от автоочистки.':' Браузер может очистить данные — делайте полную копию.'}
+      </p>
+      {offline.problem&&<p className={ui.error}>{offline.problem}</p>}
+     </CardContent>
+    </Card>
+    <ItemGroup className="gap-2.5">
+     {LINKS.map(({to,label,sub,Icon})=>(
+      <Item key={to} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={to}/>}>
+       <ItemMedia variant="icon"><Icon/></ItemMedia>
+       <ItemContent>
+        <ItemTitle className="text-base">{label}</ItemTitle>
+        <ItemDescription>{sub}</ItemDescription>
+       </ItemContent>
+       <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
+      </Item>
+     ))}
+    </ItemGroup>
+    <p className="mt-5 text-sm text-muted-foreground">
      Lexi хранит {withCount(liveWords(data).length,WORDS)} и {withCount(data.events.length,['ответ','ответа','ответов'])} только на этом устройстве. Регистрация и сервер не нужны.
     </p>
    </main>

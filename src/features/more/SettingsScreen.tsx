@@ -1,4 +1,8 @@
 import {useEffect, useState} from 'react';
+import {Button} from '@/components/ui/button';
+import {Field, FieldDescription, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {BackBar} from '../../app/TopBar';
 import {useSnapshot} from '../../shared/store';
 import {saveSettings} from '../../storage/ops';
@@ -31,17 +35,36 @@ export function SettingsScreen(){
    <BackBar title="Настройки"/>
    <main className={ui.screen}>
     <form onSubmit={submit}>
-     <label htmlFor="daily">Новых слов в день</label>
-     <input id="daily" type="number" min={0} max={100} value={daily} onChange={event=>{setDaily(event.target.value);setSaved(false)}}/>
-     <label htmlFor="size">Упражнений в занятии</label>
-     <input id="size" type="number" min={2} max={100} value={size} onChange={event=>{setSize(event.target.value);setSaved(false)}}/>
-     <label htmlFor="zone">Часовой пояс</label>
-     <select id="zone" value={zone} onChange={event=>{setZone(event.target.value);setSaved(false)}}>
-      {ZONES.map(item=><option key={item} value={item}>{item}</option>)}
-     </select>
+     <FieldGroup>
+      <Field data-invalid={problem.includes('лимит')||undefined}>
+       <FieldLabel htmlFor="daily">Новых слов в день</FieldLabel>
+       <Input id="daily" type="number" min={0} max={100} value={daily}
+        aria-invalid={problem.includes('лимит')||undefined}
+        onChange={event=>{setDaily(event.target.value);setSaved(false)}}/>
+       <FieldDescription>Сколько новых слов Lexi может ввести за сутки.</FieldDescription>
+      </Field>
+      <Field data-invalid={problem.includes('Размер')||undefined}>
+       <FieldLabel htmlFor="size">Упражнений в занятии</FieldLabel>
+       <Input id="size" type="number" min={2} max={100} value={size}
+        aria-invalid={problem.includes('Размер')||undefined}
+        onChange={event=>{setSize(event.target.value);setSaved(false)}}/>
+      </Field>
+      <Field>
+       <FieldLabel htmlFor="zone">Часовой пояс</FieldLabel>
+       <Select value={zone} onValueChange={value=>{if(value)setZone(value);setSaved(false)}}>
+        <SelectTrigger id="zone" className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent>
+         <SelectGroup>
+          {ZONES.map(item=><SelectItem key={item} value={item}>{item}</SelectItem>)}
+         </SelectGroup>
+        </SelectContent>
+       </Select>
+       <FieldDescription>По этой зоне считаются дни, сроки и дневной лимит.</FieldDescription>
+      </Field>
+     </FieldGroup>
      {problem&&<p className={ui.error} role="alert">{problem}</p>}
-     <button className={ui.btn} type="submit" style={{marginTop:16}}>Сохранить</button>
-     {saved&&<p className={ui.small} role="status" style={{color:'var(--ok)'}}>Сохранено. Новые значения применятся к следующим занятиям, история ответов не изменилась.</p>}
+     <Button size="xl" type="submit" className="mt-4">Сохранить</Button>
+     {saved&&<p className="mt-2 text-sm text-(--ok)" role="status">Сохранено. Новые значения применятся к следующим занятиям, история ответов не изменилась.</p>}
     </form>
    </main>
   </>

@@ -1,14 +1,19 @@
 import {useMemo, useState} from 'react';
-import {ChevronRight, Search} from 'lucide-react';
+import {ChevronRight, Search, SearchX} from 'lucide-react';
 import {Link} from 'react-router-dom';
 import {State} from 'ts-fsrs';
+import {Badge} from '@/components/ui/badge';
+import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from '@/components/ui/empty';
+import {Field, FieldLabel} from '@/components/ui/field';
+import {InputGroup, InputGroupAddon, InputGroupInput} from '@/components/ui/input-group';
+import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle} from '@/components/ui/item';
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {BrandBar} from '../../app/TopBar';
 import {normalize} from '../../domain/import';
 import {withCount, WORDS} from '../../shared/format';
 import {liveWords, useSnapshot} from '../../shared/store';
 import type {LearningState} from '../../domain/types';
 import ui from '../../shared/ui.module.css';
-import {cx} from '../../shared/cx';
 
 type Filter='all'|'new'|'learning'|'review'|'solid';
 const FILTERS:{key:Filter;label:string}[]=[
@@ -24,14 +29,14 @@ export function WordsScreen(){
  const {data}=useSnapshot();
  const [query,setQuery]=useState('');
  const [filter,setFilter]=useState<Filter>('all');
- const [lessonId,setLessonId]=useState('');
+ const [lessonId,setLessonId]=useState('all');
  const states=useMemo(()=>new Map(data.states.map(state=>[state.wordId,state])),[data.states]);
  const found=useMemo(()=>{
   const needle=normalize(query);
   return liveWords(data)
    .filter(word=>!needle||normalize(word.greek).includes(needle)||word.russian.toLowerCase().includes(query.trim().toLowerCase()))
    .filter(word=>filter==='all'||stateGroup(states.get(word.id))===filter)
-   .filter(word=>!lessonId||data.lessons.find(lesson=>lesson.id===lessonId)?.wordIds.includes(word.id))
+   .filter(word=>lessonId==='all'||data.lessons.find(lesson=>lesson.id===lessonId)?.wordIds.includes(word.id))
    .sort((a,b)=>a.greek.localeCompare(b.greek,'el'));
  },[data,query,filter,lessonId,states]);
  return (
@@ -39,35 +44,54 @@ export function WordsScreen(){
    <BrandBar/>
    <main className={ui.screen}>
     <h1>Слова</h1>
-    <div className={ui.row} style={{gap:10,marginBottom:10}}>
-     <Search size={20} className={ui.muted} aria-hidden/>
-     <input type="search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Поиск по греческому или русскому" aria-label="Поиск слова"/>
-    </div>
-    <div className={ui.row} style={{gap:8,overflowX:'auto',paddingBottom:8}}>
+    <InputGroup className="mb-2.5">
+     <InputGroupAddon><Search/></InputGroupAddon>
+     <InputGroupInput type="search" value={query} onChange={event=>setQuery(event.target.value)}
+      placeholder="Поиск по греческому или русскому" aria-label="Поиск слова"/>
+    </InputGroup>
+    <div className="flex gap-2 overflow-x-auto pb-2">
      {FILTERS.map(item=>(
-      <button key={item.key} className={cx(ui.chip, filter!==item.key&&ui.grey)} style={{border:0,cursor:'pointer',whiteSpace:'nowrap'}}
-       aria-pressed={filter===item.key} onClick={()=>setFilter(item.key)}>{item.label}</button>
+      <Badge key={item.key} variant={filter===item.key?'default':'secondary'}
+       render={<button type="button" aria-pressed={filter===item.key} onClick={()=>setFilter(item.key)}/>}
+       className="h-8 cursor-pointer px-3.5 text-sm whitespace-nowrap">{item.label}</Badge>
      ))}
     </div>
-    <label htmlFor="lesson-filter">Набор</label>
-    <select id="lesson-filter" value={lessonId} onChange={event=>setLessonId(event.target.value)}>
-     <option value="">Все наборы</option>
-     {data.lessons.map(lesson=><option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
-    </select>
-    <p className={cx(ui.small, ui.muted)} style={{marginTop:14}}>{withCount(found.length,WORDS)}</p>
-    {found.map(word=>{
-     const group=stateGroup(states.get(word.id));
-     return (
-      <Link className={ui.item} key={word.id} to={`/words/${word.id}`}>
-       <span className={ui.grow}>
-        <span className={ui.title}>{word.greek}</span>
-        <span className={ui.sub}>{word.russian} · {FILTERS.find(f=>f.key===group)!.label.toLowerCase()}</span>
-       </span>
-       <ChevronRight size={20} className={ui.badge} aria-hidden/>
-      </Link>
-     );
-    })}
-    {!found.length&&<p className={ui.muted}>Ничего не найдено. Измените запрос или фильтр.</p>}
+    <Field>
+     <FieldLabel htmlFor="lesson-filter">Набор</FieldLabel>
+     <Select value={lessonId} onValueChange={value=>setLessonId(value??'all')}>
+      <SelectTrigger id="lesson-filter" className="w-full"><SelectValue/></SelectTrigger>
+      <SelectContent>
+       <SelectGroup>
+        <SelectItem value="all">Все наборы</SelectItem>
+        {data.lessons.map(lesson=><SelectItem key={lesson.id} value={lesson.id}>{lesson.title}</SelectItem>)}
+       </SelectGroup>
+      </SelectContent>
+     </Select>
+    </Field>
+    <p className="mt-3.5 mb-2 text-sm text-muted-foreground">{withCount(found.length,WORDS)}</p>
+    <ItemGroup className="gap-2.5">
+     {found.map(word=>{
+      const group=stateGroup(states.get(word.id));
+      return (
+       <Item key={word.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/words/${word.id}`}/>}>
+        <ItemContent>
+         <ItemTitle className="text-base">{word.greek}</ItemTitle>
+         <ItemDescription>{word.russian} · {FILTERS.find(f=>f.key===group)!.label.toLowerCase()}</ItemDescription>
+        </ItemContent>
+        <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
+       </Item>
+      );
+     })}
+    </ItemGroup>
+    {!found.length&&(
+     <Empty>
+      <EmptyHeader>
+       <EmptyMedia variant="icon"><SearchX/></EmptyMedia>
+       <EmptyTitle>Ничего не найдено</EmptyTitle>
+       <EmptyDescription>Измените запрос или снимите фильтры.</EmptyDescription>
+      </EmptyHeader>
+     </Empty>
+    )}
    </main>
   </>
  );

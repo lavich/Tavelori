@@ -1,5 +1,7 @@
 import {useState} from 'react';
 import {Volume2} from 'lucide-react';
+import {Button} from '@/components/ui/button';
+import {Card, CardContent} from '@/components/ui/card';
 import type {Example, Word} from '../../domain/types';
 import {coreWord, stressNote, stressPosition} from '../../domain/phonetics';
 import {playWord, useAudioKind} from '../../shared/audio';
@@ -20,10 +22,11 @@ export function SpeakButton({word,label='Послушать слово'}:{word:W
  const [failed,setFailed]=useState(false);
  return (
   <>
-   <button className={wordCss.speak} disabled={kind==='none'} aria-label={kind==='none'?'Озвучка недоступна':label}
+   <Button size="icon-xl" className="size-14 rounded-full [&_svg:not([class*='size-'])]:size-6.5"
+    disabled={kind==='none'} aria-label={kind==='none'?'Озвучка недоступна':label}
     onClick={()=>playWord(word).then(result=>setFailed(result==='none'))}>
-    <Volume2 size={26} aria-hidden/>
-   </button>
+    <Volume2 aria-hidden/>
+   </Button>
    {(kind==='none'||failed)&&<span className={cx(ui.small, ui.muted)}>Озвучка недоступна: нет файла и греческого голоса</span>}
   </>
  );
@@ -47,7 +50,7 @@ export function ReadingNotes({word}:{word:Word}){
  const active=open===null?null:segments[open];
  if(!note&&!segments.length)return null;
  return (
-  <section className={cx(ui.card, ui.soft)} aria-label="Как читается">
+  <Card className="mb-3 bg-soft ring-0" aria-label="Как читается"><CardContent>
    {note&&(
     <p className={ui.small} style={{margin:segments.length?'0 0 10px':0}}>{note}:{' '}
      <b style={{fontSize:19}}>
@@ -69,19 +72,19 @@ export function ReadingNotes({word}:{word:Word}){
      </p>
     </>
    )}
-  </section>
+  </CardContent></Card>
  );
 }
 
 export function ExampleBox({example,title='В контексте'}:{example:Example;title?:string}){
  const at=example.target?example.greek.indexOf(example.target):-1;
  return (
-  <section className={cx(ui.card, ui.soft)}>
+  <Card className="mb-3 bg-soft ring-0"><CardContent>
    <p className={cx(ui.small, ui.muted)} style={{margin:'0 0 6px'}}>{title}</p>
    <p style={{fontSize:20,margin:'0 0 4px'}}>
     {at<0?example.greek:<>{example.greek.slice(0,at)}<span className={wordCss.target}>{example.target}</span>{example.greek.slice(at+example.target.length)}</>}
    </p>
    <p className={cx(ui.small, ui.muted)} style={{margin:0}}>{example.russian}</p>
-  </section>
+  </CardContent></Card>
  );
 }

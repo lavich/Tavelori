@@ -1,12 +1,16 @@
 import {useState} from 'react';
 import {ChevronRight, FileText, Plus} from 'lucide-react';
 import {Link, useSearchParams} from 'react-router-dom';
+import {Button} from '@/components/ui/button';
+import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
+import {Field, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Input} from '@/components/ui/input';
+import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
 import {dativeWeekday, dayMonth, shortTitle, withCount, WORDS} from '../../shared/format';
 import {useSnapshot} from '../../shared/store';
 import {createLesson} from '../../storage/ops';
 import ui from '../../shared/ui.module.css';
-import {cx} from '../../shared/cx';
 
 export function LessonsScreen(){
  const {data}=useSnapshot();
@@ -29,31 +33,44 @@ export function LessonsScreen(){
    <BrandBar/>
    <main className={ui.screen}>
     <h1>Уроки</h1>
-    {lessons.map(lesson=>(
-     <Link className={ui.item} key={lesson.id} to={`/lessons/${lesson.id}`}>
-      <FileText size={20} aria-hidden className={ui.muted}/>
-      <span className={ui.grow}>
-       <span className={ui.title}>{shortTitle(lesson.title)} · {lesson.targetDate?`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`:'Без даты'}</span>
-       <span className={ui.sub}>{withCount(lesson.wordIds.length,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}</span>
-      </span>
-      <ChevronRight size={20} className={ui.badge} aria-hidden/>
-     </Link>
-    ))}
+    <ItemGroup className="gap-2.5">
+     {lessons.map(lesson=>(
+      <Item key={lesson.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
+       <ItemMedia variant="icon"><FileText/></ItemMedia>
+       <ItemContent>
+        <ItemTitle className="text-base">{shortTitle(lesson.title)} · {lesson.targetDate?`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`:'Без даты'}</ItemTitle>
+        <ItemDescription>{withCount(lesson.wordIds.length,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}</ItemDescription>
+       </ItemContent>
+       <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
+      </Item>
+     ))}
+    </ItemGroup>
     {open?(
-     <form className={ui.card} onSubmit={add}>
-      <h2 style={{marginTop:0}}>Новое занятие</h2>
-      <label htmlFor="title">Название</label>
-      <input id="title" type="text" value={title} onChange={event=>setTitle(event.target.value)} placeholder="Урок 1.3"/>
-      <label htmlFor="date">Дата занятия</label>
-      <input id="date" type="date" value={date} onChange={event=>setDate(event.target.value)}/>
-      {problem&&<p className={ui.error}>{problem}</p>}
-      <div className={ui.split} style={{marginTop:14}}>
-       <button className={ui.btn} type="submit">Создать</button>
-       <button className={cx(ui.btn, ui.quiet)} type="button" onClick={()=>setParams({})}>Отмена</button>
-      </div>
-     </form>
-    ):<button className={cx(ui.btn, ui.ghost)} onClick={()=>setParams({new:'1'})}><Plus size={20} aria-hidden/>Добавить занятие</button>}
-    <Link className={cx(ui.btn, ui.quiet)} to="/more/import" style={{marginTop:10}}>Импортировать слова из Quizlet</Link>
+     <Card className="mt-3">
+      <CardHeader><CardTitle className="text-lg">Новое занятие</CardTitle></CardHeader>
+      <CardContent>
+       <form onSubmit={add}>
+        <FieldGroup>
+         <Field data-invalid={!!problem||undefined}>
+          <FieldLabel htmlFor="title">Название</FieldLabel>
+          <Input id="title" value={title} placeholder="Урок 1.3" aria-invalid={!!problem||undefined}
+           onChange={event=>setTitle(event.target.value)}/>
+         </Field>
+         <Field>
+          <FieldLabel htmlFor="date">Дата занятия</FieldLabel>
+          <Input id="date" type="date" value={date} onChange={event=>setDate(event.target.value)}/>
+         </Field>
+        </FieldGroup>
+        {problem&&<p className={ui.error}>{problem}</p>}
+        <div className="mt-3.5 grid grid-cols-2 gap-2.5">
+         <Button size="md" type="submit">Создать</Button>
+         <Button size="md" variant="quiet" type="button" onClick={()=>setParams({})}>Отмена</Button>
+        </div>
+       </form>
+      </CardContent>
+     </Card>
+    ):<Button size="xl" variant="soft" className="mt-2.5" onClick={()=>setParams({new:'1'})}><Plus data-icon="inline-start"/>Добавить занятие</Button>}
+    <Button size="md" variant="quiet" className="mt-2.5" render={<Link to="/more/import"/>}>Импортировать слова из Quizlet</Button>
    </main>
   </>
  );

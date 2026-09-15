@@ -1,5 +1,6 @@
 import {ArrowLeft, Menu} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
+import {Button} from '@/components/ui/button';
 import type {ReactNode} from 'react';
 import ui from '../shared/ui.module.css';
 import top from './TopBar.module.css';
@@ -13,7 +14,7 @@ export function BrandBar({subtitle}:{subtitle?:string}){
    <span aria-hidden style={{fontSize:22}}>🇬🇷</span>
    {subtitle&&<span className={cx(ui.small, ui.muted)}>{subtitle}</span>}
    <span className={top.spacer}/>
-   <button className={ui.iconBtn} onClick={()=>navigate('/more')} aria-label="Ещё"><Menu size={24}/></button>
+   <Button variant="ghost" size="icon-lg" className="size-11" onClick={()=>navigate('/more')} aria-label="Ещё"><Menu/></Button>
   </header>
  );
 }
@@ -21,7 +22,7 @@ export function BackBar({title,right,onBack}:{title:string;right?:ReactNode;onBa
  const navigate=useNavigate();
  return (
   <header className={top.topbar}>
-   <button className={ui.iconBtn} onClick={()=>onBack?onBack():navigate(-1)} aria-label="Назад"><ArrowLeft size={24}/></button>
+   <Button variant="ghost" size="icon-lg" className="size-11 -ml-2" onClick={()=>onBack?onBack():navigate(-1)} aria-label="Назад"><ArrowLeft/></Button>
    <span className={top.spacer}/>
    <h1 className={top.title}>{title}</h1>
    <span className={top.spacer}/>

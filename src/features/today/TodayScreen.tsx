@@ -1,6 +1,10 @@
 import {useMemo, useState} from 'react';
-import {ArrowRight, CalendarDays, ChevronRight, FileText, Plus, RefreshCw} from 'lucide-react';
+import {ArrowRight, CalendarDays, ChevronRight, FileText, Plus, RefreshCw, TriangleAlert} from 'lucide-react';
 import {Link, useNavigate} from 'react-router-dom';
+import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
+import {Button} from '@/components/ui/button';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
+import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
 import {makePlan, localDay} from '../../domain/learning';
 import {useNow} from '../../shared/clock';
@@ -8,7 +12,6 @@ import {capitalize, dativeWeekday, dayMonth, DAYS, shortTitle, withCount, WORDS}
 import {useSnapshot} from '../../shared/store';
 import {activeSession, startSession} from '../learning/session-actions';
 import ui from '../../shared/ui.module.css';
-import {cx} from '../../shared/cx';
 
 export function TodayScreen(){
  const {data,ready}=useSnapshot();
@@ -42,59 +45,76 @@ export function TodayScreen(){
     <p className={ui.eyebrow}>{capitalize(new Date(`${today}T12:00:00Z`).toLocaleDateString('ru-RU',{weekday:'long',timeZone:'UTC'}))}, {dayMonth(today)}</p>
     <h1>Немного каждый день</h1>
 
-    {next&&lesson?(
-     <section className={cx(ui.card, ui.soft)}>
-      <p className={cx(ui.row, ui.small)} style={{gap:8,margin:'0 0 6px',color:'#1d4ed8'}}><CalendarDays size={18} aria-hidden/>
-       {next.daysLeft===0?'Занятие сегодня':`К ${dativeWeekday(next.targetDate)}, ${dayMonth(next.targetDate)}`}</p>
-      <h2 style={{margin:'0 0 4px',fontSize:24}}>{lesson.title}</h2>
-      <p className={cx(ui.small, ui.muted)} style={{margin:0}}>
-       {withCount(next.newLeft,WORDS)} · {next.daysLeft===0?'сегодня день занятия':`${withCount(next.daysLeft,DAYS)} на подготовку`}
-      </p>
-     </section>
-    ):(
-     <section className={cx(ui.card, ui.soft)}>
-      <h2 style={{margin:'0 0 4px',fontSize:22}}>Занятие не назначено</h2>
-      <p className={cx(ui.small, ui.muted)} style={{margin:0}}>Добавьте набор с датой, чтобы Lexi распределила слова по дням.</p>
-     </section>
-    )}
+    <Card className="mb-3 bg-soft ring-0">
+     <CardHeader>
+      {next&&lesson?(
+       <>
+        <CardDescription className="flex items-center gap-2 text-[15px] text-accent-foreground">
+         <CalendarDays/>
+         {next.daysLeft===0?'Занятие сегодня':`К ${dativeWeekday(next.targetDate)}, ${dayMonth(next.targetDate)}`}
+        </CardDescription>
+        <CardTitle className="text-2xl font-bold">{lesson.title}</CardTitle>
+        <CardDescription>
+         {withCount(next.newLeft,WORDS)} · {next.daysLeft===0?'сегодня день занятия':`${withCount(next.daysLeft,DAYS)} на подготовку`}
+        </CardDescription>
+       </>
+      ):(
+       <>
+        <CardTitle className="text-xl font-bold">Занятие не назначено</CardTitle>
+        <CardDescription>Добавьте набор с датой, чтобы Lexi распределила слова по дням.</CardDescription>
+       </>
+      )}
+     </CardHeader>
+    </Card>
 
     <div className={ui.tiles}>
-     <div className={ui.tile}>
-      <div className={ui.big}>{plan.newWords.length}</div>
-      <div className={ui.tileLabel}>{plan.budget?'новых сегодня':'новых на сегодня нет'}</div>
-     </div>
-     <div className={ui.tile}>
-      <div className={cx(ui.row, ui.small, ui.muted)} style={{gap:8}}><RefreshCw size={18} aria-hidden/>Повторение</div>
-      <div className={ui.big} style={{fontSize:26}}>{plan.reviews.length}</div>
-     </div>
+     <Card size="sm">
+      <CardContent>
+       <div className="text-[30px] leading-tight font-bold text-primary">{plan.newWords.length}</div>
+       <div className="text-sm text-muted-foreground">{plan.budget?'новых сегодня':'новых на сегодня нет'}</div>
+      </CardContent>
+     </Card>
+     <Card size="sm">
+      <CardContent>
+       <div className="flex items-center gap-2 text-sm text-muted-foreground"><RefreshCw className="size-[18px]"/>Повторение</div>
+       <div className="text-[26px] leading-tight font-bold text-primary">{plan.reviews.length}</div>
+      </CardContent>
+     </Card>
     </div>
 
     {plan.shortfall&&(
-     <p className={cx(ui.card, ui.flat, ui.small)} style={{color:'#854d0e',background:'#fffbeb',borderColor:'transparent'}}>
-      Чтобы успеть к сроку, нужно {withCount(plan.requiredPerDay,WORDS)} в день, а дневной лимит — {plan.requiredPerDay>data.settings.newWordsPerDay?data.settings.newWordsPerDay:plan.requiredPerDay}. Увеличьте лимит в настройках или перенесите дату.
-     </p>
+     <Alert variant="warning" className="mb-3">
+      <TriangleAlert/>
+      <AlertTitle>Дневного лимита не хватает</AlertTitle>
+      <AlertDescription>
+       Чтобы успеть к сроку, нужно {withCount(plan.requiredPerDay,WORDS)} в день, а лимит — {data.settings.newWordsPerDay}.
+       Увеличьте лимит в настройках или перенесите дату.
+      </AlertDescription>
+     </Alert>
     )}
 
-    <button className={ui.btn} onClick={begin} disabled={busy||!ready}>
-     {unfinished?'Продолжить занятие':'Начать занятие'}<ArrowRight size={20} aria-hidden/>
-    </button>
+    <Button size="xl" onClick={begin} disabled={busy||!ready}>
+     {unfinished?'Продолжить занятие':'Начать занятие'}<ArrowRight data-icon="inline-end"/>
+    </Button>
     {problem&&<p className={ui.error}>{problem}</p>}
 
     <h2>Мои занятия</h2>
-    {lessons.map(item=>{
-     const left=item.wordIds.filter(id=>!data.states.some(state=>state.wordId===id)).length;
-     return (
-      <Link className={ui.item} key={item.id} to={`/lessons/${item.id}`}>
-       <FileText size={20} aria-hidden className={ui.muted}/>
-       <span className={ui.grow}>
-        <span className={ui.title}>{shortTitle(item.title)} · {item.targetDate?`К ${dativeWeekday(item.targetDate)}`:'Повторение'}</span>
-        <span className={ui.sub}>{withCount(item.wordIds.length,WORDS)}{left?` · ${left} новых`:''}</span>
-       </span>
-       <ChevronRight size={20} className={ui.badge} aria-hidden/>
-      </Link>
-     );
-    })}
-    <Link className={cx(ui.btn, ui.ghost)} to="/lessons?new=1"><Plus size={20} aria-hidden/>Добавить занятие</Link>
+    <ItemGroup className="gap-2.5">
+     {lessons.map(item=>{
+      const left=item.wordIds.filter(id=>!data.states.some(state=>state.wordId===id)).length;
+      return (
+       <Item key={item.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card" render={<Link to={`/lessons/${item.id}`}/>}>
+        <ItemMedia variant="icon"><FileText/></ItemMedia>
+        <ItemContent>
+         <ItemTitle className="text-base">{shortTitle(item.title)} · {item.targetDate?`К ${dativeWeekday(item.targetDate)}`:'Повторение'}</ItemTitle>
+         <ItemDescription>{withCount(item.wordIds.length,WORDS)}{left?` · ${left} новых`:''}</ItemDescription>
+        </ItemContent>
+        <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
+       </Item>
+      );
+     })}
+    </ItemGroup>
+    <Button size="xl" variant="soft" className="mt-2.5" render={<Link to="/lessons?new=1"/>}><Plus data-icon="inline-start"/>Добавить занятие</Button>
    </main>
   </>
  );

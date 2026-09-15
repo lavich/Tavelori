@@ -1,9 +1,9 @@
 .art{width:100%;aspect-ratio:16/11;border-radius:14px;overflow:hidden;background:#eef2fa;display:block;object-fit:cover}
 .greek{font-size:40px;font-weight:700;letter-spacing:-.01em;line-height:1.1;overflow-wrap:anywhere}
 .greek.greekSmall{font-size:30px}
-.ipa{color:var(--muted);font-size:19px;margin-top:2px}
-.speak{flex:0 0 auto;width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.speak:hover{background:var(--accent-dark)}
+.ipa{color:var(--muted-foreground);font-size:19px;margin-top:2px}
+.speak{flex:0 0 auto;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.speak:hover{background:var(--primary-hover)}
 .speak:disabled{background:#c9ced8;cursor:not-allowed}
-.seg{border-bottom:2px dashed var(--accent);cursor:pointer;color:var(--accent-dark);background:none;border-top:0;border-left:0;border-right:0;padding:0;font:inherit}
-.target{color:var(--accent);font-weight:700}
+.seg{border-bottom:2px dashed var(--primary);cursor:pointer;color:var(--primary-hover);background:none;border-top:0;border-left:0;border-right:0;padding:0;font:inherit}
+.target{color:var(--primary);font-weight:700}
