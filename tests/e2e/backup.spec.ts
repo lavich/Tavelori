@@ -10,7 +10,7 @@ test('полная копия переносит слова, правки и м�
  await page.goto('/');
  await ready(page);
  // Правка, которой нет в исходном наборе: по ней и проверяем перенос.
- await page.locator('.nav').getByRole('link',{name:'Слова'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
  await page.getByRole('searchbox').fill('σπίτι');
  await page.getByRole('link',{name:/το σπίτι/}).click();
  await page.getByRole('link',{name:'Редактировать слово'}).click();
@@ -18,7 +18,7 @@ test('полная копия переносит слова, правки и м�
  await page.getByRole('button',{name:'Сохранить'}).click();
  await expect(page.getByText('Сохранено.')).toBeVisible();
 
- await page.locator('.nav').getByRole('link',{name:'Ещё'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await page.getByRole('link',{name:/Копия данных/}).click();
  const download=await Promise.all([
   page.waitForEvent('download'),
@@ -36,7 +36,7 @@ test('полная копия переносит слова, правки и м�
  const fresh=await clean.newPage();
  await fresh.goto('/');
  await ready(fresh);
- await fresh.locator('.nav').getByRole('link',{name:'Ещё'}).click();
+ await fresh.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await fresh.getByRole('link',{name:/Копия данных/}).click();
  await fresh.locator('#backup').setInputFiles(file);
  await expect(fresh.getByText(/Файл проверен/)).toBeVisible();
@@ -47,18 +47,18 @@ test('полная копия переносит слова, правки и м�
  ]);
  expect(saved.suggestedFilename()).toContain('before-restore');
  await expect(fresh.getByText('Данные восстановлены полностью.')).toBeVisible();
- await fresh.locator('.nav').getByRole('link',{name:'Слова'}).click();
+ await fresh.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
  await fresh.getByRole('searchbox').fill('σπίτι');
  await fresh.getByRole('link',{name:/το σπίτι/}).click();
  await expect(fresh.getByText('дом (моя правка)')).toBeVisible();
- await expect(fresh.locator('img.word-art')).toBeVisible();
+ await expect(fresh.getByTestId('word-art')).toBeVisible();
  await clean.close();
 });
 
 test('повреждённый и чужой файл не меняют данные',async({page})=>{
  await page.goto('/');
  await ready(page);
- await page.locator('.nav').getByRole('link',{name:'Ещё'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await page.getByRole('link',{name:/Копия данных/}).click();
  const broken=join(tmpdir(),'lexi-broken.json');
  writeFileSync(broken,'{не json');
@@ -77,6 +77,6 @@ test('повреждённый и чужой файл не меняют данн
  await expect(page.getByText(/более новой версией/)).toBeVisible();
  await expect(page.getByRole('button',{name:'Заменить данные копией'})).toBeDisabled();
 
- await page.locator('.nav').getByRole('link',{name:'Слова'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
  await expect(page.getByText('63 слова')).toBeVisible();
 });

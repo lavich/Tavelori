@@ -1,0 +1,35 @@
+.session{max-width:560px;width:100%;margin:0 auto;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 0;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.top button{margin-left:-10px}
+.counter{color:var(--muted);font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.progress{flex:1;height:8px;border-radius:999px;background:#e3e3dd;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .25s}
+.body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.center{flex:1 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:12px 0}
+
+/* Основное действие закреплено у нижнего края: за кнопкой не нужно листать карточку. */
+.dock{position:sticky;bottom:0;display:grid;gap:10px;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);box-shadow:0 -14px 18px -14px rgba(0,0,0,.22)}
+.dock form{display:grid;gap:10px}
+.dock p{margin:0}
+
+.prompt{color:var(--muted);font-size:15px}
+.grades{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.grade{min-height:56px;border-radius:14px;border:1px solid var(--line);background:var(--card);font-weight:600;cursor:pointer}
+.grade:hover{border-color:#c9c9c1}
+.grade b{display:block;font-size:16px}
+.grade span{display:block;color:var(--muted);font-size:13px;font-weight:400}
+.options{display:grid;gap:10px}
+.option{min-height:56px;border-radius:14px;border:1px solid var(--line);background:var(--card);text-align:left;padding:0 16px;font-size:17px;cursor:pointer}
+.option:hover{border-color:#c9c9c1}
+.option.correct{border-color:var(--ok);background:#ecfdf3;color:#14532d}
+.option.wrong{border-color:var(--bad);background:#fef2f2;color:#7f1d1d}
+.feedback{border-radius:14px;padding:14px 16px;margin-top:14px}
+.feedback.ok{background:#ecfdf3;color:#14532d}
+.feedback.bad{background:#fef2f2;color:#7f1d1d}
+.feedback.almost{background:#fffbeb;color:#854d0e}
+.chars{font-size:26px;letter-spacing:.02em;margin-top:6px}
+.chars b{background:#dcfce7;border-radius:4px;padding:0 1px}
+.chars s{background:#fee2e2;border-radius:4px;padding:0 1px;text-decoration:none}
+.answer{font-size:24px;text-align:center}
+
+@media (min-width:900px){.session{max-width:620px}}

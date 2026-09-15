@@ -15,6 +15,8 @@ import {StatsScreen} from '../features/progress/StatsScreen';
 import {SettingsScreen} from '../features/more/SettingsScreen';
 import {ImportScreen} from '../features/more/ImportScreen';
 import {BackupScreen} from '../features/backup/BackupScreen';
+import ui from '../shared/ui.module.css';
+import {cx} from '../shared/cx';
 
 export function App(){
  const {pathname}=useLocation();
@@ -26,7 +28,7 @@ export function App(){
   return()=>window.removeEventListener('lexi:update',notice);
  },[]);
  return (
-  <div className="app">
+  <div className={ui.app}>
    <Suspense fallback={null}>
     <Routes>
      <Route path="/" element={<TodayScreen/>}/>
@@ -47,9 +49,9 @@ export function App(){
    </Suspense>
    {/* Обновление применяем только между занятиями, чтобы не прервать ответ. */}
    {update&&!immersive&&(
-    <div className="toast" role="status">
+    <div className={ui.toast} role="status">
      Есть обновление приложения
-     <button className="btn small ghost" style={{marginLeft:12,display:'inline-flex'}} onClick={()=>updateReady.apply()}>Обновить</button>
+     <button className={cx(ui.btn, ui.btnSmall, ui.ghost)} style={{marginLeft:12,display:'inline-flex'}} onClick={()=>updateReady.apply()}>Обновить</button>
     </div>
    )}
    {!immersive&&<Nav/>}

@@ -3,6 +3,8 @@ import {BackBar} from '../../app/TopBar';
 import {megabytes} from '../../shared/offline';
 import {useSnapshot} from '../../shared/store';
 import {backupName, download, exportFull, exportWordsTsv, inspectBackup, restoreBackup, type BackupReport} from './backup';
+import ui from '../../shared/ui.module.css';
+import {cx} from '../../shared/cx';
 
 export function BackupScreen(){
  const {data}=useSnapshot();
@@ -33,31 +35,31 @@ export function BackupScreen(){
  return (
   <>
    <BackBar title="Копия данных"/>
-   <main className="screen">
-    <section className="card">
+   <main className={ui.screen}>
+    <section className={ui.card}>
      <h3>Полная копия</h3>
-     <p className="small muted">Слова, наборы, картинки и аудио, прогресс FSRS, ответы, сессии и настройки. Этот файл переносит всё.</p>
-     <button className="btn" onClick={async()=>{setBusy(true);download(await exportFull(),backupName());setBusy(false)}} disabled={busy}>Скачать полную копию</button>
+     <p className={cx(ui.small, ui.muted)}>Слова, наборы, картинки и аудио, прогресс FSRS, ответы, сессии и настройки. Этот файл переносит всё.</p>
+     <button className={ui.btn} onClick={async()=>{setBusy(true);download(await exportFull(),backupName());setBusy(false)}} disabled={busy}>Скачать полную копию</button>
     </section>
-    <section className="card">
+    <section className={ui.card}>
      <h3>Только слова (TSV)</h3>
-     <p className="small muted">Греческий, перевод и IPA для переноса в другие приложения. Прогресс обучения в этот файл не входит.</p>
-     <button className="btn ghost" onClick={()=>download(exportWordsTsv(data),'lexi-words.tsv')}>Скачать TSV</button>
+     <p className={cx(ui.small, ui.muted)}>Греческий, перевод и IPA для переноса в другие приложения. Прогресс обучения в этот файл не входит.</p>
+     <button className={cx(ui.btn, ui.ghost)} onClick={()=>download(exportWordsTsv(data),'lexi-words.tsv')}>Скачать TSV</button>
     </section>
-    <section className="card">
+    <section className={ui.card}>
      <h3>Восстановление</h3>
      <label htmlFor="backup">Файл полной копии</label>
      <input id="backup" type="file" accept="application/json,.json" onChange={event=>pick(event.target.files?.[0])}/>
      {report&&(
-      <div className="small" style={{marginTop:10}}>
+      <div className={ui.small} style={{marginTop:10}}>
        <p style={{margin:'0 0 4px'}}>Файл проверен: база «{report.databaseName}», {megabytes(report.bytes)}{report.createdAt?`, копия от ${new Date(report.createdAt).toLocaleString('ru-RU')}`:''}.</p>
-       <p className="muted" style={{margin:0}}>{report.tables.map(table=>`${table.name}: ${table.rows}`).join(' · ')}</p>
+       <p className={ui.muted} style={{margin:0}}>{report.tables.map(table=>`${table.name}: ${table.rows}`).join(' · ')}</p>
       </div>
      )}
-     {problem&&<p className="error" role="alert">{problem}</p>}
-     {status&&<p className="small" role="status" style={{color:'var(--ok)'}}>{status}</p>}
-     <button className="btn danger" style={{marginTop:12}} disabled={!report||busy} onClick={restore}>Заменить данные копией</button>
-     <p className="small muted">Перед заменой Lexi сохранит текущие данные отдельным файлом.</p>
+     {problem&&<p className={ui.error} role="alert">{problem}</p>}
+     {status&&<p className={ui.small} role="status" style={{color:'var(--ok)'}}>{status}</p>}
+     <button className={cx(ui.btn, ui.danger)} style={{marginTop:12}} disabled={!report||busy} onClick={restore}>Заменить данные копией</button>
+     <p className={cx(ui.small, ui.muted)}>Перед заменой Lexi сохранит текущие данные отдельным файлом.</p>
     </section>
    </main>
   </>

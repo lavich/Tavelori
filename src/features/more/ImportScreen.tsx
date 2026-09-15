@@ -5,6 +5,8 @@ import {parseImport, wordKey} from '../../domain/import';
 import {withCount, WORDS} from '../../shared/format';
 import {liveWords, useSnapshot} from '../../shared/store';
 import {commitImport} from '../../storage/ops';
+import ui from '../../shared/ui.module.css';
+import {cx} from '../../shared/cx';
 
 export function ImportScreen(){
  const {data}=useSnapshot();
@@ -38,25 +40,25 @@ export function ImportScreen(){
  return (
   <>
    <BackBar title="Импорт слов"/>
-   <main className="screen">
-    <p className="muted small">Вставьте список из Quizlet: строки «слово / перевод» подряд или колонки через табуляцию. До нажатия «Сохранить» данные не меняются.</p>
+   <main className={ui.screen}>
+    <p className={cx(ui.muted, ui.small)}>Вставьте список из Quizlet: строки «слово / перевод» подряд или колонки через табуляцию. До нажатия «Сохранить» данные не меняются.</p>
     <label htmlFor="text">Текст списка</label>
     <textarea id="text" value={text} onChange={event=>setText(event.target.value)} placeholder={'το σπίτι\nдом\nτο νερό\nвода'}/>
     {text.trim()&&(
-     <section className="card">
+     <section className={ui.card}>
       <h3>Предпросмотр</h3>
-      <p className="small muted" style={{margin:'0 0 8px'}}>
+      <p className={cx(ui.small, ui.muted)} style={{margin:'0 0 8px'}}>
        Режим: {parsed.mode==='tsv'?'колонки через табуляцию':'чередование строк'} · распознано {withCount(parsed.rows.length,WORDS)} ·
        служебных строк пропущено {parsed.ignored} · ошибок {parsed.errors.length}
       </p>
-      {duplicates>0&&<p className="small muted" style={{margin:'0 0 8px'}}>{duplicates} уже есть в словаре — они будут добавлены в набор без дубликата.</p>}
-      {conflicts>0&&<p className="small" style={{margin:'0 0 8px',color:'#854d0e'}}>{conflicts} слов совпадают по написанию, но с другим переводом — будут созданы отдельные записи.</p>}
-      {parsed.errors.map(error=><p className="error" key={error.line} style={{margin:'2px 0'}}>Строка {error.line}: {error.message}</p>)}
-      <div className="stack">
+      {duplicates>0&&<p className={cx(ui.small, ui.muted)} style={{margin:'0 0 8px'}}>{duplicates} уже есть в словаре — они будут добавлены в набор без дубликата.</p>}
+      {conflicts>0&&<p className={ui.small} style={{margin:'0 0 8px',color:'#854d0e'}}>{conflicts} слов совпадают по написанию, но с другим переводом — будут созданы отдельные записи.</p>}
+      {parsed.errors.map(error=><p className={ui.error} key={error.line} style={{margin:'2px 0'}}>Строка {error.line}: {error.message}</p>)}
+      <div className={ui.stack}>
        {parsed.rows.slice(0,8).map((row,index)=>(
-        <div key={index} className="row between small"><span>{row.greek}</span><span className="muted">{row.russian}{row.sourceMastered?' · Mastered':''}</span></div>
+        <div key={index} className={cx(ui.row, ui.between, ui.small)}><span>{row.greek}</span><span className={ui.muted}>{row.russian}{row.sourceMastered?' · Mastered':''}</span></div>
        ))}
-       {parsed.rows.length>8&&<p className="small muted" style={{margin:0}}>…и ещё {parsed.rows.length-8}</p>}
+       {parsed.rows.length>8&&<p className={cx(ui.small, ui.muted)} style={{margin:0}}>…и ещё {parsed.rows.length-8}</p>}
       </div>
      </section>
     )}
@@ -73,8 +75,8 @@ export function ImportScreen(){
       <input id="date" type="date" value={date} onChange={event=>setDate(event.target.value)}/>
      </>
     )}
-    {problem&&<p className="error" role="alert">{problem}</p>}
-    <button className="btn" style={{marginTop:16}} disabled={busy||!parsed.rows.length} onClick={save}>
+    {problem&&<p className={ui.error} role="alert">{problem}</p>}
+    <button className={ui.btn} style={{marginTop:16}} disabled={busy||!parsed.rows.length} onClick={save}>
      Сохранить {parsed.rows.length?withCount(parsed.rows.length,WORDS):''}
     </button>
    </main>

@@ -7,6 +7,8 @@ import {minutes, plural, withCount, WORDS} from '../../shared/format';
 import {useSnapshot} from '../../shared/store';
 import {db} from '../../storage/db';
 import {startSession} from './session-actions';
+import ui from '../../shared/ui.module.css';
+import {cx} from '../../shared/cx';
 
 export function ResultScreen(){
  const {id}=useParams();
@@ -33,27 +35,27 @@ export function ResultScreen(){
   navigate(created?'/session':'/');
  };
  return (
-  <main className="screen" style={{paddingTop:24}}>
+  <main className={ui.screen} style={{paddingTop:24}}>
    <h1>Занятие завершено</h1>
-   <div className="tiles">
-    <div className="tile"><div className="big">{words.size}</div><div className="label">{plural(words.size,WORDS)} в занятии</div></div>
-    <div className="tile"><div className="big">{events.length}</div><div className="label">упражнений выполнено</div></div>
+   <div className={ui.tiles}>
+    <div className={ui.tile}><div className={ui.big}>{words.size}</div><div className={ui.tileLabel}>{plural(words.size,WORDS)} в занятии</div></div>
+    <div className={ui.tile}><div className={ui.big}>{events.length}</div><div className={ui.tileLabel}>упражнений выполнено</div></div>
    </div>
-   <section className="card">
+   <section className={ui.card}>
     <p style={{margin:'0 0 6px'}}>Ошибок: <b>{mistakes.length}</b></p>
-    <p className="small muted" style={{margin:'0 0 6px'}}>
+    <p className={cx(ui.small, ui.muted)} style={{margin:'0 0 6px'}}>
      {objective.length
       ?`Объективная точность (выбор, аудирование, написание): ${Math.round(objective.filter(event=>event.correct).length/objective.length*100)}% из ${withCount(objective.length,['ответа','ответов','ответов'])}`
       :'Объективных проверок в этом занятии не было — только самооценка.'}
     </p>
-    <p className="small muted" style={{margin:0}}>Активное время: {minutes(session?.activeTimeMs??0)}</p>
+    <p className={cx(ui.small, ui.muted)} style={{margin:0}}>Активное время: {minutes(session?.activeTimeMs??0)}</p>
    </section>
    {mistakeWords.length>0&&(
     readyAgain.length>0
-     ?<button className="btn ghost" onClick={repeat}>Повторить ошибки ({readyAgain.length})</button>
-     :<p className="card flat small muted">Слова с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,data.settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</p>
+     ?<button className={cx(ui.btn, ui.ghost)} onClick={repeat}>Повторить ошибки ({readyAgain.length})</button>
+     :<p className={cx(ui.card, ui.flat, ui.small, ui.muted)}>Слова с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,data.settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</p>
    )}
-   <button className="btn" style={{marginTop:12}} onClick={()=>navigate('/')}>Готово</button>
+   <button className={ui.btn} style={{marginTop:12}} onClick={()=>navigate('/')}>Готово</button>
   </main>
  );
 }

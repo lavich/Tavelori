@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react';
 import {BackBar} from '../../app/TopBar';
 import {useSnapshot} from '../../shared/store';
 import {saveSettings} from '../../storage/ops';
+import ui from '../../shared/ui.module.css';
 
 const ZONES=['Asia/Nicosia','Europe/Athens','Europe/Moscow','Europe/Berlin','Europe/London','UTC'];
 export function SettingsScreen(){
@@ -28,7 +29,7 @@ export function SettingsScreen(){
  return (
   <>
    <BackBar title="Настройки"/>
-   <main className="screen">
+   <main className={ui.screen}>
     <form onSubmit={submit}>
      <label htmlFor="daily">Новых слов в день</label>
      <input id="daily" type="number" min={0} max={100} value={daily} onChange={event=>{setDaily(event.target.value);setSaved(false)}}/>
@@ -38,9 +39,9 @@ export function SettingsScreen(){
      <select id="zone" value={zone} onChange={event=>{setZone(event.target.value);setSaved(false)}}>
       {ZONES.map(item=><option key={item} value={item}>{item}</option>)}
      </select>
-     {problem&&<p className="error" role="alert">{problem}</p>}
-     <button className="btn" type="submit" style={{marginTop:16}}>Сохранить</button>
-     {saved&&<p className="small" role="status" style={{color:'var(--ok)'}}>Сохранено. Новые значения применятся к следующим занятиям, история ответов не изменилась.</p>}
+     {problem&&<p className={ui.error} role="alert">{problem}</p>}
+     <button className={ui.btn} type="submit" style={{marginTop:16}}>Сохранить</button>
+     {saved&&<p className={ui.small} role="status" style={{color:'var(--ok)'}}>Сохранено. Новые значения применятся к следующим занятиям, история ответов не изменилась.</p>}
     </form>
    </main>
   </>

@@ -9,9 +9,9 @@ test.beforeEach(async({page})=>{
 test('оболочка открывается, разделы доступны с клавиатуры',async({page})=>{
  await expect(page.getByRole('heading',{name:'Немного каждый день'})).toBeVisible();
  await expect(page.getByText('Урок 1.2')).toBeVisible();
- await page.locator('.nav').getByRole('link',{name:'Слова'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
  await expect(page.getByRole('heading',{name:'Слова'})).toBeVisible();
- await page.locator('.nav').getByRole('link',{name:'Уроки'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
  await expect(page.getByRole('link',{name:/1\.1/})).toBeVisible();
  await page.keyboard.press('Tab');
  const focused=await page.evaluate(()=>document.activeElement?.tagName);
@@ -19,13 +19,13 @@ test('оболочка открывается, разделы доступны �
 });
 
 test('исходные уроки, карточка слова и ручная тренировка',async({page})=>{
- await page.locator('.nav').getByRole('link',{name:'Слова'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
  await page.getByRole('searchbox').fill('σπίτι');
  await page.getByRole('link',{name:/το σπίτι/}).click();
  await expect(page.getByText('/to ˈspiti/')).toBeVisible();
  await expect(page.getByText('Ударение на первый слог')).toBeVisible();
  await expect(page.getByText('Το σπίτι είναι μικρό.')).toBeVisible();
- await expect(page.locator('img.word-art')).toBeVisible();
+ await expect(page.getByTestId('word-art')).toBeVisible();
  await page.getByRole('button',{name:'Потренировать слово'}).click();
  await expect(page.getByText('Новое слово')).toBeVisible();
 });
@@ -40,14 +40,13 @@ test('занятие: знакомство, четыре упражнения, �
  await page.getByRole('button',{name:/Начать занятие/}).click();
  await page.waitForURL('**/session');
  const seen=new Set<string>();
- const visible=(selector:string)=>page.locator(selector).first().isVisible().catch(()=>false);
  for(let step=0;step<40;step++){
   if(await page.getByRole('heading',{name:'Занятие завершено'}).isVisible().catch(()=>false))break;
   const next=page.getByRole('button',{name:'Далее'});
   // Последний «Далее» уводит на экран результата, поэтому кнопка может исчезнуть под кликом.
   if(await next.isVisible().catch(()=>false)){await next.click({timeout:5000}).catch(()=>undefined);continue}
-  await page.locator('.session .prompt').first().waitFor({state:'visible'});
-  const prompt=await page.locator('.session .prompt').first().innerText();
+  await page.getByTestId('prompt').first().waitFor({state:'visible'});
+  const prompt=await page.getByTestId('prompt').first().innerText();
 
   if(prompt==='Новое слово'){
    seen.add('intro');
@@ -55,22 +54,22 @@ test('занятие: знакомство, четыре упражнения, �
    await page.getByRole('button',{name:'Показать ответ'}).waitFor({state:'visible'});
   }else if(prompt==='Вспомни слово'){
    seen.add('recall');
-   if(await visible('button.btn:text("Показать ответ")')){
+   if(await page.getByRole('button',{name:'Показать ответ'}).isVisible().catch(()=>false)){
     await page.getByRole('button',{name:'Показать ответ'}).click();
-    await page.locator('.grade').first().waitFor({state:'visible'});
+    await page.getByTestId('grade').first().waitFor({state:'visible'});
    }
    await page.getByRole('button',{name:/Вспомнил/}).first().click();
    await next.waitFor({state:'visible'});
   }else if(prompt==='Что означает слово?'||prompt==='Что вы услышали?'){
    seen.add(prompt==='Что означает слово?'?'recognition':'listening');
-   await page.locator('.option:not([disabled])').first().click();
+   await page.getByTestId('option').and(page.locator(':not([disabled])')).first().click();
    await next.waitFor({state:'visible'});
   }else if(prompt==='Напишите по-гречески'){
    seen.add('spelling');
-   await page.locator('input.answer').fill('λάθος');
+   await page.getByLabel('Ваш ответ по-гречески').fill('λάθος');
    await page.getByRole('button',{name:'Проверить'}).click();
-   await expect(page.locator('.feedback')).toBeVisible();
-   await expect(page.locator('.chars')).toBeVisible();
+   await expect(page.getByTestId('feedback')).toBeVisible();
+   await expect(page.getByTestId('chars')).toBeVisible();
    await next.waitFor({state:'visible'});
   }
   // Уход в середине занятия не теряет уже записанные ответы.
@@ -98,14 +97,14 @@ test('занятие: знакомство, четыре упражнения, �
  await ready(page);
  await page.reload();
  await ready(page);
- await page.locator('.nav').getByRole('link',{name:'Ещё'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await page.getByRole('link',{name:/Статистика/}).click();
  const recorded=await page.getByText(/Всего записано/).innerText();
  expect(recorded).not.toContain('Всего записано 0');
 });
 
 test('будущие занятия: импорт нового набора, дата и пересчёт плана',async({page})=>{
- await page.locator('.nav').getByRole('link',{name:'Ещё'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await page.getByRole('link',{name:/Импорт слов/}).click();
  await page.locator('#text').fill('το τραπέζι\nстол\nη καρέκλα\nстул\nτο σπίτι\nдом');
  await expect(page.getByText(/распознано 3 слова/)).toBeVisible();
@@ -118,6 +117,6 @@ test('будущие занятия: импорт нового набора, д�
  await page.locator('#date').fill('2026-09-20');
  await page.getByRole('button',{name:'Сохранить дату'}).click();
  await expect(page.getByText(/План пересчитан|Дата сохранена/)).toBeVisible();
- await page.locator('.nav').getByRole('link',{name:'Сегодня'}).click();
+ await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click();
  await expect(page.getByText('Урок 1.2')).toBeVisible();
 });

@@ -9,6 +9,8 @@ import {db} from '../../storage/db';
 import {ConflictError, endSession, submitAnswer} from '../../storage/ops';
 import {Introduction, Listening, Recall, Recognition, Spelling, type Answer} from './exercises';
 import {activeSession} from './session-actions';
+import ui from '../../shared/ui.module.css';
+import s from './session.module.css';
 
 export function SessionScreen(){
  const navigate=useNavigate();
@@ -53,13 +55,13 @@ export function SessionScreen(){
   if(session&&session.items.length&&position<0)navigate(`/session/result/${session.id}`,{replace:true});
  },[session?.id,position]);
 
- if(session===undefined)return <main className="session"><p className="muted">Загружаем занятие…</p></main>;
+ if(session===undefined)return <main className={s.session}><p className={ui.muted}>Загружаем занятие…</p></main>;
  if(!session||!item){
   const other=activeSession(data);
   return (
-   <main className="session">
-    <p className="muted">Активного занятия нет.</p>
-    <button className="btn" onClick={()=>navigate(other?'/session':'/')}>На главную</button>
+   <main className={s.session}>
+    <p className={ui.muted}>Активного занятия нет.</p>
+    <button className={ui.btn} onClick={()=>navigate(other?'/session':'/')}>На главную</button>
    </main>
   );
  }
@@ -97,14 +99,14 @@ export function SessionScreen(){
   :<Recall key={item.id} item={item} onAnswer={answer} onNext={next}/>;
 
  return (
-  <main className="session">
-   <div className="session-top">
-    <button className="icon-btn" onClick={leave} aria-label="Закрыть занятие"><X size={24}/></button>
-    <div className="progress"><i style={{width:`${(position/session.items.length)*100}%`}}/></div>
-    <span className="counter" aria-label={`Упражнение ${position+1} из ${session.items.length}`}>{position+1} / {session.items.length}</span>
+  <main className={s.session}>
+   <div className={s.top}>
+    <button className={ui.iconBtn} onClick={leave} aria-label="Закрыть занятие"><X size={24}/></button>
+    <div className={s.progress}><i style={{width:`${(position/session.items.length)*100}%`}}/></div>
+    <span className={s.counter} aria-label={`Упражнение ${position+1} из ${session.items.length}`}>{position+1} / {session.items.length}</span>
    </div>
-   <div className="session-body">{view}</div>
-   {problem&&<p className="error" role="alert">{problem}</p>}
+   <div className={s.body}>{view}</div>
+   {problem&&<p className={ui.error} role="alert">{problem}</p>}
   </main>
  );
 }

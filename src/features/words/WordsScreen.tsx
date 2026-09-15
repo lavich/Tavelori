@@ -7,6 +7,8 @@ import {normalize} from '../../domain/import';
 import {withCount, WORDS} from '../../shared/format';
 import {liveWords, useSnapshot} from '../../shared/store';
 import type {LearningState} from '../../domain/types';
+import ui from '../../shared/ui.module.css';
+import {cx} from '../../shared/cx';
 
 type Filter='all'|'new'|'learning'|'review'|'solid';
 const FILTERS:{key:Filter;label:string}[]=[
@@ -35,15 +37,15 @@ export function WordsScreen(){
  return (
   <>
    <BrandBar/>
-   <main className="screen">
+   <main className={ui.screen}>
     <h1>Слова</h1>
-    <div className="row" style={{gap:10,marginBottom:10}}>
-     <Search size={20} className="muted" aria-hidden/>
+    <div className={ui.row} style={{gap:10,marginBottom:10}}>
+     <Search size={20} className={ui.muted} aria-hidden/>
      <input type="search" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Поиск по греческому или русскому" aria-label="Поиск слова"/>
     </div>
-    <div className="row" style={{gap:8,overflowX:'auto',paddingBottom:8}}>
+    <div className={ui.row} style={{gap:8,overflowX:'auto',paddingBottom:8}}>
      {FILTERS.map(item=>(
-      <button key={item.key} className={`chip ${filter===item.key?'':'grey'}`} style={{border:0,cursor:'pointer',whiteSpace:'nowrap'}}
+      <button key={item.key} className={cx(ui.chip, filter!==item.key&&ui.grey)} style={{border:0,cursor:'pointer',whiteSpace:'nowrap'}}
        aria-pressed={filter===item.key} onClick={()=>setFilter(item.key)}>{item.label}</button>
      ))}
     </div>
@@ -52,20 +54,20 @@ export function WordsScreen(){
      <option value="">Все наборы</option>
      {data.lessons.map(lesson=><option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
     </select>
-    <p className="small muted" style={{marginTop:14}}>{withCount(found.length,WORDS)}</p>
+    <p className={cx(ui.small, ui.muted)} style={{marginTop:14}}>{withCount(found.length,WORDS)}</p>
     {found.map(word=>{
      const group=stateGroup(states.get(word.id));
      return (
-      <Link className="item" key={word.id} to={`/words/${word.id}`}>
-       <span className="grow">
-        <span className="title">{word.greek}</span>
-        <span className="sub">{word.russian} · {FILTERS.find(f=>f.key===group)!.label.toLowerCase()}</span>
+      <Link className={ui.item} key={word.id} to={`/words/${word.id}`}>
+       <span className={ui.grow}>
+        <span className={ui.title}>{word.greek}</span>
+        <span className={ui.sub}>{word.russian} · {FILTERS.find(f=>f.key===group)!.label.toLowerCase()}</span>
        </span>
-       <ChevronRight size={20} className="badge" aria-hidden/>
+       <ChevronRight size={20} className={ui.badge} aria-hidden/>
       </Link>
      );
     })}
-    {!found.length&&<p className="muted">Ничего не найдено. Измените запрос или фильтр.</p>}
+    {!found.length&&<p className={ui.muted}>Ничего не найдено. Измените запрос или фильтр.</p>}
    </main>
   </>
  );

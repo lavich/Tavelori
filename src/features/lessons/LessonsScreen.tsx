@@ -5,6 +5,8 @@ import {BrandBar} from '../../app/TopBar';
 import {dativeWeekday, dayMonth, shortTitle, withCount, WORDS} from '../../shared/format';
 import {useSnapshot} from '../../shared/store';
 import {createLesson} from '../../storage/ops';
+import ui from '../../shared/ui.module.css';
+import {cx} from '../../shared/cx';
 
 export function LessonsScreen(){
  const {data}=useSnapshot();
@@ -25,33 +27,33 @@ export function LessonsScreen(){
  return (
   <>
    <BrandBar/>
-   <main className="screen">
+   <main className={ui.screen}>
     <h1>Уроки</h1>
     {lessons.map(lesson=>(
-     <Link className="item" key={lesson.id} to={`/lessons/${lesson.id}`}>
-      <FileText size={20} aria-hidden className="muted"/>
-      <span className="grow">
-       <span className="title">{shortTitle(lesson.title)} · {lesson.targetDate?`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`:'Без даты'}</span>
-       <span className="sub">{withCount(lesson.wordIds.length,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}</span>
+     <Link className={ui.item} key={lesson.id} to={`/lessons/${lesson.id}`}>
+      <FileText size={20} aria-hidden className={ui.muted}/>
+      <span className={ui.grow}>
+       <span className={ui.title}>{shortTitle(lesson.title)} · {lesson.targetDate?`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`:'Без даты'}</span>
+       <span className={ui.sub}>{withCount(lesson.wordIds.length,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}</span>
       </span>
-      <ChevronRight size={20} className="badge" aria-hidden/>
+      <ChevronRight size={20} className={ui.badge} aria-hidden/>
      </Link>
     ))}
     {open?(
-     <form className="card" onSubmit={add}>
+     <form className={ui.card} onSubmit={add}>
       <h2 style={{marginTop:0}}>Новое занятие</h2>
       <label htmlFor="title">Название</label>
       <input id="title" type="text" value={title} onChange={event=>setTitle(event.target.value)} placeholder="Урок 1.3"/>
       <label htmlFor="date">Дата занятия</label>
       <input id="date" type="date" value={date} onChange={event=>setDate(event.target.value)}/>
-      {problem&&<p className="error">{problem}</p>}
-      <div className="split" style={{marginTop:14}}>
-       <button className="btn" type="submit">Создать</button>
-       <button className="btn quiet" type="button" onClick={()=>setParams({})}>Отмена</button>
+      {problem&&<p className={ui.error}>{problem}</p>}
+      <div className={ui.split} style={{marginTop:14}}>
+       <button className={ui.btn} type="submit">Создать</button>
+       <button className={cx(ui.btn, ui.quiet)} type="button" onClick={()=>setParams({})}>Отмена</button>
       </div>
      </form>
-    ):<button className="btn ghost" onClick={()=>setParams({new:'1'})}><Plus size={20} aria-hidden/>Добавить занятие</button>}
-    <Link className="btn quiet" to="/more/import" style={{marginTop:10}}>Импортировать слова из Quizlet</Link>
+    ):<button className={cx(ui.btn, ui.ghost)} onClick={()=>setParams({new:'1'})}><Plus size={20} aria-hidden/>Добавить занятие</button>}
+    <Link className={cx(ui.btn, ui.quiet)} to="/more/import" style={{marginTop:10}}>Импортировать слова из Quizlet</Link>
    </main>
   </>
  );

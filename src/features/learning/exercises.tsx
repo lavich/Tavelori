@@ -5,6 +5,10 @@ import {checkAnswer} from '../../domain/import';
 import {diffChars} from '../../domain/spelling';
 import {playWord, useAudioKind} from '../../shared/audio';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from '../words/WordCardView';
+import ui from '../../shared/ui.module.css';
+import wordCss from '../../shared/word.module.css';
+import s from './session.module.css';
+import {cx} from '../../shared/cx';
 
 export interface Answer {correct:boolean|null;rating:1|2|3|4;text:string;status?:'correct'|'almost'|'wrong'}
 /** onAnswer возвращает false, если запись не удалась: тогда упражнение остаётся открытым для повтора. */
@@ -29,13 +33,13 @@ const GRADES:{rating:1|2|3|4;title:string;hint:string}[]=[
 export function Introduction({word,onReady}:{word:Word;onReady:()=>void}){
  return (
   <>
-   <div className="center">
-    <p className="prompt">Новое слово</p>
+   <div className={s.center}>
+    <p className={s.prompt} data-testid="prompt">Новое слово</p>
     <WordArt word={word}/>
-    <div className="row between" style={{width:'100%',gap:12}}>
-     <div className="grow" style={{minWidth:0,textAlign:'left'}}>
-      <p className="greek" style={{margin:0}}>{word.greek}</p>
-      {word.ipa&&<p className="ipa" style={{margin:0}}>{word.ipa}</p>}
+    <div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}}>
+     <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>
+      <p className={wordCss.greek} style={{margin:0}}>{word.greek}</p>
+      {word.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}
       <p style={{fontSize:19,margin:'6px 0 0'}}>{word.russian}</p>
      </div>
      <SpeakButton word={word}/>
@@ -45,7 +49,7 @@ export function Introduction({word,onReady}:{word:Word;onReady:()=>void}){
      {word.examples[0]&&<ExampleBox example={word.examples[0]}/>}
     </div>
    </div>
-   <div className="dock"><button className="btn" onClick={onReady}>Запомнил — проверим</button></div>
+   <div className={s.dock}><button className={ui.btn} onClick={onReady}>Запомнил — проверим</button></div>
   </>
  );
 }
@@ -59,17 +63,17 @@ export function Recall({item,onAnswer,onNext}:Props){
  const word=item.word;
  return (
   <>
-   <div className="center">
-    <p className="prompt">Вспомни слово</p>
-    <p className="greek" style={{margin:'6px 0'}}>{word.russian}</p>
-    <p className="prompt">Как это будет по-гречески?</p>
+   <div className={s.center}>
+    <p className={s.prompt} data-testid="prompt">Вспомни слово</p>
+    <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.russian}</p>
+    <p className={s.prompt} data-testid="prompt">Как это будет по-гречески?</p>
     <WordArt word={word}/>
     {open&&(
      <div style={{width:'100%'}} ref={revealed}>
-      <div className="row between" style={{gap:12}}>
-       <div className="grow" style={{minWidth:0,textAlign:'left'}}>
-        <p className="greek" style={{margin:0}}>{word.greek}</p>
-        {word.ipa&&<p className="ipa" style={{margin:0}}>{word.ipa}</p>}
+      <div className={cx(ui.row, ui.between)} style={{gap:12}}>
+       <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>
+        <p className={wordCss.greek} style={{margin:0}}>{word.greek}</p>
+        {word.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}
        </div>
        <SpeakButton word={word}/>
       </div>
@@ -77,25 +81,25 @@ export function Recall({item,onAnswer,onNext}:Props){
      </div>
     )}
    </div>
-   <div className="dock">
+   <div className={s.dock}>
     {!open?(
      <>
-      <button className="btn" onClick={()=>setOpen(true)}>Показать ответ</button>
-      <p className="hint">Сначала попробуй вспомнить самостоятельно</p>
+      <button className={ui.btn} onClick={()=>setOpen(true)}>Показать ответ</button>
+      <p className={ui.hint}>Сначала попробуй вспомнить самостоятельно</p>
      </>
     ):!done?(
      <>
-      <p className="prompt">Насколько легко вспомнилось?</p>
-      <div className="grades">
+      <p className={s.prompt} data-testid="prompt">Насколько легко вспомнилось?</p>
+      <div className={s.grades}>
        {GRADES.map(grade=>(
-        <button key={grade.rating} className="grade" disabled={saving}
+        <button key={grade.rating} className={s.grade} data-testid="grade" disabled={saving}
          onClick={async()=>{setSaving(true);const saved=await onAnswer({correct:null,rating:grade.rating,text:''});setSaving(false);setDone(saved)}}>
          <b>{grade.title}</b><span>{grade.hint}</span>
         </button>
        ))}
       </div>
      </>
-    ):<button className="btn" onClick={onNext}>Далее</button>}
+    ):<button className={ui.btn} onClick={onNext}>Далее</button>}
    </div>
   </>
  );
@@ -108,13 +112,13 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
  const revealed=useRevealed(!!picked);
  return (
   <>
-   <div className="center">
-    <p className="prompt">{prompt}</p>
+   <div className={s.center}>
+    <p className={s.prompt} data-testid="prompt">{prompt}</p>
     {head}
     {art&&<WordArt word={item.word}/>}
-    <div className="options" style={{width:'100%'}}>
+    <div className={s.options} style={{width:'100%'}}>
      {options.map(option=>(
-      <button key={option} className={`option ${picked?option===correct?'correct':option===picked?'wrong':'':''}`} disabled={!!picked||saving}
+      <button key={option} data-testid="option" className={cx(s.option, picked&&(option===correct?s.correct:option===picked?s.wrong:''))} disabled={!!picked||saving}
        onClick={async()=>{
         setSaving(true);
         const saved=await onAnswer({correct:option===correct,rating:option===correct?3:1,text:option});
@@ -125,14 +129,14 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
     </div>
     {picked&&(
      <div style={{width:'100%'}} ref={revealed}>
-      <div className={`feedback ${picked===correct?'ok':'bad'}`} style={{marginTop:0}}>
+      <div data-testid="feedback" className={cx(s.feedback, picked===correct?s.ok:s.bad)} style={{marginTop:0}}>
        {picked===correct?'Правильно!':`Правильный ответ: ${correct}`}
       </div>
       {item.word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={item.word.examples[0]}/></div>}
      </div>
     )}
    </div>
-   {picked&&<div className="dock"><button className="btn" onClick={onNext}>Далее</button></div>}
+   {picked&&<div className={s.dock}><button className={ui.btn} onClick={onNext}>Далее</button></div>}
   </>
  );
 }
@@ -140,7 +144,7 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
 export function Recognition(props:Props){
  const word=props.item.word;
  return <Choice {...props} prompt="Что означает слово?" art={false} correct={word.russian} options={props.item.options}
-  head={<><p className="greek" style={{margin:'6px 0'}}>{word.greek}</p>{word.ipa&&<p className="ipa" style={{margin:0}}>{word.ipa}</p>}</>}/>;
+  head={<><p className={wordCss.greek} style={{margin:'6px 0'}}>{word.greek}</p>{word.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}</>}/>;
 }
 
 export function Listening(props:Props){
@@ -149,7 +153,7 @@ export function Listening(props:Props){
  const played=useRef(false);
  useEffect(()=>{if(!played.current){played.current=true;playWord(word)}},[word.id]);
  return <Choice {...props} prompt="Что вы услышали?" art={false} correct={word.greek} options={props.item.options}
-  head={<button className="speak" style={{width:76,height:76}} disabled={kind==='none'} aria-label="Повторить аудио" onClick={()=>playWord(word)}><Volume2 size={32} aria-hidden/></button>}/>;
+  head={<button className={wordCss.speak} style={{width:76,height:76}} disabled={kind==='none'} aria-label="Повторить аудио" onClick={()=>playWord(word)}><Volume2 size={32} aria-hidden/></button>}/>;
 }
 
 export function Spelling({item,onAnswer,onNext}:Props){
@@ -170,21 +174,21 @@ export function Spelling({item,onAnswer,onNext}:Props){
  };
  return (
   <>
-   <div className="center">
-    <p className="prompt">Напишите по-гречески</p>
-    <p className="greek" style={{margin:'6px 0'}}>{word.russian}</p>
+   <div className={s.center}>
+    <p className={s.prompt} data-testid="prompt">Напишите по-гречески</p>
+    <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.russian}</p>
     <WordArt word={word}/>
     {result&&(
      <div style={{width:'100%'}} ref={revealed}>
-      <div className={`feedback ${result.status==='correct'?'ok':result.status==='almost'?'almost':'bad'}`} style={{marginTop:0}}>
+      <div data-testid="feedback" className={cx(s.feedback, result.status==='correct'?s.ok:result.status==='almost'?s.almost:s.bad)} style={{marginTop:0}}>
        <div>{result.message}</div>
        {result.status!=='correct'&&(
         <>
-         <p className="chars" style={{margin:'6px 0 0'}}>
+         <p className={s.chars} data-testid="chars" style={{margin:'6px 0 0'}}>
           {diffChars(value,word.greek).map((part,index)=>part.type==='same'?<b key={index}>{part.text}</b>:part.type==='wrong'?<s key={index}>{part.text}</s>:<u key={index}>{part.text}</u>)}
          </p>
-         <p className="small" style={{margin:'4px 0 0',opacity:.85}}>Зелёное — совпало, красное — лишнее, подчёркнутое — пропущено.</p>
-         <p className="small" style={{margin:'6px 0 0'}}>Правильно: {word.greek}</p>
+         <p className={ui.small} style={{margin:'4px 0 0',opacity:.85}}>Зелёное — совпало, красное — лишнее, подчёркнутое — пропущено.</p>
+         <p className={ui.small} style={{margin:'6px 0 0'}}>Правильно: {word.greek}</p>
         </>
        )}
       </div>
@@ -192,14 +196,14 @@ export function Spelling({item,onAnswer,onNext}:Props){
      </div>
     )}
    </div>
-   <div className="dock">
+   <div className={s.dock}>
     {!result?(
      <form onSubmit={submit}>
-      <input className="answer" type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
+      <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
        autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Ваш ответ по-гречески" lang="el"/>
-      <button className="btn" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</button>
+      <button className={ui.btn} type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</button>
      </form>
-    ):<button className="btn" onClick={onNext}>Далее</button>}
+    ):<button className={ui.btn} onClick={onNext}>Далее</button>}
    </div>
   </>
  );
