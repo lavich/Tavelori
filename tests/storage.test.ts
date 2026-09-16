@@ -2,8 +2,9 @@ import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Rating} from 'ts-fsrs';
 import {LexiDatabase, ensureSeed, loadSnapshot} from '../src/storage/db';
-import {ConflictError, commitImport, deleteWord, saveWord, submitAnswer, markIntroduced, prepareObjectiveSession} from '../src/storage/ops';
-import {makeSession} from '../src/domain/learning';
+import {ConflictError, commitImport, deleteWord, markIntroduced, prepareObjectiveSession, saveSettings, saveWord, submitAnswer} from '../src/storage/ops';
+import {makePlan, makeSession} from '../src/domain/learning';
+import {defaultSettings, type Settings} from '../src/domain/types';
 import {parseImport} from '../src/domain/import';
 import {seedAssets, seedLessons, seedWords} from '../src/content';
 
@@ -167,5 +168,28 @@ describe('импорт',()=>{
   expect((await db.words.get('w12-16'))!.verified).toBe(true);
   await saveWord({...word,greek:'το σπιτάκι'},db);
   expect((await db.words.get('w12-16'))!.verified).toBe(false);
+ });
+});
+
+describe('расписание занятий',()=>{
+ const monThu={startDate:'2026-09-18',weekdays:[1,4]};
+ const legacy={id:'settings',timezone:'Asia/Nicosia',newWordsPerDay:10,sessionSize:20} as Settings;
+ it('дополняет запись настроек без расписания значением по умолчанию',async()=>{
+  await ensureSeed(db);
+  await db.settings.put(legacy);
+  expect((await snapshot()).settings.schedule).toEqual({startDate:null,weekdays:[]});
+  expect(defaultSettings.schedule).toEqual({startDate:null,weekdays:[]});
+ });
+ it('снимок даёт урокам 1.3 и 1.4 дни расписания после 1.2, а план считает сроки по ним',async()=>{
+  await ensureSeed(db);
+  await saveSettings({...defaultSettings,schedule:monThu},db);
+  const data=await snapshot();
+  const byId=Object.fromEntries(data.lessons.map(l=>[l.id,l]));
+  expect(byId['lesson-1-2']).toMatchObject({targetDate:'2026-09-18',dateSource:'manual'});
+  expect(byId['lesson-1-3']).toMatchObject({targetDate:'2026-09-21',dateSource:'schedule'});
+  expect(byId['lesson-1-4']).toMatchObject({targetDate:'2026-09-24',dateSource:'schedule'});
+  expect((await db.lessons.get('lesson-1-3'))!.targetDate).toBeNull();
+  const plan=makePlan(data,new Date('2026-09-16T09:00:00Z'));
+  expect(plan.deadlines.map(d=>[d.lessonId,d.daysLeft])).toEqual([['lesson-1-2',2],['lesson-1-3',5],['lesson-1-4',8]]);
  });
 });

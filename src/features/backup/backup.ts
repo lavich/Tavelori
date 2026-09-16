@@ -2,7 +2,7 @@ import Dexie from 'dexie';
 import {exportDB, importInto} from 'dexie-export-import';
 import {LexiDatabase, db, TABLES} from '../../storage/db';
 import {liveWords} from '../../shared/store';
-import type {Snapshot} from '../../domain/types';
+import {fillSettings, type Settings, type Snapshot} from '../../domain/types';
 
 export const APP_MARKER='lexi:1';
 export interface BackupReport {databaseName:string;tables:{name:string;rows:number}[];createdAt:string|null;bytes:number}
@@ -61,7 +61,7 @@ export async function restoreBackup(file:Blob,database:LexiDatabase=db):Promise<
   await database.transaction('rw',TABLES.map(name=>database.table(name)),async()=>{
    for(const [name,rows] of payload){
     await database.table(name).clear();
-    await database.table(name).bulkAdd(rows as never[]);
+    await database.table(name).bulkAdd((name==='settings'?(rows as Settings[]).map(fillSettings):rows) as never[]);
    }
   });
  }finally{

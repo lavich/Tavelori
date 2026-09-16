@@ -1,6 +1,7 @@
 import Dexie, {type Table} from 'dexie';
 import {seedAssets, seedLessons, seedWords, SEED_VERSION} from '../content';
-import {defaultSettings, type Asset, type LearningState, type Lesson, type ReviewEvent, type Session, type Settings, type Word} from '../domain/types';
+import {scheduleLessons} from '../domain/schedule';
+import {defaultSettings, fillSettings, type Asset, type LearningState, type Lesson, type ReviewEvent, type Session, type Settings, type Word} from '../domain/types';
 
 export interface MetaRow {key:string;value:string}
 
@@ -42,12 +43,14 @@ export async function ensureSeed(database:LexiDatabase=db):Promise<boolean>{
  return true;
 }
 
+/** Единственное место, где уроки получают даты по расписанию: экраны и планировщик читают готовые даты. */
 export async function loadSnapshot(database:LexiDatabase=db){
- const [words,lessons,states,events,sessions,settings]=await Promise.all([
+ const [words,lessons,states,events,sessions,stored]=await Promise.all([
   database.words.toArray(),database.lessons.toArray(),database.states.toArray(),
   database.events.toArray(),database.sessions.toArray(),database.settings.get('settings'),
  ]);
- return {words,lessons,states,events,sessions,settings:settings??defaultSettings} satisfies {
+ const settings=fillSettings(stored);
+ return {words,lessons:scheduleLessons(lessons,settings.schedule),states,events,sessions,settings} satisfies {
   words:Word[];lessons:Lesson[];states:LearningState[];events:ReviewEvent[];sessions:Session[];settings:Settings;
  };
 }
