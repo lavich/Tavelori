@@ -6,7 +6,7 @@
 
 | Назначение | Бот | Адрес Mini App | Ссылка запуска |
 |---|---|---|---|
-| Выпуск | `@TaveloriBot` | `https://lavich.github.io/lexi/` | `https://t.me/TaveloriBot?startapp` |
+| Выпуск | `@TaveloriBot` | `https://tavelori.app/` | `https://t.me/TaveloriBot?startapp` |
 | Разработка и приёмка | `@TaveloriDevBot` | HTTPS-туннель или тестовая сборка с параметром `?bot=TaveloriDevBot` | `https://t.me/TaveloriDevBot?startapp` |
 
 Имя бота передаётся приложению параметром `?bot=<username>` в адресе Mini App. Без параметра приложение считает, что запущено из `@TaveloriBot`. Параметр нужен только для разделения локальных профилей: CloudStorage сам по себе разделён по ботам, а локальная база — по паре «бот + пользователь» (`lexi-tg-<бот>-<id>`). Обычный браузер использует базу `lexi`.
@@ -115,7 +115,7 @@ BotFather позволяет выбрать Launch Mode: Compact, Fullsize ил�
 
 ## Выпуск
 
-1. `npm test`, `npm run test:e2e`, `BASE_PATH=/lexi/ npm run build` зелёные.
+1. `npm test`, `npm run test:e2e`, `npm run build` зелёные (production собирается с корневым `BASE_PATH=/`, который CI берёт из настроек GitHub Pages).
 2. `@TaveloriDevBot` указывает на тестовую сборку; матрица выше заполнена версиями и результатами для iOS и Android; блокирующие дефекты исправлены.
-3. Сборка опубликована на `https://lavich.github.io/lexi/`; в BotFather для `@TaveloriBot` включён Main Mini App с этим адресом.
+3. Сборка опубликована на `https://tavelori.app/`; в BotFather для `@TaveloriBot` включён Main Mini App с этим адресом.
 4. Проверены запуск из профиля, `https://t.me/TaveloriBot?startapp` и обычный веб-адрес; записаны версия выпуска (commit) и способ отката.
