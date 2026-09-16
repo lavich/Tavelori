@@ -22,6 +22,29 @@ test('оболочка открывается, разделы доступны �
  expect(['A','BUTTON','INPUT','SELECT']).toContain(focused);
 });
 
+test('хвост пройденного урока виден на «Сегодня» и разбирается первым',async({page})=>{
+ // Урок 1.1 поставляется пройденным: его слова просрочены, пока их ни разу не показали.
+ await expect(page.getByTestId('backlog')).toContainText('Хвост прошедших занятий');
+ await expect(page.getByTestId('backlog')).toContainText('33 слова из 1 занятия');
+ await page.getByRole('button',{name:'Начать занятие'}).click();
+ await page.waitForURL('**/session');
+ const lesson=await page.evaluate(async()=>{
+  const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open('lexi');request.onsuccess=()=>resolve(request.result)});
+  const session=await new Promise<{items:{wordId:string}[]}>(resolve=>{
+   const all=database.transaction('sessions').objectStore('sessions').getAll();
+   all.onsuccess=()=>resolve((all.result as {items:{wordId:string}[];status:string}[]).find(item=>item.status==='active')!);
+  });
+  const links=await new Promise<{lessonId:string;wordId:string}[]>(resolve=>{
+   const all=database.transaction('lessonWords').objectStore('lessonWords').getAll();
+   all.onsuccess=()=>resolve(all.result as {lessonId:string;wordId:string}[]);
+  });
+  database.close();
+  const own=new Set(links.filter(link=>link.lessonId==='lesson-1-1').map(link=>link.wordId));
+  return session.items.filter(item=>own.has(item.wordId)).length;
+ });
+ expect(lesson).toBeGreaterThan(0); // слова пройденного урока попали в занятие, а не остались висеть
+});
+
 test('исходные уроки, карточка слова и ручная тренировка',async({page})=>{
  await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
  await page.getByRole('searchbox').fill('σπίτι');

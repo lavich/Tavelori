@@ -6,6 +6,7 @@ export const plural=(count:number,forms:[string,string,string])=>{
 export const withCount=(count:number,forms:[string,string,string])=>`${count} ${plural(count,forms)}`;
 export const WORDS:[string,string,string]=['слово','слова','слов'];
 export const DAYS:[string,string,string]=['день','дня','дней'];
+export const LESSONS:[string,string,string]=['занятия','занятий','занятий'];
 export const TIMES:[string,string,string]=['ответ','ответа','ответов'];
 const day=(value:string)=>new Date(`${value}T12:00:00Z`);
 export const weekday=(value:string)=>day(value).toLocaleDateString('ru-RU',{weekday:'long',timeZone:'UTC'});

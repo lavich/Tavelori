@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {ArrowRight, BookOpen, CalendarDays, ChevronRight, FileText, Plus, RefreshCw, TriangleAlert} from 'lucide-react';
+import {ArrowRight, BookOpen, CalendarDays, ChevronRight, FileText, History, Plus, RefreshCw, TriangleAlert} from 'lucide-react';
 import {Link, useNavigate} from 'react-router-dom';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {Button} from '@/components/ui/button';
@@ -8,7 +8,7 @@ import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, I
 import {BrandBar} from '../../app/TopBar';
 import {localDay} from '../../domain/learning';
 import {useNow} from '../../shared/clock';
-import {capitalize, dativeWeekday, dayMonth, DAYS, shortTitle, withCount, WORDS} from '../../shared/format';
+import {capitalize, dativeWeekday, dayMonth, DAYS, LESSONS, shortTitle, withCount, WORDS} from '../../shared/format';
 import {useActiveSession, useCatalog, useLessons, usePlan, useSettings} from '../../shared/store';
 import {startSession} from '../learning/session-actions';
 import ui from '../../shared/ui.module.css';
@@ -85,6 +85,17 @@ export function TodayScreen(){
       </CardContent>
      </Card>
     </div>
+
+    {!!plan?.backlog.lessons&&(
+     <Alert className="mb-3" data-testid="backlog">
+      <History/>
+      <AlertTitle>Хвост прошедших занятий</AlertTitle>
+      <AlertDescription>
+       {withCount(plan.backlog.wordIds.length,WORDS)} из {withCount(plan.backlog.lessons,LESSONS)} ещё ни разу не показывали.
+       Lexi берёт их в «Новые» первыми — раньше подготовки к будущему занятию.
+      </AlertDescription>
+     </Alert>
+    )}
 
     {plan?.shortfall&&(
      <Alert variant="warning" className="mb-3">

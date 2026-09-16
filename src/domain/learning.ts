@@ -31,9 +31,12 @@ export function zonedStart(day:string,timezone:string):Date{
 }
 
 export interface DeadlinePlan {lessonId:string;title:string;targetDate:string;daysLeft:number;newLeft:number;requiredPerDay:number}
+/** Хвост прошедших занятий: слова, до которых очередь не дошла, пока урок был впереди. */
+export interface Backlog {wordIds:string[];lessons:number}
 export interface DailyPlan {
  today:string; requiredPerDay:number; budget:number; introducedToday:number;
  newWordIds:string[]; reviews:{wordId:string;state:LearningState}[]; deadlines:DeadlinePlan[]; shortfall:boolean;
+ backlog:Backlog;
 }
 
 /**
@@ -68,9 +71,9 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
  const introducedToday=await source.introducedToday(today,timezone);
  const budget=Math.max(0,settings.newWordsPerDay-introducedToday);
  const lessons=await source.lessons();
- const upcoming=lessons
-  .filter(l=>l.targetDate&&l.status!=='completed'&&daysBetween(today,l.targetDate)>=0)
-  .sort((a,b)=>(a.targetDate!).localeCompare(b.targetDate!)||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id));
+ const order=(a:Lesson,b:Lesson)=>(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id);
+ const past=lessons.filter(l=>l.status==='completed'||(l.targetDate&&daysBetween(today,l.targetDate)<0)).sort(order);
+ const upcoming=lessons.filter(l=>l.targetDate&&l.status!=='completed'&&daysBetween(today,l.targetDate)>=0).sort(order);
 
  const seen=new Set<string>(); const deadlines:DeadlinePlan[]=[]; const dated:string[]=[];
  const fresh=async(ids:string[])=>{
@@ -78,6 +81,11 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
   const [live,states]=await Promise.all([source.liveWordIds(unseen),source.statesOf(unseen)]);
   return unseen.filter(id=>live.has(id)&&!states.has(id));
  };
+ // Слово прошедшего занятия просрочено уже сейчас, поэтому идёт раньше подготовки к будущим.
+ const overdue:string[]=[]; const overdueLessons=new Set<string>();
+ for(const lesson of past) for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){
+  seen.add(id); overdue.push(id); overdueLessons.add(lesson.id);
+ }
  for(const lesson of upcoming){
   for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){seen.add(id);dated.push(id)}
   const daysLeft=Math.max(1,daysBetween(today,lesson.targetDate!));
@@ -85,8 +93,8 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
  }
  const requiredPerDay=deadlines.reduce((max,d)=>Math.max(max,d.requiredPerDay),0);
 
- // Датированные слова идут первыми; остальные подтягиваются порциями, только пока не заполнен дневной бюджет.
- const picked=[...dated];
+ // Хвост и датированные слова идут первыми; остальные подтягиваются порциями, только пока не заполнен дневной бюджет.
+ const picked=[...overdue,...dated];
  if(picked.length<budget){
   for(const lesson of lessons){
    if(picked.length>=budget)break;
@@ -110,7 +118,8 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
   .sort((a,b)=>rank(a)-rank(b)||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.wordId.localeCompare(b.wordId))
   .map(s=>({wordId:s.wordId,state:s}));
 
- return {today,requiredPerDay,budget,introducedToday,newWordIds,reviews,deadlines,shortfall:requiredPerDay>settings.newWordsPerDay};
+ return {today,requiredPerDay,budget,introducedToday,newWordIds,reviews,deadlines,shortfall:requiredPerDay>settings.newWordsPerDay,
+  backlog:{wordIds:overdue,lessons:overdueLessons.size}};
 }
 
 const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening'];

@@ -12,7 +12,7 @@ const iso=now.toISOString();
 const word=(id:string,index:number):Word=>({id,greek:`λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],verified:false,createdAt:iso,updatedAt:iso});
 const words=(count:number,prefix='w')=>Array.from({length:count},(_,index)=>word(`${prefix}${index}`,index));
 type LessonSpec=Lesson&{wordIds:string[]};
-const lesson=(id:string,wordIds:string[],targetDate:string|null):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso});
+const lesson=(id:string,wordIds:string[],targetDate:string|null,over:Partial<Lesson>={}):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso,...over});
 /** Снимок для тестов: состав уроков задаётся массивами и раскладывается в связи с порядком. */
 const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):Snapshot=>({
  words:[],states:[],events:[],sessions:[],settings:defaultSettings,...over,
@@ -59,6 +59,33 @@ describe('подготовка к нескольким занятиям',()=>{
   const plan=await planOf(data);
   expect(plan.deadlines).toHaveLength(0);
   expect(plan.newWordIds).toHaveLength(3);
+ });
+ it('хвост прошедших занятий разбирается раньше подготовки к будущему',async()=>{
+  const late=pool.slice(0,4).map(w=>w.id), soon=pool.slice(10,30).map(w=>w.id);
+  const data=base({words:pool,lessons:[
+   lesson('done',late.slice(0,2),'2026-09-08',{status:'completed'}), // помечен пройденным
+   lesson('missed',late.slice(2),'2026-09-12'), // дата прошла, статус остался прежним
+   lesson('next',soon,'2026-09-18'),
+  ]});
+  const plan=await planOf(data);
+  expect(plan.backlog).toEqual({wordIds:late,lessons:2});
+  expect(plan.newWordIds.slice(0,4)).toEqual(late); // хвост занимает начало дневной квоты
+  expect(plan.newWordIds).toHaveLength(10);
+  expect(plan.deadlines[0].newLeft).toBe(24); // до будущего занятия нужно разобрать и хвост
+  expect(plan.deadlines[0].requiredPerDay).toBe(8);
+ });
+ it('введённое слово прошедшего занятия в хвост не попадает: его ведёт повторение',async()=>{
+  const ids=pool.slice(0,3).map(w=>w.id);
+  // Урок 1.1 в поставке именно такой: пройден, даты нет.
+  const data=base({words:pool,states:[learned(ids[0],'2026-09-20T09:00:00Z')],
+   lessons:[lesson('done',ids,null,{status:'completed'})]});
+  const plan=await planOf(data);
+  expect(plan.backlog).toEqual({wordIds:ids.slice(1),lessons:1});
+  expect(plan.reviews).toHaveLength(0); // срок ещё не подошёл, слово просто ждёт
+ });
+ it('без прошедших занятий хвоста нет',async()=>{
+  const plan=await planOf(base({words:pool,lessons:[lesson('next',pool.slice(0,5).map(w=>w.id),'2026-09-18')]}));
+  expect(plan.backlog).toEqual({wordIds:[],lessons:0});
  });
  it('день занятия считается догоняющей подготовкой с делителем один',async()=>{
   const ids=pool.slice(0,8).map(w=>w.id);

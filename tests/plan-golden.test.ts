@@ -87,7 +87,7 @@ const stripSession=(session:Awaited<ReturnType<typeof makeSession>>)=>({
 });
 const stripPlan=(plan:Awaited<ReturnType<typeof makePlan>>)=>({
  today:plan.today,requiredPerDay:plan.requiredPerDay,budget:plan.budget,introducedToday:plan.introducedToday,shortfall:plan.shortfall,
- newWords:plan.newWordIds,reviews:plan.reviews.map(r=>r.wordId),deadlines:plan.deadlines,
+ newWords:plan.newWordIds,reviews:plan.reviews.map(r=>r.wordId),deadlines:plan.deadlines,backlog:plan.backlog,
 });
 
 /** Результаты для одного источника; тот же набор проверок применяется к снимку и к базе. */
