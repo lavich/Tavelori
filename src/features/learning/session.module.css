@@ -4,7 +4,9 @@
 .counter{color:var(--muted-foreground);font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .progress{flex:1;height:8px;border-radius:999px;background:#e3e3dd;overflow:hidden}
 .progress i{display:block;height:100%;background:var(--primary);border-radius:999px;transition:width .25s}
-.body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;scrollbar-width:none}
+/* Своя полоса прокрутки внутри занятия мешает: позицию показывают прогресс и тень дока. */
+.body::-webkit-scrollbar{display:none}
 .center{flex:1 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:12px 0}
 
 /* Основное действие закреплено у нижнего края: за кнопкой не нужно листать карточку. */

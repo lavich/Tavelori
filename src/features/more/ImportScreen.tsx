@@ -73,7 +73,9 @@ export function ImportScreen(){
     <Field>
      <FieldLabel htmlFor="target">Куда добавить</FieldLabel>
      <Select value={target} onValueChange={value=>setTarget(value??'new')}>
-      <SelectTrigger id="target" className="w-full"><SelectValue/></SelectTrigger>
+      <SelectTrigger id="target" className="w-full">
+       <SelectValue>{value=>value==='new'?'Новый набор':data.lessons.find(lesson=>lesson.id===value)?.title??'Новый набор'}</SelectValue>
+      </SelectTrigger>
       <SelectContent>
        <SelectGroup>
         <SelectItem value="new">Новый набор</SelectItem>

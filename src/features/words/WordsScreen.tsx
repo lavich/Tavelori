@@ -49,7 +49,7 @@ export function WordsScreen(){
      <InputGroupInput type="search" value={query} onChange={event=>setQuery(event.target.value)}
       placeholder="Поиск по греческому или русскому" aria-label="Поиск слова"/>
     </InputGroup>
-    <div className="flex gap-2 overflow-x-auto pb-2">
+    <div className="no-scrollbar flex gap-2 overflow-x-auto pb-2">
      {FILTERS.map(item=>(
       <Badge key={item.key} variant={filter===item.key?'default':'secondary'}
        render={<button type="button" aria-pressed={filter===item.key} onClick={()=>setFilter(item.key)}/>}
@@ -59,7 +59,9 @@ export function WordsScreen(){
     <Field>
      <FieldLabel htmlFor="lesson-filter">Набор</FieldLabel>
      <Select value={lessonId} onValueChange={value=>setLessonId(value??'all')}>
-      <SelectTrigger id="lesson-filter" className="w-full"><SelectValue/></SelectTrigger>
+      <SelectTrigger id="lesson-filter" className="w-full">
+       <SelectValue>{value=>value==='all'?'Все наборы':data.lessons.find(lesson=>lesson.id===value)?.title??'Все наборы'}</SelectValue>
+      </SelectTrigger>
       <SelectContent>
        <SelectGroup>
         <SelectItem value="all">Все наборы</SelectItem>

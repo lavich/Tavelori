@@ -55,6 +55,12 @@
  textarea{min-height:160px;resize:vertical;font-size:15px;line-height:1.5}
 }
 
+/* Горизонтальные ряды прокручиваются, но своей полосы не показывают. */
+@utility no-scrollbar {
+ scrollbar-width: none;
+ &::-webkit-scrollbar { display: none }
+}
+
 @theme inline {
  --font-heading:var(--font-sans);
  --font-sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
