@@ -129,6 +129,11 @@ export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Pro
  });
 }
 export async function saveSettings(settings:Settings,database:LexiDatabase=db){await database.settings.put(settings)}
+/** Дата первого занятия может быть в прошлом: уроки, чьи дни уже прошли, закрепляются сразу, не дожидаясь запуска. */
+export async function saveSchedule(settings:Settings,now:Date,database:LexiDatabase=db):Promise<number>{
+ await saveSettings(settings,database);
+ return settleLessons(now,database);
+}
 
 /** Старые неотвеченные recall заменяются один раз, история остаётся неизменной. */
 export async function prepareObjectiveSession(id:string,database:LexiDatabase=db):Promise<void>{

@@ -1,12 +1,12 @@
 import {useState} from 'react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
-import {Field, FieldLabel} from '@/components/ui/field';
+import {Field, FieldDescription, FieldLabel} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {scheduleSet} from '../../domain/schedule';
 import {defaultSchedule, type Settings} from '../../domain/types';
 import {dayMonth} from '../../shared/format';
-import {saveSettings} from '../../storage/ops';
+import {saveSchedule, saveSettings} from '../../storage/ops';
 import ui from '../../shared/ui.module.css';
 
 const SHORT=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -28,8 +28,8 @@ export function ScheduleCard({settings,today}:{settings:Settings;today:string}){
  const save=async(event:React.FormEvent)=>{
   event.preventDefault();
   if(!days.length)return setProblem('Выберите хотя бы один день недели.');
-  if(!start||start<today)return setProblem('Дата первого занятия — не раньше сегодня.');
-  await saveSettings({...settings,schedule:{startDate:start,weekdays:[...days].sort((a,b)=>a-b)}});
+  if(!start)return setProblem('Укажите дату первого занятия.');
+  await saveSchedule({...settings,schedule:{startDate:start,weekdays:[...days].sort((a,b)=>a-b)}},new Date());
   setEditing(false);
  };
  const remove=async()=>{await saveSettings({...settings,schedule:defaultSchedule});setEditing(false)};
@@ -42,10 +42,11 @@ export function ScheduleCard({settings,today}:{settings:Settings;today:string}){
    <CardContent>
     {editing?(
      <form onSubmit={save}>
-      <Field data-invalid={problem.includes('Дата')||undefined}>
+      <Field data-invalid={problem.includes('дату')||undefined}>
        <FieldLabel htmlFor="start">Первое занятие</FieldLabel>
-       <Input id="start" type="date" min={today} value={start} aria-invalid={problem.includes('Дата')||undefined}
+       <Input id="start" type="date" value={start} aria-invalid={problem.includes('дату')||undefined}
         onChange={event=>{setStart(event.target.value);setProblem('')}}/>
+       {start&&start<today&&<FieldDescription>Дата в прошлом: уроки, чьи дни уже прошли, будут отмечены проведёнными.</FieldDescription>}
       </Field>
       <div className="mt-3 grid grid-cols-7 gap-1.5" role="group" aria-label="Дни недели">
        {SHORT.map((name,index)=>{

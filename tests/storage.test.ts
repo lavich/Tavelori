@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Rating} from 'ts-fsrs';
 import {LexiDatabase, ensureSeed, loadSnapshot} from '../src/storage/db';
-import {ConflictError, commitImport, createLesson, deleteWord, markIntroduced, prepareObjectiveSession, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
+import {ConflictError, commitImport, createLesson, deleteWord, markIntroduced, prepareObjectiveSession, saveSchedule, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
 import {makePlan, makeSession} from '../src/domain/learning';
 import {defaultSettings, type Settings} from '../src/domain/types';
 import {parseImport} from '../src/domain/import';
@@ -231,6 +231,15 @@ describe('операции над уроками при расписании',()
   expect(await settleLessons(new Date('2026-09-16T06:00:00Z'),db)).toBe(1);
   expect(await raw(past.id)).toMatchObject({targetDate:'2026-09-10',status:'completed'});
   expect(await raw('lesson-1-2')).toMatchObject({status:'upcoming'});
+ });
+ it('первое занятие в прошлом: сохранение расписания сразу закрепляет прошедшие уроки',async()=>{
+  await ensureSeed(db);
+  await updateLesson('lesson-1-2',{targetDate:null},db);
+  expect(await saveSchedule({...defaultSettings,schedule:{startDate:'2026-09-01',weekdays:[2,5]}},new Date('2026-09-16T06:00:00Z'),db)).toBe(3);
+  expect(await raw('lesson-1-2')).toMatchObject({targetDate:'2026-09-01',status:'completed'});
+  expect(await raw('lesson-1-3')).toMatchObject({targetDate:'2026-09-04',status:'completed'});
+  expect(await raw('lesson-1-4')).toMatchObject({targetDate:'2026-09-08',status:'completed'});
+  expect((await snapshot()).settings.schedule).toEqual({startDate:'2026-09-01',weekdays:[2,5]});
  });
  it('день считается по зоне пользователя',async()=>{
   await prepare();
