@@ -17,6 +17,17 @@ function greekVoice():SpeechSynthesisVoice|null{
  return cachedVoice;
 }
 export const hasGreekVoice=()=>!!greekVoice();
+
+/** Предложения читает системный голос: записанных файлов для примеров нет. */
+export function speakPhrase(text:string):AudioKind{
+ stopAudio();
+ const voice=greekVoice();
+ if(!voice)return 'none';
+ const utterance=new SpeechSynthesisUtterance(text);
+ utterance.voice=voice; utterance.lang=voice.lang||'el-GR'; utterance.rate=0.85;
+ speechSynthesis.speak(utterance);
+ return 'voice';
+}
 export function audioKind(word:Word|undefined):AudioKind{
  if(!word)return 'none';
  if(word.audioAssetId)return 'file';
@@ -46,6 +57,19 @@ export async function playWord(word:Word):Promise<AudioKind>{
  speechSynthesis.speak(utterance);
  return 'voice';
 }
+/** Голос появляется асинхронно, поэтому доступность пересчитывается после загрузки списка. */
+export function useGreekVoice():boolean{
+ const [available,setAvailable]=useState(hasGreekVoice);
+ useEffect(()=>{
+  setAvailable(hasGreekVoice());
+  if(typeof speechSynthesis==='undefined')return;
+  const update=()=>{cachedVoice=undefined;setAvailable(hasGreekVoice())};
+  speechSynthesis.addEventListener('voiceschanged',update);
+  return()=>speechSynthesis.removeEventListener('voiceschanged',update);
+ },[]);
+ return available;
+}
+
 /** Голоса появляются асинхронно, поэтому доступность пересчитывается после загрузки. */
 export function useAudioKind(word:Word|undefined):AudioKind{
  const [kind,setKind]=useState<AudioKind>(()=>audioKind(word));
