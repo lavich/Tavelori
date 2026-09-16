@@ -63,5 +63,5 @@ describe('размер компактного снимка (задача 0.4)',(
   console.log(`≈${Math.round(perWord)} символов на слово → предел ≈${capacity} стандартных слов при трёх версиях в облаке`);
   expect(results.every(result=>result.keys<CLOUD_LIMITS.maxKeys)).toBe(true);
   expect(capacity).toBeGreaterThan(3000);
- });
+ },60_000); // три базы по тысячам событий: на CI-раннере дольше стандартных 5 секунд
 });
