@@ -62,7 +62,7 @@ test('занятие: знакомство, четыре упражнения, �
     await page.getByRole('button',{name:'Проверить'}).click();
     await expect(page.getByTestId('chars')).toBeVisible();
    }else throw new Error(`Неожиданное задание: ${prompt}`);
-   await expect(page.getByTestId('feedback')).toBeVisible();
+   await expect(page.getByTestId('feedback').or(page.locator('[data-answer="correct"]'))).toBeVisible();
    if(++completed===3){
     await page.goto('/');
     await ready(page);

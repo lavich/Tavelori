@@ -38,7 +38,7 @@ for(const type of ['recognition','assembly','spelling','listening']){
   await expect(page.getByTestId('grade')).toHaveCount(0);
   await expect(page.getByText('Насколько легко вспомнилось?')).toHaveCount(0);
   await page.getByRole('button',{name:'Не знаю',exact:true}).click();
-  await expect(page.getByTestId('feedback')).toBeVisible();
+  await expect(page.getByTestId('feedback').or(page.locator('[data-answer="correct"]'))).toBeVisible();
   const first=await stored(page);
   expect(first.events).toHaveLength(1);
   expect(first.events[0]).toMatchObject({correct:false,rating:1,answer:'',type});
@@ -47,7 +47,7 @@ for(const type of ['recognition','assembly','spelling','listening']){
   // Перезагрузка сразу после ответа продолжает дополнительную попытку.
   await page.reload();
   await page.getByRole('button',{name:'Не знаю',exact:true}).click();
-  await expect(page.getByTestId('feedback')).toBeVisible();
+  await expect(page.getByTestId('feedback').or(page.locator('[data-answer="correct"]'))).toBeVisible();
   const second=await stored(page);
   expect(second.events).toHaveLength(2);
   expect(second.events.some(e=>e.mode==='practice')).toBe(true);
@@ -77,7 +77,8 @@ test('знакомство идёт отдельным проходом и пе�
  expect(after.events).toEqual([]);
  expect(after.session.introducedWordIds).toHaveLength(3);
  await page.getByTestId('option').first().click();
- await expect(page.getByTestId('feedback')).toHaveText('Правильно!');
+ await expect(page.locator('[data-answer="correct"]')).toContainText('Правильный ответ');
+ await expect(page.getByTestId('feedback')).toHaveCount(0);
  expect((await stored(page)).events[0]).toMatchObject({correct:true,rating:3});
 });
 
@@ -87,6 +88,23 @@ test('старое вспоминание заменяется объектив�
  await expect(page.getByRole('button',{name:'Показать ответ'})).toHaveCount(0);
  await expect(page.getByTestId('grade')).toHaveCount(0);
  await page.getByRole('button',{name:'Не знаю',exact:true}).click();
- await expect(page.getByTestId('feedback')).toBeVisible();
+ await expect(page.getByTestId('feedback').or(page.locator('[data-answer="correct"]'))).toBeVisible();
  expect((await stored(page)).events[0]).toMatchObject({type:'recognition',correct:false});
+});
+
+test('неверный выбор отмечается крестиком, правильный — галочкой, без отдельной карточки',async({page})=>{
+ await installSession(page,'recognition');
+ await page.getByTestId('option').nth(1).click();
+ const right=page.locator('[data-answer="correct"]');
+ const wrong=page.locator('[data-answer="wrong"]');
+ await expect(right).toContainText('Правильный ответ');
+ await expect(wrong).toContainText('Неправильный ответ');
+ await expect(right.locator('svg')).toHaveCount(1);
+ await expect(wrong.locator('svg')).toHaveCount(1);
+ await expect(right).toHaveCSS('background-color','rgb(236, 253, 243)');
+ await expect(wrong).toHaveCSS('background-color','rgb(254, 242, 242)');
+ await expect(right).toHaveCSS('opacity','1');
+ await expect(wrong).toHaveCSS('opacity','1');
+ await expect(page.getByTestId('feedback')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Далее',exact:true})).toBeVisible();
 });

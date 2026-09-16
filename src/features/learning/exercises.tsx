@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {Button} from '@/components/ui/button';
-import {Volume2} from 'lucide-react';
+import {Check, Volume2, X} from 'lucide-react';
 import type {SessionItem, Word} from '../../domain/types';
 import {checkAnswer} from '../../domain/import';
 import {diffChars} from '../../domain/spelling';
@@ -68,20 +68,21 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
     <p className={s.prompt} data-testid="prompt">{prompt}</p>
     {head}
     {art&&<WordArt word={item.word}/>}
-    <div className={s.options} style={{width:'100%'}}>
+    <div className={s.options} style={{width:'100%'}} ref={revealed}>
      {options.map(option=>(
       <Button key={option} data-testid="option" variant="outline" disabled={answered||saving}
-       className={cx('h-14 justify-start rounded-[14px] text-[17px]', answered&&(option===correct?s.correct:option===picked?s.wrong:''))}
-       onClick={()=>choose(option)}>{option}</Button>
+       data-answer={answered?(option===correct?'correct':option===picked?'wrong':undefined):undefined}
+       className={cx('h-14 justify-between rounded-[14px] text-[17px]', answered&&(option===correct?s.correct:option===picked?s.wrong:''))}
+       onClick={()=>choose(option)}>
+       <span>{option}</span>
+       {answered&&option===correct&&<><Check aria-hidden className="size-5 shrink-0"/><span className="sr-only">Правильный ответ</span></>}
+       {answered&&option===picked&&option!==correct&&<><X aria-hidden className="size-5 shrink-0"/><span className="sr-only">Неправильный ответ</span></>}
+      </Button>
      ))}
     </div>
-    {answered&&(
-     <div style={{width:'100%'}} ref={revealed}>
-      <div data-testid="feedback" className={cx(s.feedback, picked===correct?s.ok:s.bad)} style={{marginTop:0}}>
-       {picked===correct?'Правильно!':`Правильный ответ: ${correct}`}
-      </div>
-      {item.word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={item.word.examples[0]}/></div>}
-     </div>
+    {answered&&<span className="sr-only" role="status">{picked===correct?'Правильно':`Правильный ответ: ${correct}`}</span>}
+    {answered&&item.word.examples[0]&&(
+     <div style={{width:'100%',textAlign:'left'}}><ExampleBox example={item.word.examples[0]}/></div>
     )}
    </div>
    <div className={s.dock}>{answered?<Button size="xl" onClick={onNext}>Далее</Button>:<Button variant="outline" size="xl" disabled={saving} onClick={()=>choose(null)}>Не знаю</Button>}</div>
@@ -92,7 +93,13 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
 export function Recognition(props:Props){
  const word=props.item.word;
  return <Choice {...props} prompt="Что значит это слово?" art={false} correct={word.russian} options={props.item.options}
-  head={<><p className={wordCss.greek} style={{margin:'6px 0'}}>{word.greek}</p>{word.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}</>}/>;
+  head={<div className="flex w-full flex-wrap items-center justify-center gap-3">
+   <div>
+    <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.greek}</p>
+    {word.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}
+   </div>
+   <SpeakButton word={word}/>
+  </div>}/>;
 }
 
 export function Listening(props:Props){
@@ -137,7 +144,7 @@ export function Assembly({item,onAnswer,onNext}:Props){
        <div>{result==='correct'?'Правильно!':result==='skipped'?'Правильный порядок слогов:':'Пока не сходится — посмотри порядок слогов.'}</div>
        <p className="m-0 mt-1.5 text-[19px]">{correct.join(' · ')}</p>
       </div>
-      {word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={word.examples[0]}/></div>}
+      {word.examples[0]&&<div style={{textAlign:'left',marginTop:12}}><ExampleBox example={word.examples[0]}/></div>}
      </div>
     )}
    </div>
@@ -213,7 +220,7 @@ export function Spelling({item,onAnswer,onNext}:Props){
         </>
        )}
       </div>
-      {word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={word.examples[0]}/></div>}
+      {word.examples[0]&&<div style={{textAlign:'left',marginTop:12}}><ExampleBox example={word.examples[0]}/></div>}
      </div>
     )}
    </div>
