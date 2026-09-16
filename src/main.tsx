@@ -4,14 +4,24 @@ import {BrowserRouter} from 'react-router-dom';
 import {registerSW} from 'virtual:pwa-register';
 import {App} from './app/App';
 import {refreshCatalog} from './content/client';
+import {initPlatform, telegramBridge} from './platform/platform';
 import {db, ensureDefaults} from './storage/db';
 import {settleLessons} from './storage/ops';
+import {connectSync} from './sync';
 import './styles.css';
 
 export const updateReady={value:false,apply:()=>{}};
-const update=registerSW({onNeedRefresh(){updateReady.value=true;window.dispatchEvent(new CustomEvent('lexi:update'))}});
-updateReady.apply=()=>update(true);
+// WebView без service worker не должен обрушить запуск: регистрация обёрнута, обновления просто недоступны.
+try{
+ if('serviceWorker' in navigator){
+  const update=registerSW({onNeedRefresh(){updateReady.value=true;window.dispatchEvent(new CustomEvent('lexi:update'))},onRegisterError(error){console.warn('Service worker недоступен',error)}});
+  updateReady.apply=()=>update(true);
+ }
+}catch(error){console.warn('Service worker недоступен',error)}
 
-db.open().then(()=>ensureDefaults()).then(()=>settleLessons(new Date())).catch(error=>console.error('Не удалось открыть локальную базу',error));
+const database=db.open().then(()=>ensureDefaults()).then(()=>settleLessons(new Date())).catch(error=>console.error('Не удалось открыть локальную базу',error));
 refreshCatalog().catch(()=>undefined);
+// Bridge Telegram загружается параллельно и не задерживает рендер; синхронизация подключается после базы и bridge.
+const platform=initPlatform();
+Promise.all([database,platform]).then(()=>connectSync(telegramBridge())).catch(error=>console.warn('Синхронизация не подключена',error));
 createRoot(document.getElementById('root')!).render(<StrictMode><BrowserRouter basename={import.meta.env.BASE_URL}><App/></BrowserRouter></StrictMode>);

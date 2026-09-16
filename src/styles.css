@@ -37,6 +37,75 @@
  --warning-foreground:var(--color-yellow-900);
  --invert:var(--color-zinc-900);
  --invert-foreground:var(--color-zinc-50);
+ /* Отступы и высота оболочки: в браузере — системные, в Telegram их задаёт адаптер. */
+ --inset-top:env(safe-area-inset-top,0px);
+ --inset-bottom:env(safe-area-inset-bottom,0px);
+ --app-height:100dvh;
+ /* Статусы ответа принадлежат Lexi и сопровождаются текстом или значком; ниже — пары для тёмного фона. */
+ --ok-bg:#ecfdf3; --ok-fg:#14532d;
+ --bad-bg:#fef2f2; --bad-fg:#7f1d1d;
+ --almost-bg:#fffbeb; --almost-fg:#854d0e;
+ --same-bg:#dcfce7; --wrong-bg:#fee2e2;
+ --track:#e3e3dd;
+ --art-bg:#eef2fa;
+ --speak-disabled:#c9ced8;
+ --shadow:rgba(0,0,0,.22);
+ --nav-bg:color-mix(in srgb,var(--background) 96%,transparent);
+}
+/*
+ * Telegram: семантические токены Lexi сопоставлены переменным темы клиента с резервными значениями.
+ * Универсального токена границы у Telegram нет — граница выводится из цвета текста с учётом контраста.
+ */
+:root[data-platform="telegram"]{
+ --background:var(--tg-theme-bg-color,#f7f7f5);
+ --foreground:var(--tg-theme-text-color,#171717);
+ --card:var(--tg-theme-section-bg-color,var(--tg-theme-secondary-bg-color,#ffffff));
+ --card-foreground:var(--tg-theme-text-color,#171717);
+ --popover:var(--tg-theme-section-bg-color,var(--tg-theme-secondary-bg-color,#ffffff));
+ --popover-foreground:var(--tg-theme-text-color,#171717);
+ --primary:var(--tg-theme-button-color,#0d5eaf);
+ --primary-foreground:var(--tg-theme-button-text-color,#ffffff);
+ --primary-hover:color-mix(in srgb,var(--primary) 85%,var(--foreground));
+ --secondary:var(--tg-theme-secondary-bg-color,#f0f0ec);
+ --secondary-foreground:var(--tg-theme-text-color,#171717);
+ --muted:var(--tg-theme-secondary-bg-color,#f0f0ec);
+ --muted-foreground:var(--tg-theme-hint-color,#6b7280);
+ --accent:color-mix(in srgb,var(--primary) 12%,var(--background));
+ --accent-foreground:var(--tg-theme-accent-text-color,var(--primary));
+ --soft:color-mix(in srgb,var(--primary) 12%,var(--background));
+ --destructive:var(--tg-theme-destructive-text-color,#b91c1c);
+ --border:color-mix(in srgb,var(--foreground) 14%,transparent);
+ --input:color-mix(in srgb,var(--foreground) 14%,transparent);
+ --ring:var(--primary);
+ --track:color-mix(in srgb,var(--foreground) 12%,transparent);
+ --art-bg:color-mix(in srgb,var(--primary) 8%,var(--card));
+ --speak-disabled:color-mix(in srgb,var(--foreground) 25%,var(--background));
+}
+:root[data-theme="dark"]{
+ color-scheme:dark;
+ --background:var(--tg-theme-bg-color,#17212b);
+ --foreground:var(--tg-theme-text-color,#f5f5f5);
+ --card:var(--tg-theme-section-bg-color,var(--tg-theme-secondary-bg-color,#232e3c));
+ --card-foreground:var(--tg-theme-text-color,#f5f5f5);
+ --popover:var(--tg-theme-section-bg-color,var(--tg-theme-secondary-bg-color,#232e3c));
+ --popover-foreground:var(--tg-theme-text-color,#f5f5f5);
+ --secondary:var(--tg-theme-secondary-bg-color,#232e3c);
+ --secondary-foreground:var(--tg-theme-text-color,#f5f5f5);
+ --muted:var(--tg-theme-secondary-bg-color,#232e3c);
+ --muted-foreground:var(--tg-theme-hint-color,#a3adb8);
+ --primary:var(--tg-theme-button-color,#5288c1);
+ --primary-foreground:var(--tg-theme-button-text-color,#ffffff);
+ --destructive:var(--tg-theme-destructive-text-color,#f87171);
+ --ok:#4ade80;
+ --ok-bg:#0f2e1a; --ok-fg:#bbf7d0;
+ --bad-bg:#3b1111; --bad-fg:#fecaca;
+ --almost-bg:#3a2a05; --almost-fg:#fde68a;
+ --same-bg:#166534; --wrong-bg:#7f1d1d;
+ --shadow:rgba(0,0,0,.6);
+ --success:var(--color-emerald-400); --success-foreground:var(--color-emerald-100);
+ --warning:var(--color-yellow-400); --warning-foreground:var(--color-yellow-100);
+ --info:var(--color-violet-400); --info-foreground:var(--color-violet-100);
+ --destructive-foreground:var(--color-red-200);
 }
 /* Базовые элементы держим в слое base: иначе они перебивают утилиты Tailwind. */
 @layer base {

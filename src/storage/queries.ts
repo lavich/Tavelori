@@ -1,7 +1,8 @@
 import Dexie from 'dexie';
 import {State} from 'ts-fsrs';
-import {db, searchTokens, type LexiDatabase, type StoredWord} from './db';
+import {db, isStandardWord, searchTokens, type LexiDatabase, type StoredWord} from './db';
 import {addDays, localDay, type SessionSource} from '../domain/learning';
+import {byTime, emptyStats, emptySkills, foldStats, succeeded, summarizeEvents, type DaySummary} from '../domain/skills';
 import {normalize, wordKey} from '../domain/import';
 import {scheduleLessons} from '../domain/schedule';
 import type {StatsSource} from '../domain/stats';
@@ -50,17 +51,44 @@ export function dexieSource(database:LexiDatabase=db):SessionSource&StatsSource{
    }
   },
   wordsOf:ids=>liveWords(ids,database),
-  historyOf:wordId=>database.events.where('[wordId+createdAt]').between(...span(wordId)).toArray(),
+  skillsOf:async word=>{
+   const base=await database.baseSummary.get('base');
+   // Без базы или для пользовательского слова сводка считается по всей локальной истории.
+   if(!base||!isStandardWord(word))return summarizeEvents(word.id,await database.events.where('[wordId+createdAt]').between(...span(word.id)).toArray());
+   const row=await database.baseSkills.get(word.id);
+   return summarizeEvents(word.id,await eventsAfter(database,word.id,base.asOf),row?.skills??emptySkills());
+  },
   optionPool:want=>optionPool(want,database),
-  eventsBetween:(from,to)=>database.events.where('localDate').between(from,to,true,true).toArray(),
-  recentByType:async(type,limit)=>(await database.events.where('[type+createdAt]').between(...span(type)).reverse().limit(limit).toArray()).reverse(),
+  daysBetween:async(from,to)=>{
+   const base=await database.baseSummary.get('base');
+   const local=await database.events.where('localDate').between(from,to,true,true).toArray();
+   const fresh=base?local.filter(event=>event.createdAt>base.asOf):local;
+   const start:DaySummary[]=(base?.stats.days??[]).filter(day=>day.date>=from&&day.date<=to).map(day=>({...day,wordIds:[...day.wordIds]}));
+   return byTime(fresh).reduce((summary,event)=>foldStats(summary,event,Infinity),{...emptyStats(),days:start}).days;
+  },
+  recentByType:async(type,limit)=>{
+   const base=await database.baseSummary.get('base');
+   const range=base?database.events.where('[type+createdAt]').between([type,base.asOf],[type,Dexie.maxKey],false,true):database.events.where('[type+createdAt]').between(...span(type));
+   const local=(await range.reverse().limit(limit).toArray()).reverse().map(succeeded);
+   return [...(base?.stats.recentByType[type]??[]),...local].slice(-limit);
+  },
   dueWordIdsBefore:instant=>database.states.where('card.due').below(instant).primaryKeys(),
   deletedWordIds:()=>deletedWordIds(database),
   wordCount:()=>database.words.count(),
   eachState:visit=>database.states.each(visit),
-  totals:async()=>({answers:await database.events.count(),words:(await database.events.orderBy('wordId').uniqueKeys()).length}),
+  totals:async()=>{
+   const base=await database.baseSummary.get('base');
+   if(!base)return {answers:await database.events.count(),words:(await database.events.orderBy('wordId').uniqueKeys()).length};
+   const fresh=await database.events.where('createdAt').above(base.asOf).toArray();
+   const known=new Set(base.stats.answeredWordIds);
+   return {answers:base.stats.answers+fresh.length,words:known.size+new Set(fresh.map(event=>event.wordId).filter(id=>!known.has(id))).size};
+  },
  };
 }
+
+/** События слова строго после отсечки базы: включённые в базу ответы не учитываются второй раз. */
+export const eventsAfter=(database:LexiDatabase,wordId:string,asOf:string)=>
+ database.events.where('[wordId+createdAt]').between([wordId,asOf],[wordId,Dexie.maxKey],false,true).toArray();
 
 /**
  * Пул вариантов ответа. Маленький словарь берётся целиком в порядке идентификаторов, поэтому совпадает

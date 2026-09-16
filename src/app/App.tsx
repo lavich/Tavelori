@@ -3,7 +3,10 @@ import {toast} from 'sonner';
 import {Toaster} from '@/components/ui/sonner';
 import {Navigate, Route, Routes, useLocation} from 'react-router-dom';
 import {Nav} from './Nav';
+import {useGoBack} from './navigation';
+import {SyncConflictDialog, TelegramWelcome} from './TelegramNotices';
 import {updateReady} from '../main';
+import {useBackHandler, useEnvironment} from '../platform/platform';
 import {localDay} from '../domain/learning';
 import {useNow} from '../shared/clock';
 import {useSettings} from '../shared/store';
@@ -27,6 +30,10 @@ export function App(){
  const {pathname}=useLocation();
  const immersive=pathname.startsWith('/session');
  const {settings}=useSettings();
+ useEnvironment();
+ // Резервный возврат Telegram: на «Сегодня» кнопка скрыта, на остальных экранах без своего обработчика ведёт назад или на главный.
+ const goBack=useGoBack();
+ useBackHandler(pathname==='/'?null:goBack,0);
  const today=localDay(useNow(),settings.timezone);
  const seenDay=useRef(today);
  useEffect(()=>{
@@ -67,6 +74,8 @@ export function App(){
    </Suspense>
    <Toaster position="bottom-center" offset={immersive?16:88}/>
    {!immersive&&<Nav/>}
+   <TelegramWelcome/>
+   {!immersive&&<SyncConflictDialog/>}
   </div>
  );
 }

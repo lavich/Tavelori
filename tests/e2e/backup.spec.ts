@@ -23,7 +23,7 @@ test('полная копия переносит слова, правки и м�
  await page.getByRole('link',{name:/Копия данных/}).click();
  const download=await Promise.all([
   page.waitForEvent('download'),
-  page.getByRole('button',{name:'Скачать полную копию'}).click(),
+  page.getByRole('button',{name:'Сохранить полную копию'}).click(),
  ]).then(([item])=>item);
  const file=join(tmpdir(),`lexi-e2e-${Date.now()}.json`);
  writeFileSync(file,readFileSync(await download.path()));

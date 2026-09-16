@@ -5,6 +5,13 @@ import {localDay, nextState, objectiveExercise, OPTION_POOL, spaceSingleIntroduc
 import {normalize, wordKey, type ImportRow} from '../domain/import';
 import {scheduleLessons} from '../domain/schedule';
 import {fillSettings, type Asset, type Lesson, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from '../domain/types';
+import {syncEvents} from '../sync/events';
+
+/** Отметка «есть неопубликованные изменения» пишется в той же транзакции, что и само изменение. */
+export const DIRTY_KEY='sync:dirty';
+const markChanged=(database:LexiDatabase)=>database.meta.put({key:DIRTY_KEY,value:'1'});
+const announceChange=()=>syncEvents.emit('changed');
+const settled=(items:SessionItem[])=>items.filter(entry=>entry.eventId||entry.skipped).length;
 
 export class ConflictError extends Error {constructor(){super('Слово уже отвечено в другой вкладке. Обновите страницу.')}}
 const stamp=(now:Date)=>now.toISOString();
@@ -15,13 +22,17 @@ export interface AnswerInput {
  responseTimeMs:number; activeTimeMs:number; timezone:string; now?:Date; database?:LexiDatabase;
 }
 /** Один ответ = одно событие, один пересчёт FSRS и одна позиция сессии, в одной транзакции. */
-export async function submitAnswer({session,item,correct,answer,responseTimeMs,activeTimeMs,timezone,now=new Date(),database=db}:AnswerInput):Promise<ReviewEvent>{
+export async function submitAnswer(input:AnswerInput):Promise<ReviewEvent>{
+ return (await recordAnswer(input)).event;
+}
+/** `created:false` — ответ уже был записан (повторное нажатие, вторая вкладка): отклик и синхронизация не повторяются. */
+export async function recordAnswer({session,item,correct,answer,responseTimeMs,activeTimeMs,timezone,now=new Date(),database=db}:AnswerInput):Promise<{event:ReviewEvent;created:boolean}>{
  if(typeof correct!=='boolean'||item.type==='recall')throw new Error('Нужен ответ на объективное задание');
  const rating=correct?3:1;
  const eventId=`e-${item.id}`;
- return database.transaction('rw',database.events,database.states,database.sessions,async()=>{
+ const result=await database.transaction('rw',database.events,database.states,database.sessions,database.meta,async()=>{
   const existing=await database.events.get(eventId);
-  if(existing)return existing; // повторное нажатие не создаёт второй ответ
+  if(existing)return {event:existing,created:false}; // повторное нажатие не создаёт второй ответ
   const state=await database.states.get(item.wordId);
   if((state?.version??0)!==item.expectedVersion)throw new ConflictError();
   const scheduled=item.mode==='scheduled';
@@ -44,9 +55,25 @@ export async function submitAnswer({session,item,correct,answer,responseTimeMs,a
     expectedVersion:updated?.version??state?.version??0,eventId:undefined,retryOf:item.id,
    });
   }
-  const answered=items.filter(entry=>entry.eventId).length;
+  const answered=settled(items);
   await database.sessions.put({...stored,items,index:answered,activeTimeMs,status:answered>=items.length?'done':'active'});
-  return event;
+  await markChanged(database);
+  return {event,created:true};
+ });
+ if(result.created)announceChange();
+ return result;
+}
+/**
+ * Пропуск без оценки знания: аудио недоступно или не воспроизвелось. События нет, интервалы не меняются,
+ * упражнение считается пройденным для позиции занятия.
+ */
+export async function skipItem(sessionId:string,itemId:string,activeTimeMs:number,database:LexiDatabase=db):Promise<void>{
+ await database.transaction('rw',database.sessions,async()=>{
+  const session=await database.sessions.get(sessionId);
+  if(!session)throw new Error('Занятие недоступно');
+  const items=session.items.map(entry=>entry.id===itemId&&!entry.eventId?{...entry,skipped:true}:entry);
+  const answered=settled(items);
+  await database.sessions.put({...session,items,index:answered,activeTimeMs,status:answered>=items.length?'done':'active'});
  });
 }
 export const saveSession=(session:Session,database:LexiDatabase=db)=>database.sessions.put(session);
@@ -66,11 +93,15 @@ export async function deleteWord(id:string,database:LexiDatabase=db){
 export type LessonPatch=Partial<Pick<Lesson,'title'|'targetDate'|'status'>>;
 /** Частичная правка сырой записи: вычисленная по расписанию дата из снимка не попадает в базу. */
 export async function updateLesson(id:string,patch:LessonPatch,database:LexiDatabase=db){
- await database.lessons.update(id,{...patch,updatedAt:stamp(new Date())});
+ await database.transaction('rw',database.lessons,database.meta,async()=>{
+  await database.lessons.update(id,{...patch,updatedAt:stamp(new Date())});
+  await markChanged(database);
+ });
+ announceChange();
 }
 /** Для поставленного урока удаление связи запоминается, чтобы обновление пакета её не вернуло. */
 export async function removeFromLesson(lessonId:string,wordId:string,database:LexiDatabase=db){
- await database.transaction('rw',database.lessons,database.lessonWords,database.packages,async()=>{
+ await database.transaction('rw',database.lessons,database.lessonWords,database.packages,database.meta,async()=>{
   await database.lessonWords.delete([lessonId,wordId]);
   const pack=await database.packages.get(lessonId);
   if(pack&&!pack.removed.includes(wordId))await database.packages.put({...pack,removed:[...pack.removed,wordId]});
@@ -97,7 +128,7 @@ export async function createLesson(title:string,database:LexiDatabase=db):Promis
  * поэтому дальнейшие изменения расписания его не трогают. Повторный вызов ничего не пишет.
  */
 export async function settleLessons(now:Date,database:LexiDatabase=db):Promise<number>{
- return database.transaction('rw',database.lessons,database.settings,async()=>{
+ return database.transaction('rw',database.lessons,database.settings,database.meta,async()=>{
   const settings=fillSettings(await database.settings.get('settings'));
   const today=localDay(now,settings.timezone);
   const stored=await database.lessons.toArray();
@@ -139,7 +170,10 @@ export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Pro
   return {lessonId:lesson.id,added,linked:linked-added,conflicts};
  });
 }
-export async function saveSettings(settings:Settings,database:LexiDatabase=db){await database.settings.put(settings)}
+export async function saveSettings(settings:Settings,database:LexiDatabase=db){
+ await database.transaction('rw',database.settings,database.meta,async()=>{await database.settings.put(settings);await markChanged(database)});
+ announceChange();
+}
 /** Дата первого занятия может быть в прошлом: уроки, чьи дни уже прошли, закрепляются сразу, не дожидаясь запуска. */
 export async function saveSchedule(settings:Settings,now:Date,database:LexiDatabase=db):Promise<number>{
  await saveSettings(settings,database);

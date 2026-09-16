@@ -13,8 +13,8 @@ import s from './session.module.css';
 import {cx} from '../../shared/cx';
 
 export interface Answer {correct:boolean;text:string;status?:'correct'|'almost'|'wrong'}
-/** onAnswer возвращает false, если запись не удалась: тогда упражнение остаётся открытым для повтора. */
-interface Props {item:SessionItem;onAnswer:(answer:Answer)=>Promise<boolean>;onNext:()=>void}
+/** onAnswer возвращает false, если запись не удалась: тогда упражнение остаётся открытым для повтора. `onSkip` — пропуск без оценки. */
+interface Props {item:SessionItem;onAnswer:(answer:Answer)=>Promise<boolean>;onNext:()=>void;onSkip?:()=>void}
 
 /** Раскрытый ответ подводим к верху области прокрутки: иначе он остаётся под закреплённой кнопкой. */
 function useRevealed(active:boolean){
@@ -29,7 +29,7 @@ export function Introduction({word,onReady,saving=false}:{word:Word;onReady:()=>
  return (
   <>
    <div className={s.center}>
-    <p className={s.prompt} data-testid="prompt">Новое слово</p>
+    <p className={cx(s.prompt,'sr-only')} data-testid="prompt">Новое слово</p>
     <WordArt word={word}/>
     <div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}}>
      <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>
@@ -102,13 +102,30 @@ export function Recognition(props:Props){
   </div>}/>;
 }
 
+/**
+ * Аудирование. Отказ воспроизведения не засчитывается как ошибка знания: можно повторить или продолжить без аудио —
+ * упражнение пропускается без события и без сдвига интервалов.
+ */
 export function Listening(props:Props){
  const word=props.item.word;
  const kind=useAudioKind(word);
  const played=useRef(false);
- useEffect(()=>{if(!played.current){played.current=true;playWord(word)}},[word.id]);
+ const [failed,setFailed]=useState(false);
+ const play=()=>playWord(word).then(result=>setFailed(result==='error'||result==='none'));
+ useEffect(()=>{if(!played.current){played.current=true;play()}},[word.id]);
  return <Choice {...props} prompt="Что прозвучало?" art={false} correct={word.greek} options={props.item.options}
-  head={<Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={()=>playWord(word)}><Volume2 aria-hidden/></Button>}/>;
+  head={<div className="flex w-full flex-col items-center gap-3">
+   <Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={play}><Volume2 aria-hidden/></Button>
+   {failed&&(
+    <div data-testid="audio-failed" role="alert" className="w-full rounded-[14px] p-3 text-left" style={{background:'var(--almost-bg)',color:'var(--almost-fg)'}}>
+     <p className="m-0 text-sm">Аудио не воспроизвелось. Это не влияет на прогресс: попробуйте ещё раз или продолжите без аудирования.</p>
+     <div className="mt-2 flex gap-2">
+      <Button size="sm" variant="outline" onClick={play}>Повторить</Button>
+      {props.onSkip&&<Button size="sm" variant="outline" onClick={props.onSkip}>Продолжить без аудио</Button>}
+     </div>
+    </div>
+   )}
+  </div>}/>;
 }
 
 /** Ступень перед свободным написанием: слово собирается из перемешанных слогов. */

@@ -4,6 +4,8 @@ import {Field, FieldDescription, FieldGroup, FieldLabel} from '@/components/ui/f
 import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {BackBar} from '../../app/TopBar';
+import {useHapticsSetting} from '../../platform/haptics';
+import {usePlatform} from '../../platform/platform';
 import {useSettings} from '../../shared/store';
 import {saveSettings} from '../../storage/ops';
 import ui from '../../shared/ui.module.css';
@@ -16,6 +18,8 @@ export function SettingsScreen(){
  const [zone,setZone]=useState('Asia/Nicosia');
  const [problem,setProblem]=useState('');
  const [saved,setSaved]=useState(false);
+ const platform=usePlatform();
+ const [haptics,setHaptics]=useHapticsSetting();
  useEffect(()=>{
   setDaily(String(settings.newWordsPerDay));
   setSize(String(settings.sessionSize));
@@ -66,6 +70,15 @@ export function SettingsScreen(){
      <Button size="xl" type="submit" className="mt-4">Сохранить</Button>
      {saved&&<p className="mt-2 text-sm text-(--ok)" role="status">Сохранено. Новые значения применятся к следующим занятиям, история ответов не изменилась.</p>}
     </form>
+    {platform.kind==='telegram'&&(
+     <section className="mt-6" data-testid="telegram-settings">
+      <h2>Telegram</h2>
+      <label className="flex items-center justify-between gap-3" style={{color:'inherit',fontSize:16,margin:0}}>
+       <span>Тактильный отклик результата<br/><span className="text-sm text-muted-foreground">Лёгкая вибрация после сохранённого ответа: успех, почти правильно, ошибка. Настройка хранится на этом устройстве.{platform.capabilities.haptics?'':' В этом клиенте отклик недоступен.'}</span></span>
+       <input type="checkbox" role="switch" aria-label="Тактильный отклик результата" checked={haptics&&platform.capabilities.haptics} disabled={!platform.capabilities.haptics} onChange={event=>setHaptics(event.target.checked)} style={{width:22,height:22,minHeight:0}}/>
+      </label>
+     </section>
+    )}
    </main>
   </>
  );

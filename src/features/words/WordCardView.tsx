@@ -19,15 +19,16 @@ export function WordArt({word,hidden}:{word:Word;hidden?:boolean}){
 
 export function SpeakButton({word,label='Послушать слово'}:{word:Word;label?:string}){
  const kind=useAudioKind(word);
- const [failed,setFailed]=useState(false);
+ const [failed,setFailed]=useState<'none'|'error'|null>(null);
  return (
   <>
    <Button size="icon-xl" className="size-14 rounded-full [&_svg:not([class*='size-'])]:size-6.5"
     disabled={kind==='none'} aria-label={kind==='none'?'Озвучка недоступна':label}
-    onClick={()=>playWord(word).then(result=>setFailed(result==='none'))}>
+    onClick={()=>playWord(word).then(result=>setFailed(result==='none'||result==='error'?result:null))}>
     <Volume2 aria-hidden/>
    </Button>
-   {(kind==='none'||failed)&&<span className={cx(ui.small, ui.muted)}>Озвучка недоступна: нет файла и греческого голоса</span>}
+   {(kind==='none'||failed==='none')&&<span className={cx(ui.small, ui.muted)}>Озвучка недоступна: нет файла и греческого голоса</span>}
+   {failed==='error'&&<span className={cx(ui.small, ui.muted)} role="status">Не удалось воспроизвести. Нажмите ещё раз.</span>}
   </>
  );
 }

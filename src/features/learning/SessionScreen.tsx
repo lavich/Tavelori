@@ -7,8 +7,10 @@ import {stopAudio} from '../../shared/audio';
 import {useActiveSession, useSettings} from '../../shared/store';
 import {Progress} from '@/components/ui/progress';
 import {Skeleton} from '@/components/ui/skeleton';
+import {hapticsEnabled} from '../../platform/haptics';
+import {useBackHandler, useHaptics, usePlatform} from '../../platform/platform';
 import {db} from '../../storage/db';
-import {ConflictError, endSession, submitAnswer, markIntroduced, prepareObjectiveSession} from '../../storage/ops';
+import {ConflictError, endSession, recordAnswer, markIntroduced, prepareObjectiveSession, skipItem} from '../../storage/ops';
 import {Assembly, Introduction, Listening, Recognition, Spelling, type Answer} from './exercises';
 import ui from '../../shared/ui.module.css';
 import s from './session.module.css';
@@ -25,7 +27,7 @@ export function SessionScreen(){
  useEffect(()=>{
   if(!session||sessionId)return;
   setSessionId(session.id);
-  setCursor(session.items.findIndex(entry=>!entry.eventId)); // продолжаем с первого неотвеченного
+  setCursor(session.items.findIndex(entry=>!entry.eventId&&!entry.skipped)); // продолжаем с первого неотвеченного
   active.current={ms:session.activeTimeMs,since:Date.now()}; // время прошлых заходов не теряется
  },[session?.id]);
  const [cursor,setCursor]=useState<number|null>(null);
@@ -40,7 +42,13 @@ export function SessionScreen(){
  const shown=useRef(Date.now());
  const active=useRef({ms:0,since:Date.now()});
  const previous=useRef<string|undefined>(undefined);
- const position=cursor??session?.items.findIndex(entry=>!entry.eventId)??0;
+ const position=cursor??session?.items.findIndex(entry=>!entry.eventId&&!entry.skipped)??0;
+ const haptic=useHaptics();
+ const nativeBack=usePlatform().capabilities.back;
+ // Нативный «Назад» Telegram выполняет тот же выход из занятия, что и крестик: принятые ответы уже сохранены.
+ const leaveRef=useRef<()=>void>(()=>navigate('/'));
+ const [backHandler]=useState(()=>()=>leaveRef.current());
+ useBackHandler(backHandler);
  const item=session&&position>=0?session.items[position]:undefined;
  const introduction=session?.items.find(entry=>entry.isNew&&!entry.eventId&&!entry.retryOf&&!session.introducedWordIds?.includes(entry.wordId));
 
@@ -82,14 +90,16 @@ export function SessionScreen(){
  const step=introduction?introductions.findIndex(entry=>entry.id===introduction.id):position;
  const total=introduction?introductions.length:session.items.length;
  const activeMs=()=>active.current.ms+(document.hidden?0:Date.now()-active.current.since);
- const answer=async({correct,text}:Answer):Promise<boolean>=>{
+ const answer=async({correct,text,status}:Answer):Promise<boolean>=>{
   setProblem('');
   try{
-   await submitAnswer({
+   const {created}=await recordAnswer({
     session,item,correct,answer:text,
     responseTimeMs:Date.now()-shown.current,activeTimeMs:activeMs(),
     timezone:settings.timezone,
    });
+   // Отклик — один раз после успешного локального сохранения нового ответа; повтор, ошибка записи и пропуск его не дают.
+   if(created&&hapticsEnabled())haptic(status==='almost'?'warning':correct?'success':'error');
    return true;
   }catch(error){
    setProblem(error instanceof ConflictError?error.message:'Не удалось сохранить ответ. Проверьте место на устройстве и попробуйте ещё раз.');
@@ -112,18 +122,24 @@ export function SessionScreen(){
   await endSession({...session,activeTimeMs:activeMs()});
   navigate('/');
  };
+ leaveRef.current=leave;
+ const skip=async()=>{
+  setProblem('');
+  try{await skipItem(session.id,item.id,activeMs());next()}
+  catch{setProblem('Не удалось пропустить упражнение. Попробуйте ещё раз.')}
+ };
  // key по упражнению: иначе следующее слово успевает показаться с ответом предыдущего.
  const view=session.objectiveVersion!==1?null:introduction
   ?<Introduction key={introduction.id} word={introduction.word} onReady={introduce} saving={introducing}/>
   :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next}/>
-  :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next}/>
+  :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip}/>
   :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :<Spelling key={item.id} item={item} onAnswer={answer} onNext={next}/>;
 
  return (
   <main className={s.session}>
    <div className={s.top}>
-    <Button variant="ghost" size="icon-lg" className="size-11" onClick={leave} aria-label="Закрыть занятие"><X/></Button>
+    {!nativeBack&&<Button variant="ghost" size="icon-lg" className="size-11" onClick={leave} aria-label="Закрыть занятие"><X/></Button>}
     <Progress value={(step/total)*100} className="h-2 flex-1"/>
     <span className={s.counter} aria-label={`${introduction?'Знакомство':'Упражнение'} ${step+1} из ${total}`}>{step+1} / {total}</span>
    </div>

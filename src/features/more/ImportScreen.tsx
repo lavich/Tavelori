@@ -58,7 +58,7 @@ export function ImportScreen(){
        служебных строк пропущено {parsed.ignored} · ошибок {parsed.errors.length}
       </p>
       {duplicates>0&&<p className={cx(ui.small, ui.muted)} style={{margin:'0 0 8px'}}>{duplicates} уже есть в словаре — они будут добавлены в набор без дубликата.</p>}
-      {conflicts>0&&<p className={ui.small} style={{margin:'0 0 8px',color:'#854d0e'}}>{conflicts} слов совпадают по написанию, но с другим переводом — будут созданы отдельные записи.</p>}
+      {conflicts>0&&<p className={ui.small} style={{margin:'0 0 8px',color:'var(--almost-fg)'}}>{conflicts} слов совпадают по написанию, но с другим переводом — будут созданы отдельные записи.</p>}
       {parsed.errors.map(error=><p className={ui.error} key={error.line} style={{margin:'2px 0'}}>Строка {error.line}: {error.message}</p>)}
       <div className={ui.stack}>
        {parsed.rows.slice(0,8).map((row,index)=>(

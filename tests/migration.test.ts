@@ -54,7 +54,7 @@ describe('миграция схемы без сети',()=>{
   await seedLegacy();
   const db=new LexiDatabase(NAME);
   await db.open();
-  expect(db.verno).toBe(2);
+  expect(db.verno).toBe(3);
   const l12=wordsOf('lesson-1-2');
   expect((await lessonLinks('lesson-1-2',db)).map(link=>link.wordId)).toEqual(l12.map(w=>w.id));
   expect((await lessonLinks('lesson-own',db)).map(link=>[link.wordId,link.position])).toEqual([['w-own',0],['w12-16',1]]);
@@ -156,7 +156,7 @@ describe('резервная копия',()=>{
   await installLessons(db,['lesson-1-1']);
   const before=await db.words.count();
   expect(await inspectBackup(new Blob(['{не json']))).toMatchObject({ok:false});
-  expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:3,tables:[],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/более новой версией/)});
+  expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:4,tables:[],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/более новой версией/)});
   expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:2,tables:[{name:'words',rowCount:0}],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/обязательных таблиц/)});
   const good=JSON.parse(await (await exportFull(db)).text());
   const links=good.data.data.find((t:{tableName:string})=>t.tableName==='lessonWords');

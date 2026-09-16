@@ -1,4 +1,5 @@
 import {db, indexWord, type LexiDatabase} from '../storage/db';
+import {adoptStash} from '../sync/snapshot';
 import {ContentError, parseCatalog, parsePackage, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackageWord, type ShippedField} from './schema';
 import type {Asset, InstalledPackage, Word} from '../domain/types';
 
@@ -106,7 +107,7 @@ function assign(word:Word,field:ShippedField,value:unknown){
 
 export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db):Promise<InstallResult>{
  const now=new Date().toISOString();
- return database.transaction('rw',database.words,database.lessons,database.lessonWords,database.packages,database.media,async()=>{
+ return database.transaction('rw',[database.words,database.lessons,database.lessonWords,database.packages,database.media,database.states,database.syncStash,database.meta],async()=>{
   const installed=await database.packages.get(pack.id);
   if(installed&&installed.version===pack.version)return {status:'current',added:0,changed:0,conflicts:[]};
   const base=new Map((installed?.words??[]).map(word=>[word.id,word]));
@@ -137,6 +138,8 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
   await database.media.bulkPut(pack.media);
   const record:InstalledPackage={lessonId:pack.id,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,media:pack.media,removed:[...removed]};
   await database.packages.put(record);
+  // Полученный из облака прогресс слов этого пакета ждал установки: теперь он становится обычным состоянием.
+  await adoptStash(database,pack.id,pack.words.map(word=>word.id));
   return result;
  });
 }

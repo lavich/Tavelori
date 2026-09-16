@@ -7,5 +7,5 @@ export default defineConfig({
  fullyParallel:false,
  workers:1,
  use:{baseURL:`http://localhost:${port}`,browserName:'chromium',viewport:{width:390,height:844},deviceScaleFactor:2},
- webServer:{command:`npm run build && npx vite preview --port ${port} --strictPort`,url:`http://localhost:${port}`,reuseExistingServer:true,timeout:120000},
+ webServer:{command:`npm run build && npx vite preview --host 0.0.0.0 --port ${port} --strictPort`,url:`http://localhost:${port}`,reuseExistingServer:true,timeout:120000},
 });

@@ -3,30 +3,40 @@ import {ensureAsset} from '../content/client';
 import type {Word} from '../domain/types';
 
 export type AudioKind='file'|'voice'|'none';
+/** Итог воспроизведения: `error` — файл или голос есть, но проигрывание отклонено; это не ошибка знания слова. */
+export type PlayResult=AudioKind|'error';
 let cachedVoice:SpeechSynthesisVoice|null|undefined;
 let current:HTMLAudioElement|null=null;
 // Список голосов приходит асинхронно, поэтому сбрасываем кеш, когда браузер его обновил.
 if(typeof speechSynthesis!=='undefined'){speechSynthesis.getVoices();speechSynthesis.addEventListener('voiceschanged',()=>{cachedVoice=undefined})}
+// Скрытие приложения (в том числе сворачивание Telegram) останавливает звук.
+if(typeof document!=='undefined')document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAudio()});
 
 function greekVoice():SpeechSynthesisVoice|null{
  if(typeof speechSynthesis==='undefined')return null;
  if(cachedVoice!==undefined)return cachedVoice;
- const voices=speechSynthesis.getVoices();
+ let voices:SpeechSynthesisVoice[]=[];
+ try{voices=speechSynthesis.getVoices()}catch{return null}
  if(!voices.length)return null;
  cachedVoice=voices.find(voice=>voice.lang?.toLowerCase().startsWith('el'))??null;
  return cachedVoice;
 }
 export const hasGreekVoice=()=>!!greekVoice();
 
+const speak=(text:string,voice:SpeechSynthesisVoice,rate:number):PlayResult=>{
+ try{
+  const utterance=new SpeechSynthesisUtterance(text);
+  utterance.voice=voice; utterance.lang=voice.lang||'el-GR'; utterance.rate=rate;
+  speechSynthesis.speak(utterance);
+  return 'voice';
+ }catch{return 'error'}
+};
 /** Предложения читает системный голос: записанных файлов для примеров нет. */
-export function speakPhrase(text:string):AudioKind{
+export function speakPhrase(text:string):PlayResult{
  stopAudio();
  const voice=greekVoice();
  if(!voice)return 'none';
- const utterance=new SpeechSynthesisUtterance(text);
- utterance.voice=voice; utterance.lang=voice.lang||'el-GR'; utterance.rate=0.85;
- speechSynthesis.speak(utterance);
- return 'voice';
+ return speak(text,voice,0.85);
 }
 export function audioKind(word:Word|undefined):AudioKind{
  if(!word)return 'none';
@@ -34,10 +44,14 @@ export function audioKind(word:Word|undefined):AudioKind{
  return greekVoice()?'voice':'none';
 }
 export function stopAudio(){
- if(current){current.pause();current.currentTime=0;current=null}
- if(typeof speechSynthesis!=='undefined')speechSynthesis.cancel();
+ if(current){try{current.pause();current.currentTime=0}catch{/* элемент уже освобождён */}current=null}
+ if(typeof speechSynthesis!=='undefined'){try{speechSynthesis.cancel()}catch{/* синтез недоступен */}}
 }
-export async function playWord(word:Word):Promise<AudioKind>{
+/**
+ * Отказ воспроизведения не подавляется: экран получает `error` и предлагает повтор или продолжение без аудирования.
+ * Файл, который не проигрался, не подменяется голосом молча — иначе пользователь услышит другое произношение.
+ */
+export async function playWord(word:Word):Promise<PlayResult>{
  stopAudio();
  if(word.audioAssetId){
   const asset=await ensureAsset(word.audioAssetId).catch(()=>null);
@@ -45,17 +59,16 @@ export async function playWord(word:Word):Promise<AudioKind>{
    const url=URL.createObjectURL(asset.blob);
    const audio=new Audio(url);
    current=audio;
-   audio.addEventListener('ended',()=>URL.revokeObjectURL(url),{once:true});
-   await audio.play().catch(()=>undefined);
-   return 'file';
+   const release=()=>URL.revokeObjectURL(url);
+   audio.addEventListener('ended',release,{once:true});
+   try{await audio.play();return 'file'}
+   catch{release();if(current===audio)current=null;return 'error'}
   }
+  if(!greekVoice())return 'error'; // файл обещан, но недоступен, а голоса нет
  }
  const voice=greekVoice();
  if(!voice)return 'none';
- const utterance=new SpeechSynthesisUtterance(word.greek);
- utterance.voice=voice; utterance.lang=voice.lang||'el-GR'; utterance.rate=0.9;
- speechSynthesis.speak(utterance);
- return 'voice';
+ return speak(word.greek,voice,0.9);
 }
 /** Голос появляется асинхронно, поэтому доступность пересчитывается после загрузки списка. */
 export function useGreekVoice():boolean{

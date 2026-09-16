@@ -1,4 +1,5 @@
 import {localDay, type SessionSource} from './learning';
+import {byTime, emptyStats, foldStats, summarizeEvents} from './skills';
 import {scheduleLessons} from './schedule';
 import type {StatsSource} from './stats';
 import {fillSettings, type Snapshot} from './types';
@@ -27,10 +28,10 @@ export function fromSnapshot(data:Snapshot):SessionSource&StatsSource{
    return ids.slice(start,start+limit);
   },
   wordsOf:async ids=>ids.map(id=>live.get(id)).filter((word):word is NonNullable<typeof word>=>!!word),
-  historyOf:async wordId=>sorted(data.events.filter(event=>event.wordId===wordId)),
+  skillsOf:async word=>summarizeEvents(word.id,data.events),
   optionPool:async()=>[...live.values()],
-  eventsBetween:async(from,to)=>data.events.filter(event=>event.localDate>=from&&event.localDate<=to),
-  recentByType:async(type,limit)=>sorted(data.events.filter(event=>event.type===type)).slice(-limit),
+  daysBetween:async(from,to)=>byTime(data.events.filter(event=>event.localDate>=from&&event.localDate<=to)).reduce((summary,event)=>foldStats(summary,event,Infinity),emptyStats()).days,
+  recentByType:async(type,limit)=>sorted(data.events.filter(event=>event.type===type)).slice(-limit).map(event=>event.correct===null?event.rating>1:event.correct),
   dueWordIdsBefore:async instant=>data.states.filter(state=>new Date(state.card.due).getTime()<instant.getTime()).map(state=>state.wordId),
   deletedWordIds:async()=>deleted,
   wordCount:async()=>data.words.length,

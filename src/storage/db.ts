@@ -2,6 +2,8 @@ import Dexie, {type Table, type Transaction} from 'dexie';
 import type {CatalogEntry} from '../content/schema';
 import {normalize, wordKey} from '../domain/import';
 import {defaultSettings, type Asset, type InstalledPackage, type LearningState, type Lesson, type LessonWord, type MediaRef, type ReviewEvent, type Session, type Settings, type Word} from '../domain/types';
+import type {BaseSkillRow, BaseSummaryRow, StashRow, SyncVersionRow} from '../sync/types';
+import {currentProfile} from './profile';
 
 export interface MetaRow {key:string;value:string}
 export interface IndexFields {key:string;greekKey:string;sortKey:string;tokens:string[]}
@@ -21,6 +23,7 @@ export class LexiDatabase extends Dexie {
  assets!:Table<Asset,string>; media!:Table<MediaRef,string>; packages!:Table<InstalledPackage,string>; catalog!:Table<CatalogEntry,string>;
  states!:Table<LearningState,string>; events!:Table<ReviewEvent,string>; sessions!:Table<Session,string>;
  settings!:Table<Settings,string>; meta!:Table<MetaRow,string>;
+ baseSkills!:Table<BaseSkillRow,string>; baseSummary!:Table<BaseSummaryRow,string>; syncVersions!:Table<SyncVersionRow,string>; syncStash!:Table<StashRow,string>;
  constructor(name='lexi'){
   super(name);
   this.version(1).stores({
@@ -47,13 +50,28 @@ export class LexiDatabase extends Dexie {
    settings:'id',
    meta:'key',
   }).upgrade(tx=>migrateLegacy(tx));
+  // Схема 3: база синхронизации, отложенные состояния и сохранённые альтернативы; индекс времени событий.
+  this.version(3).stores({
+   events:'id,wordId,sessionId,localDate,type,createdAt,[wordId+createdAt],[type+createdAt]',
+   baseSkills:'wordId',
+   baseSummary:'id',
+   syncVersions:'id,createdAt',
+   syncStash:'wordId',
+  });
  }
 }
-export const db=new LexiDatabase();
-/** Таблицы пользовательских данных: входят в полную копию. Каталог — кеш, а не данные пользователя. */
-export const TABLES=['words','lessons','lessonWords','assets','media','packages','states','events','sessions','settings','meta'] as const;
+/** База текущего профиля: обычный браузер — `lexi`, Telegram — отдельная база на бота и пользователя. */
+export const db=new LexiDatabase(currentProfile().databaseName);
+export const SCHEMA_VERSION=3;
+/** Таблицы пользовательских данных: входят в полную копию. Каталог — кеш, а не данные пользователя; альтернативные версии облака — тоже. */
+export const TABLES=['words','lessons','lessonWords','assets','media','packages','states','events','sessions','settings','meta','baseSkills','baseSummary','syncStash'] as const;
+export const TABLES_V2=['words','lessons','lessonWords','assets','media','packages','states','events','sessions','settings','meta'] as const;
 export const LEGACY_TABLES=['words','lessons','assets','states','events','sessions','settings','meta'] as const;
 export const SEED_LESSON=/^lesson-1-[1-4]$/, SEED_WORD=/^w1[1-4]-\d{2}$/;
+/** Стандартное слово поставлено пакетом (есть ревизия) либо исходным набором старой версии. */
+export const isStandardWord=(word:Pick<Word,'id'|'revision'>)=>word.revision!==undefined||SEED_WORD.test(word.id);
+/** Служебные ключи синхронизации в `meta`: идентификатор устройства и очередь не переносятся копией. */
+export const SYNC_META_PREFIX='sync:';
 /** Дата создания исходных слов старой версии: слово с ней не редактировалось пользователем. */
 export const LEGACY_CREATED='2026-09-15T00:00:00.000Z';
 

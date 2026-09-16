@@ -1,19 +1,21 @@
 import Dexie from 'dexie';
 import {exportDB, importInto} from 'dexie-export-import';
-import {LexiDatabase, db, LEGACY_TABLES, migrateLegacy, TABLES} from '../../storage/db';
+import {LexiDatabase, db, LEGACY_TABLES, migrateLegacy, SCHEMA_VERSION, SYNC_META_PREFIX, TABLES, TABLES_V2} from '../../storage/db';
+import {isLexiDatabaseName} from '../../storage/profile';
 import {fillSettings, type LessonWord, type Settings} from '../../domain/types';
+import {syncEvents} from '../../sync/events';
 
 /** Версия формата копии совпадает с версией схемы; копии первой версии читаются через миграцию. */
-export const APP_MARKER='lexi:2';
-const KNOWN_MARKERS=['lexi:1',APP_MARKER];
-const SCHEMA_VERSION=2;
+export const APP_MARKER=`lexi:${SCHEMA_VERSION}`;
+const KNOWN_MARKERS=['lexi:1','lexi:2',APP_MARKER];
 export interface BackupReport {databaseName:string;tables:{name:string;rows:number}[];createdAt:string|null;bytes:number;legacy:boolean}
 
-/** Каталог — кеш, а не данные пользователя: в копию не входит. */
+/** Каталог — кеш, альтернативные версии облака и служебные ключи синхронизации — не данные пользователя: в копию не входят. */
 export async function exportFull(database:LexiDatabase=db):Promise<Blob>{
  await database.meta.put({key:'app',value:APP_MARKER});
  await database.meta.put({key:'exportedAt',value:new Date().toISOString()});
- return exportDB(database,{prettyJson:false,filter:table=>table!=='catalog'});
+ const blob=await exportDB(database,{prettyJson:false,skipTables:['catalog','syncVersions'],filter:(table,value)=>!(table==='meta'&&String((value as {key?:string})?.key??'').startsWith(SYNC_META_PREFIX))});
+ return new Blob([blob],{type:'application/json'});
 }
 export function download(blob:Blob,name:string){
  const url=URL.createObjectURL(blob);
@@ -21,6 +23,45 @@ export function download(blob:Blob,name:string){
  link.href=url; link.download=name; link.click();
  setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
+/**
+ * Итог передачи файла. «shared»/«downloaded» означают, что файл передан системе, а не что он сохранён:
+ * браузер не сообщает о фактическом сохранении, поэтому интерфейс говорит нейтрально.
+ */
+export type TransferOutcome='shared'|'downloaded'|'cancelled'|'failed'|'unsupported';
+export interface TransferPorts {
+ canShare?:(data:ShareData)=>boolean; share?:(data:ShareData)=>Promise<void>;
+ download?:(blob:Blob,name:string)=>void; downloadSupported?:boolean;
+}
+const defaultPorts=():TransferPorts=>({
+ canShare:typeof navigator!=='undefined'&&typeof navigator.canShare==='function'?data=>navigator.canShare(data):undefined,
+ share:typeof navigator!=='undefined'&&typeof navigator.share==='function'?data=>navigator.share(data):undefined,
+ download,
+ downloadSupported:typeof document!=='undefined'&&'download' in document.createElement('a'),
+});
+/**
+ * Файловый share предпочтителен в WebView, где ссылка на Blob может не сработать; иначе обычное скачивание.
+ * Отмена диалога отличается от ошибки и не считается сохранением.
+ */
+export async function transferFile(blob:Blob,name:string,ports:TransferPorts=defaultPorts()):Promise<TransferOutcome>{
+ const file=new File([blob],name,{type:blob.type||'application/json'});
+ if(ports.share&&ports.canShare?.({files:[file]})){
+  try{await ports.share({files:[file],title:name});return 'shared'}
+  catch(error){
+   if((error as {name?:string})?.name==='AbortError')return 'cancelled';
+   if(!ports.downloadSupported||!ports.download)return 'failed';
+  }
+ }
+ if(!ports.downloadSupported||!ports.download)return 'unsupported';
+ try{ports.download(blob,name);return 'downloaded'}
+ catch{return 'failed'}
+}
+export const TRANSFER_TEXT:Record<TransferOutcome,string>={
+ shared:'Файл передан выбранному приложению. Проверьте, что он сохранился там.',
+ downloaded:'Файл передан браузеру для сохранения. Проверьте папку загрузок.',
+ cancelled:'Передача отменена. Данные не изменились.',
+ failed:'Не удалось передать файл. Данные не изменились.',
+ unsupported:'Этот клиент не поддерживает сохранение файлов из приложения. Откройте Lexi там, где доступно сохранение, или сделайте копию позже.',
+};
 export const backupName=(now=new Date())=>`lexi-backup-${now.toISOString().slice(0,10)}.json`;
 
 export async function exportWordsTsv(database:LexiDatabase=db):Promise<Blob>{
@@ -37,12 +78,13 @@ export async function inspectBackup(file:Blob):Promise<{ok:true;report:BackupRep
  catch{return {ok:false,message:'Файл не читается как копия Lexi — возможно, он повреждён.'}}
  if(parsed?.formatName!=='dexie'||!parsed?.data?.tables)return {ok:false,message:'Это не файл полной копии Lexi.'};
  const info=parsed.data;
- if(info.databaseName!=='lexi')return {ok:false,message:`Копия сделана другим приложением (база «${info.databaseName}»).`};
+ if(!isLexiDatabaseName(info.databaseName))return {ok:false,message:`Копия сделана другим приложением (база «${info.databaseName}»).`};
  const version=Number(info.databaseVersion);
  if(version>SCHEMA_VERSION)return {ok:false,message:`Копия сделана более новой версией Lexi (схема ${info.databaseVersion}). Обновите приложение.`};
- const legacy=version<SCHEMA_VERSION;
+ const legacy=version<2;
  const names=info.tables.map((table:{name:string})=>table.name);
- const missing=(legacy?LEGACY_TABLES:TABLES).filter(table=>!names.includes(table));
+ const required=version<2?LEGACY_TABLES:version<3?TABLES_V2:TABLES;
+ const missing=required.filter(table=>!names.includes(table));
  if(missing.length)return {ok:false,message:`В копии нет обязательных таблиц: ${missing.join(', ')}.`};
  const meta=(info.data??[]).find((entry:{tableName:string})=>entry.tableName==='meta');
  const marker=(meta?.rows??[]).find((row:{key:string})=>row.key==='app');
@@ -77,11 +119,19 @@ export async function restoreBackup(file:Blob,database:LexiDatabase=db):Promise<
   const broken=rows<LessonWord>('lessonWords').find(link=>!wordIds.has(link.wordId)||!lessonIds.has(link.lessonId));
   if(broken)throw new Error(`Копия повреждена: связь урока ${broken.lessonId} указывает на несуществующую запись.`);
   await database.transaction('rw',TABLES.map(name=>database.table(name)),async()=>{
+   // Идентификатор устройства и очередь публикации принадлежат этой установке, а не копии.
+   const own=await database.meta.where('key').startsWith(SYNC_META_PREFIX).toArray();
    for(const [name,items] of payload){
     await database.table(name).clear();
-    await database.table(name).bulkAdd((name==='settings'?(items as Settings[]).map(fillSettings):items) as never[]);
+    const rows=name==='settings'?(items as Settings[]).map(fillSettings)
+     :name==='meta'?(items as {key:string}[]).filter(row=>!row.key.startsWith(SYNC_META_PREFIX)):items;
+    await database.table(name).bulkAdd(rows as never[]);
    }
+   await database.meta.bulkPut(own);
+   // Восстановленная копия не заменяет облако молча: следующий обмен предложит выбор состояния.
+   await database.meta.put({key:`${SYNC_META_PREFIX}restored`,value:new Date().toISOString()});
   });
+  syncEvents.emit('restored');
  }finally{
   staging.close();
   await Dexie.delete('lexi-restore');

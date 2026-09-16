@@ -2,10 +2,10 @@ import type {Page} from '@playwright/test';
 
 export interface DuePlan {wordId:string;tested:('recall'|'recognition'|'assembly'|'spelling')[];audio?:boolean}
 /** Готовим очередь прямо в IndexedDB: сроки, история навыков и аудиофайл для аудирования. */
-export async function seedQueue(page:Page,plan:DuePlan[]){
- await page.evaluate(async(plan)=>{
+export async function seedQueue(page:Page,plan:DuePlan[],databaseName='lexi'){
+ await page.evaluate(async([plan,databaseName])=>{
   const open=()=>new Promise<IDBDatabase>((resolve,reject)=>{
-   const request=indexedDB.open('lexi');
+   const request=indexedDB.open(databaseName);
    request.onsuccess=()=>resolve(request.result);
    request.onerror=()=>reject(request.error);
   });
@@ -36,7 +36,7 @@ export async function seedQueue(page:Page,plan:DuePlan[]){
   }
   await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
   database.close();
- },plan);
+ },[plan,databaseName] as const);
  await page.reload();
  await ready(page);
 }

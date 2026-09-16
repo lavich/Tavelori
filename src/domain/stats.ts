@@ -1,6 +1,7 @@
 import {State} from 'ts-fsrs';
 import {addDays, localDay, zonedStart} from './learning';
-import type {ExerciseType, LearningState, ReviewEvent, Settings} from './types';
+import type {DaySummary} from './skills';
+import type {ExerciseType, LearningState, Settings} from './types';
 
 export interface DayStat {date:string;answers:number;words:number}
 export interface SkillStat {type:ExerciseType;attempts:number;correct:number;rate:number|null}
@@ -8,8 +9,10 @@ export interface Progress {days:DayStat[];skills:SkillStat[];due:{today:number;t
 
 export interface StatsSource {
  settings():Promise<Settings>;
- eventsBetween(fromDay:string,toDay:string):Promise<ReviewEvent[]>;
- recentByType(type:ExerciseType,limit:number):Promise<ReviewEvent[]>;
+ /** Дни периода с числом ответов и словами; источник сам сводит базу и локальные события. */
+ daysBetween(fromDay:string,toDay:string):Promise<DaySummary[]>;
+ /** Исходы последних ответов типа (старые → новые). */
+ recentByType(type:ExerciseType,limit:number):Promise<boolean[]>;
  dueWordIdsBefore(instant:Date):Promise<string[]>;
  deletedWordIds():Promise<Set<string>>;
  wordCount():Promise<number>;
@@ -22,16 +25,16 @@ const TYPES:ExerciseType[]=['recall','recognition','assembly','spelling','listen
 export async function progress(source:StatsSource,now:Date):Promise<Progress>{
  const {timezone}=await source.settings();
  const today=localDay(now,timezone);
- const period=await source.eventsBetween(addDays(today,-6),today);
+ const period=await source.daysBetween(addDays(today,-6),today);
  const days:DayStat[]=Array.from({length:7},(_,index)=>{
   const date=addDays(today,index-6);
-  const events=period.filter(event=>event.localDate===date);
-  return {date,answers:events.length,words:new Set(events.map(event=>event.wordId)).size};
+  const day=period.find(entry=>entry.date===date);
+  return {date,answers:day?.answers??0,words:day?new Set(day.wordIds).size:0};
  });
  const skills:SkillStat[]=[];
  for(const type of TYPES){
   const recent=await source.recentByType(type,10);
-  const correct=recent.filter(event=>event.correct===null?event.rating>1:event.correct).length;
+  const correct=recent.filter(Boolean).length;
   skills.push({type,attempts:recent.length,correct,rate:recent.length?correct/recent.length:null});
  }
  const deleted=await source.deletedWordIds();

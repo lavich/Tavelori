@@ -1,8 +1,16 @@
-.session{max-width:560px;width:100%;margin:0 auto;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 0;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
-.top{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+/* Высота — устойчивая область Telegram или 100dvh браузера; отступы — из переменных оболочки, без сложения env() и Telegram. */
+.session{max-width:560px;width:100%;margin:0 auto;padding:calc(10px + var(--inset-top)) 16px 0;height:var(--app-height);display:flex;flex-direction:column;overflow:hidden}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:8px;min-height:44px}
 .top button{margin-left:-10px}
+/*
+ * Во весь экран Telegram рисует «Назад» слева и «…» справа поверх контента. Строка прогресса встаёт
+ * в ту же полосу между ними: экран отступает только на системную строку, а строка занимает высоту полосы кнопок.
+ */
+:root[data-launch-mode="fullscreen"] .session{padding-top:var(--inset-safe-top,0px)}
+:root[data-launch-mode="fullscreen"] .top{min-height:var(--inset-content-top,44px);margin:0 26% 4px}
+:root[data-launch-mode="fullscreen"] .counter{font-size:14px}
 .counter{color:var(--muted-foreground);font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.progress{flex:1;height:8px;border-radius:999px;background:#e3e3dd;overflow:hidden}
+.progress{flex:1;height:8px;border-radius:999px;background:var(--track);overflow:hidden}
 .progress i{display:block;height:100%;background:var(--primary);border-radius:999px;transition:width .25s}
 .body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;scrollbar-width:none}
 /* Своя полоса прокрутки внутри занятия мешает: позицию показывают прогресс и тень дока. */
@@ -10,7 +18,7 @@
 .center{flex:1 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:12px 0}
 
 /* Основное действие закреплено у нижнего края: за кнопкой не нужно листать карточку. */
-.dock{position:sticky;bottom:0;display:grid;gap:10px;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:var(--background);box-shadow:0 -14px 18px -14px rgba(0,0,0,.22)}
+.dock{position:sticky;bottom:0;display:grid;gap:10px;padding:12px 0 calc(12px + var(--inset-bottom));background:var(--background);box-shadow:0 -14px 18px -14px var(--shadow)}
 .dock form{display:grid;gap:10px}
 .dock p{margin:0}
 
@@ -20,14 +28,14 @@
 .prompt{color:var(--muted-foreground);font-size:15px}
 .options{display:grid;gap:10px}
 .option{min-height:56px;border-radius:14px;border:1px solid var(--border);background:var(--card);text-align:left;padding:0 16px;font-size:17px;cursor:pointer}
-.option:hover{border-color:#c9c9c1}
-.options .correct{opacity:1;border-color:var(--ok);background:#ecfdf3;color:#14532d}
-.options .wrong{opacity:1;border-color:var(--destructive);background:#fef2f2;color:#7f1d1d}
+.option:hover{border-color:var(--muted-foreground)}
+.options .correct{opacity:1;border-color:var(--ok);background:var(--ok-bg);color:var(--ok-fg)}
+.options .wrong{opacity:1;border-color:var(--destructive);background:var(--bad-bg);color:var(--bad-fg)}
 .feedback{border-radius:14px;padding:14px 16px;margin-top:14px}
-.feedback.ok{background:#ecfdf3;color:#14532d}
-.feedback.bad{background:#fef2f2;color:#7f1d1d}
-.feedback.almost{background:#fffbeb;color:#854d0e}
+.feedback.ok{background:var(--ok-bg);color:var(--ok-fg)}
+.feedback.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.feedback.almost{background:var(--almost-bg);color:var(--almost-fg)}
 .chars{font-size:26px;letter-spacing:.02em;margin-top:6px}
-.chars b{background:#dcfce7;border-radius:4px;padding:0 1px}
-.chars s{background:#fee2e2;border-radius:4px;padding:0 1px;text-decoration:none}
+.chars b{background:var(--same-bg);border-radius:4px;padding:0 1px}
+.chars s{background:var(--wrong-bg);border-radius:4px;padding:0 1px;text-decoration:none}
 .answer{font-size:24px;text-align:center}

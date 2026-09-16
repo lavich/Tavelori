@@ -1,4 +1,5 @@
 import {createEmptyCard, fsrs, generatorParameters, State, type Card, type Grade} from 'ts-fsrs';
+import {emptySkills, summarizeEvents, type SkillSummary} from './skills';
 import {tiles} from './syllables';
 import type {ExerciseType, LearningState, Lesson, ReviewEvent, Session, SessionItem, Settings, Word} from './types';
 
@@ -53,7 +54,8 @@ export interface PlanSource {
 }
 export interface SessionSource extends PlanSource {
  wordsOf(wordIds:string[]):Promise<Word[]>;
- historyOf(wordId:string):Promise<ReviewEvent[]>;
+ /** Компактная сводка навыков слова: синхронизированная база плюс локальные ответы после неё. */
+ skillsOf(word:Word):Promise<SkillSummary>;
  optionPool(want:number):Promise<Word[]>;
 }
 export const OPTION_POOL=48;
@@ -112,43 +114,40 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
 }
 
 const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening'];
-const succeeded=(event:ReviewEvent)=>event.correct===null?event.rating>1:event.correct;
 export interface SkillContext {hasAudio?:boolean;hasOptions?:boolean;canAssemble?:boolean}
 
 /** Написание открывается, когда после последней ошибки в нём набрано две успешные сборки. */
+export const spellingUnlockedFor=(skills:SkillSummary)=>skills.cleanAssemblies>=2;
 export function spellingUnlocked(wordId:string,events:ReviewEvent[]):boolean{
- const history=events.filter(e=>e.wordId===wordId).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
- let since=0;
- for(const event of history){
-  if(event.type==='spelling'&&event.correct===false)since=0;
-  else if(event.type==='assembly'&&event.correct===true)since++;
- }
- return since>=2;
+ return spellingUnlockedFor(summarizeEvents(wordId,events));
 }
 
 /** Эвристика выбора упражнения по последним ответам, а не оценка вероятности памяти. */
-export function chooseType(wordId:string,events:ReviewEvent[],context:SkillContext={}):ExerciseType{
+export function chooseTypeFor(skills:SkillSummary,context:SkillContext={}):ExerciseType{
  const {hasAudio=false,hasOptions=true,canAssemble=false}=context;
- const history=events.filter(e=>e.wordId===wordId).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
  const available=ORDER.filter(type=>
   (type!=='listening'||(hasAudio&&hasOptions))
   &&(type!=='recognition'||hasOptions)
   &&(type!=='assembly'||canAssemble)
-  &&(type!=='spelling'||!canAssemble||spellingUnlocked(wordId,events)));
- const last=history[history.length-1], beforeLast=history[history.length-2];
- const repeated=last&&beforeLast&&last.type===beforeLast.type?last.type:null;
+  &&(type!=='spelling'||!canAssemble||spellingUnlockedFor(skills)));
+ const [beforeLast,last]=skills.lastTypes.length===2?skills.lastTypes:[undefined,skills.lastTypes[0]];
+ const repeated=last&&beforeLast&&last===beforeLast?last:null;
  const allowed=available.filter(type=>type!==repeated);
  const pool=allowed.length?allowed:available;
- const untested=pool.find(type=>!history.some(e=>e.type===type));
+ const untested=pool.find(type=>!skills.types[type]);
  if(untested)return untested;
  const score=(type:ExerciseType)=>{
-  const recent=history.filter(e=>e.type===type).slice(-10);
-  return {rate:recent.filter(succeeded).length/recent.length,at:recent[recent.length-1].createdAt};
+  const recent=skills.types[type]!;
+  return {rate:recent.recent.filter(Boolean).length/recent.recent.length,at:recent.lastAt};
  };
  return pool.slice(1).reduce((best,type)=>{
   const a=score(best), b=score(type);
   return b.rate<a.rate||(b.rate===a.rate&&b.at<a.at)?type:best;
  },pool[0]);
+}
+/** Совместимая форма: история слова сворачивается в сводку и даёт тот же выбор. */
+export function chooseType(wordId:string,events:ReviewEvent[],context:SkillContext={}):ExerciseType{
+ return chooseTypeFor(summarizeEvents(wordId,events),context);
 }
 
 /** Practice сюда не попадает: ручная тренировка не должна двигать интервалы. */
@@ -206,19 +205,19 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
  for(const entry of chosen){
   const word=byId.get(entry.wordId);
   if(!word)continue;
-  const events=entry.isNew?[]:await source.historyOf(entry.wordId);
-  const exercise=objectiveExercise(word,pool,events,random,hasVoice);
+  const skills=entry.isNew?emptySkills():await source.skillsOf(word);
+  const exercise=objectiveExercise(word,pool,skills,random,hasVoice);
   items.push({id:`${id}-${items.length}`,wordId:word.id,word,...exercise,isNew:entry.isNew,mode,expectedVersion:states.get(word.id)?.version??0});
  }
  return {id,createdAt:now.toISOString(),planDate:plan.today,items:spaceSingleIntroduction(items),index:0,status:'active',activeTimeMs:0,introducedWordIds:[],objectiveVersion:1};
 }
 
 /** Варианты проверяем по уникальным ответам, а не только по размеру словаря. */
-export function objectiveExercise(word:Word,pool:Word[],events:ReviewEvent[]=[],random:()=>number=Math.random,hasVoice=false):Pick<SessionItem,'type'|'options'>{
+export function objectiveExercise(word:Word,pool:Word[],skills:SkillSummary=emptySkills(),random:()=>number=Math.random,hasVoice=false):Pick<SessionItem,'type'|'options'>{
  const parts=tiles(word.greek);
  const recognition=optionsFor(word,pool,'recognition',random);
  const listening=optionsFor(word,pool,'listening',random);
- const type=chooseType(word.id,events,{
+ const type=chooseTypeFor(skills,{
   hasAudio:(!!word.audioAssetId||hasVoice)&&listening.length===4,
   hasOptions:recognition.length===4,canAssemble:parts.length>=2,
  });
