@@ -18,11 +18,6 @@
 .slotsHint{color:var(--muted-foreground);font-size:14px}
 .tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
 .prompt{color:var(--muted-foreground);font-size:15px}
-.grades{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.grade{min-height:56px;border-radius:14px;border:1px solid var(--border);background:var(--card);font-weight:600;cursor:pointer}
-.grade:hover{border-color:#c9c9c1}
-.grade b{display:block;font-size:16px}
-.grade span{display:block;color:var(--muted-foreground);font-size:13px;font-weight:400}
 .options{display:grid;gap:10px}
 .option{min-height:56px;border-radius:14px;border:1px solid var(--border);background:var(--card);text-align:left;padding:0 16px;font-size:17px;cursor:pointer}
 .option:hover{border-color:#c9c9c1}

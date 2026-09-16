@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Rating} from 'ts-fsrs';
 import {LexiDatabase, ensureSeed, loadSnapshot} from '../src/storage/db';
-import {ConflictError, commitImport, deleteWord, saveWord, submitAnswer} from '../src/storage/ops';
+import {ConflictError, commitImport, deleteWord, saveWord, submitAnswer, markIntroduced, prepareObjectiveSession} from '../src/storage/ops';
 import {makeSession} from '../src/domain/learning';
 import {parseImport} from '../src/domain/import';
 import {seedAssets, seedLessons, seedWords} from '../src/content';
@@ -53,7 +53,7 @@ describe('запись ответа',()=>{
   return {data,session};
  };
  const answer=(session:ReturnType<typeof makeSession>,item=session.items[0],extra={})=>submitAnswer({
-  session,item,rating:Rating.Good,correct:null,answer:'',responseTimeMs:1200,activeTimeMs:5000,
+  session,item,correct:true,answer:'',responseTimeMs:1200,activeTimeMs:5000,
   timezone:'Asia/Nicosia',now,database:db,...extra,
  });
  it('двойное нажатие создаёт один ответ и один пересчёт FSRS',async()=>{
@@ -68,6 +68,69 @@ describe('запись ответа',()=>{
   await answer(session);
   const stale={...session.items[0],id:`${session.items[0].id}-copy`};
   await expect(answer(session,stale)).rejects.toBeInstanceOf(ConflictError);
+  expect(await db.events.count()).toBe(1);
+ });
+ it('знакомство сохраняется без ответа и изменения расписания',async()=>{
+  const {session}=await prepare();
+  await markIntroduced(session.id,session.items[0].wordId,3000,db);
+  await markIntroduced(session.id,session.items[0].wordId,4000,db);
+  expect(await db.events.count()).toBe(0);
+  expect(await db.states.count()).toBe(0);
+  expect((await db.sessions.get(session.id))!.introducedWordIds).toEqual([session.items[0].wordId]);
+  expect((await db.sessions.get(session.id))!.activeTimeMs).toBe(4000);
+ });
+ it('ошибка атомарно добавляет одну тренировку после двух заданий',async()=>{
+  const {session}=await prepare();
+  const event=await answer(session,session.items[0],{correct:false});
+  expect(event.rating).toBe(Rating.Again);
+  await answer(session,session.items[0],{correct:false});
+  const stored=(await db.sessions.get(session.id))!;
+  expect(stored.items).toHaveLength(session.items.length+1);
+  expect(stored.items[3]).toMatchObject({retryOf:session.items[0].id,mode:'practice',isNew:false,expectedVersion:1});
+  const before=await db.states.get(session.items[0].wordId);
+  await answer(stored,stored.items[3],{correct:false});
+  expect(await db.states.get(session.items[0].wordId)).toEqual(before);
+  expect((await db.sessions.get(session.id))!.items).toHaveLength(stored.items.length);
+  expect(await db.events.count()).toBe(2);
+ });
+ it('последняя ошибка не завершает занятие до дополнительной попытки',async()=>{
+  const {data}=await prepare();
+  const session=makeSession({data,now,wordIds:[seedWords[0].id],random:()=>0.7});
+  await db.sessions.add(session);
+  await answer(session,session.items[0],{correct:false});
+  const stored=(await db.sessions.get(session.id))!;
+  expect(stored.status).toBe('active');
+  expect(stored.items).toHaveLength(2);
+  const state=await db.states.get(session.items[0].wordId);
+  const event=await answer(stored,stored.items[1]);
+  expect(event.rating).toBe(Rating.Good);
+  expect((await db.sessions.get(session.id))!.status).toBe('done');
+  expect(await db.states.get(session.items[0].wordId)).toEqual(state);
+ });
+ it('обновляет только неотвеченный recall и сохраняет старую историю',async()=>{
+  const {session}=await prepare();
+  const event=await answer(session);
+  const stored=(await db.sessions.get(session.id))!;
+  const legacy={...stored,objectiveVersion:undefined,items:stored.items.map(item=>({...item,type:'recall' as const,options:[]}))};
+  await db.sessions.put(legacy);
+  await prepareObjectiveSession(session.id,db);
+  const converted=(await db.sessions.get(session.id))!;
+  expect(converted.items[0]).toEqual(legacy.items[0]);
+  expect(converted.items.slice(1).every(item=>item.type!=='recall')).toBe(true);
+  expect(await db.events.get(event.id)).toEqual(event);
+  await prepareObjectiveSession(session.id,db);
+  expect(await db.sessions.get(session.id)).toEqual(converted);
+ });
+ it('ошибка транзакции откатывает событие, состояние и дополнительную попытку',async()=>{
+  const {session}=await prepare();
+  const fail=()=>{throw new Error('storage failed')};
+  db.sessions.hook('updating',fail);
+  await expect(answer(session,session.items[0],{correct:false})).rejects.toThrow('storage failed');
+  db.sessions.hook('updating').unsubscribe(fail);
+  expect(await db.events.count()).toBe(0);
+  expect(await db.states.count()).toBe(0);
+  expect(await db.sessions.get(session.id)).toEqual(session);
+  await answer(session,session.items[0],{correct:false});
   expect(await db.events.count()).toBe(1);
  });
  it('practice не сдвигает интервалы, но сохраняет результат навыка',async()=>{

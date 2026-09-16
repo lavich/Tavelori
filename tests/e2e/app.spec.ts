@@ -30,7 +30,7 @@ test('исходные уроки, карточка слова и ручная �
  await expect(page.getByText('Новое слово')).toBeVisible();
 });
 
-test('занятие: знакомство, пять упражнений, результат и продолжение после перезапуска',async({page})=>{
+test('занятие: знакомство, четыре упражнения, результат и продолжение после перезапуска',async({page})=>{
  await seedQueue(page,[
   {wordId:'w11-01',tested:['recall']},
   {wordId:'w11-02',tested:['recall','recognition']},
@@ -40,53 +40,43 @@ test('занятие: знакомство, пять упражнений, ре�
  await page.getByRole('button',{name:/Начать занятие/}).click();
  await page.waitForURL('**/session');
  const seen=new Set<string>();
- for(let step=0;step<40;step++){
-  if(await page.getByRole('heading',{name:'Занятие завершено'}).isVisible().catch(()=>false))break;
-  const next=page.getByRole('button',{name:'Далее'});
-  // Последний «Далее» уводит на экран результата, поэтому кнопка может исчезнуть под кликом.
-  if(await next.isVisible().catch(()=>false)){await next.click({timeout:5000}).catch(()=>undefined);continue}
-  await page.getByTestId('prompt').first().waitFor({state:'visible'});
+ let completed=0;
+ for(let step=0;step<80;step++){
+  if(await page.getByRole('heading',{name:'Занятие завершено'}).isVisible())break;
   const prompt=await page.getByTestId('prompt').first().innerText();
-
+  const next=page.getByRole('button',{name:'Далее',exact:true});
   if(prompt==='Новое слово'){
    seen.add('intro');
-   await page.getByRole('button',{name:'Запомнил — проверим'}).click();
-   await page.getByRole('button',{name:'Показать ответ'}).waitFor({state:'visible'});
-  }else if(prompt==='Вспомни слово'){
-   seen.add('recall');
-   if(await page.getByRole('button',{name:'Показать ответ'}).isVisible().catch(()=>false)){
-    await page.getByRole('button',{name:'Показать ответ'}).click();
-    await page.getByTestId('grade').first().waitFor({state:'visible'});
+  }else{
+   await expect(page.getByTestId('grade')).toHaveCount(0);
+   if(prompt==='Что значит это слово?'||prompt==='Что прозвучало?'){
+    seen.add(prompt==='Что значит это слово?'?'recognition':'listening');
+    await page.getByTestId('option').and(page.locator(':not([disabled])')).first().click();
+   }else if(prompt==='Собери слово'){
+    seen.add('assembly');
+    for(const tile of await page.getByTestId('tile').all())await tile.click();
+    await page.getByRole('button',{name:'Проверить'}).click();
+   }else if(prompt==='Напиши по-гречески'){
+    seen.add('spelling');
+    await page.getByLabel('Твой ответ по-гречески').fill('λάθος');
+    await page.getByRole('button',{name:'Проверить'}).click();
+    await expect(page.getByTestId('chars')).toBeVisible();
+   }else throw new Error(`Неожиданное задание: ${prompt}`);
+   await expect(page.getByTestId('feedback')).toBeVisible();
+   if(++completed===3){
+    await page.goto('/');
+    await ready(page);
+    await page.getByRole('button',{name:/Продолжить занятие/}).click();
+    await page.waitForURL('**/session');
+    continue;
    }
-   await page.getByRole('button',{name:/Вспомнил/}).first().click();
-   await next.waitFor({state:'visible'});
-  }else if(prompt==='Что значит это слово?'||prompt==='Что прозвучало?'){
-   seen.add(prompt==='Что значит это слово?'?'recognition':'listening');
-   await page.getByTestId('option').and(page.locator(':not([disabled])')).first().click();
-   await next.waitFor({state:'visible'});
-  }else if(prompt==='Собери слово'){
-   seen.add('assembly');
-   for(const tile of await page.getByTestId('tile').all())await tile.click();
-   await page.getByRole('button',{name:'Проверить'}).click();
-   await expect(page.getByTestId('feedback')).toBeVisible();
-   await next.waitFor({state:'visible'});
-  }else if(prompt==='Напиши по-гречески'){
-   seen.add('spelling');
-   await page.getByLabel('Твой ответ по-гречески').fill('λάθος');
-   await page.getByRole('button',{name:'Проверить'}).click();
-   await expect(page.getByTestId('feedback')).toBeVisible();
-   await expect(page.getByTestId('chars')).toBeVisible();
-   await next.waitFor({state:'visible'});
   }
-  // Уход в середине занятия не теряет уже записанные ответы.
-  if(step===3){
-   await page.goto('/');
-   await ready(page);
-   await page.getByRole('button',{name:/Продолжить занятие/}).click();
-   await page.waitForURL('**/session');
-  }
+  const counter=page.getByLabel(/^(Знакомство|Упражнение) \d+ из \d+$/);
+  const previous=await counter.getAttribute('aria-label');
+  await next.click();
+  await expect(page.getByLabel(previous!,{exact:true})).toHaveCount(0);
  }
- expect([...seen].sort()).toEqual(['assembly','intro','listening','recall','recognition','spelling']);
+ expect([...seen].sort()).toEqual(['assembly','intro','listening','recognition','spelling']);
  await expect(page.getByRole('heading',{name:'Занятие завершено'})).toBeVisible();
  await expect(page.getByText(/Объективная точность/)).toBeVisible();
  await expect(page.getByText(/Активное время/)).toBeVisible();

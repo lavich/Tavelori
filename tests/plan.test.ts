@@ -118,7 +118,7 @@ describe('дневной бюджет и состав занятия',()=>{
   expect(session.items.map(item=>item.wordId)).toEqual(ids.slice(0,3));
   expect(session.items.every(item=>item.mode==='practice')).toBe(true);
  });
- it('варианты ответа уникальны, а при нехватке слов упражнение заменяется на recall',()=>{
+ it('варианты ответа уникальны, а при нехватке слов упражнение заменяется на сборку',()=>{
   const options=optionsFor(pool[0],pool,'recognition',()=>0.5);
   expect(new Set(options).size).toBe(4);
   expect(options).toContain(pool[0].russian);
@@ -152,7 +152,7 @@ describe('выбор упражнения',()=>{
   type,mode:'scheduled',rating:correct?3:1,correct,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:1000,
  });
  it('сначала проверяет ещё не испытанные навыки в заданном порядке',()=>{
-  expect(chooseType('w0',[],{})).toBe('recall');
+  expect(chooseType('w0',[],{})).toBe('recognition');
   expect(chooseType('w0',[event('recall',true,'2026-09-10T09:00:00Z')],{})).toBe('recognition');
   expect(chooseType('w0',[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')],{})).toBe('spelling');
  });

@@ -27,15 +27,6 @@ async function openAssembly(page:import('@playwright/test').Page){
   if(prompt==='Собери слово')return;
   const next=page.getByRole('button',{name:'Далее'});
   if(await next.isVisible().catch(()=>false)){await next.click({timeout:5000}).catch(()=>undefined);continue}
-  if(prompt==='Новое слово'){await page.getByRole('button',{name:'Запомнил — проверим'}).click();continue}
-  if(prompt==='Вспомни слово'){
-   if(await page.getByRole('button',{name:'Показать ответ'}).isVisible().catch(()=>false)){
-    await page.getByRole('button',{name:'Показать ответ'}).click();
-    await page.getByTestId('grade').first().waitFor();
-   }
-   await page.getByRole('button',{name:/Вспомнил/}).first().click();
-   continue;
-  }
   const option=page.getByTestId('option').and(page.locator(':not([disabled])')).first();
   if(await option.isVisible().catch(()=>false)){await option.click();continue}
   const input=page.getByLabel('Твой ответ по-гречески');

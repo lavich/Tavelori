@@ -64,7 +64,7 @@ export function makePlan(data:Snapshot,now:Date):DailyPlan{
  return {today,requiredPerDay,budget,introducedToday,newWords,reviews,deadlines,shortfall:requiredPerDay>data.settings.newWordsPerDay};
 }
 
-const ORDER:ExerciseType[]=['recall','recognition','assembly','spelling','listening'];
+const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening'];
 const succeeded=(event:ReviewEvent)=>event.correct===null?event.rating>1:event.correct;
 export interface SkillContext {hasAudio?:boolean;hasOptions?:boolean;canAssemble?:boolean}
 
@@ -84,7 +84,7 @@ export function chooseType(wordId:string,events:ReviewEvent[],context:SkillConte
  const {hasAudio=false,hasOptions=true,canAssemble=false}=context;
  const history=events.filter(e=>e.wordId===wordId).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
  const available=ORDER.filter(type=>
-  (type!=='listening'||hasAudio)
+  (type!=='listening'||(hasAudio&&hasOptions))
   &&(type!=='recognition'||hasOptions)
   &&(type!=='assembly'||canAssemble)
   &&(type!=='spelling'||!canAssemble||spellingUnlocked(wordId,events)));
@@ -151,14 +151,26 @@ export function makeSession({data,now,random=Math.random,mode='scheduled',wordId
  }
  const id=`s-${now.getTime().toString(36)}-${Math.floor(random()*1e6).toString(36)}`;
  const items:SessionItem[]=chosen.map((entry,index)=>{
-  const hasAudio=!!entry.word.audioAssetId||hasVoice; // системный греческий голос тоже даёт аудирование
-  const parts=tiles(entry.word.greek);
-  const type:ExerciseType=entry.isNew?'recall':chooseType(entry.word.id,data.events,{hasAudio,hasOptions:pool.length>=4,canAssemble:parts.length>=2});
-  const options=type==='assembly'
-   ?shuffleTiles(parts,random)
-   :type==='recognition'||type==='listening'?optionsFor(entry.word,pool,type,random):[];
-  const fallback:ExerciseType=(type==='recognition'||type==='listening')&&options.length===0?'recall':type;
-  return {id:`${id}-${index}`,wordId:entry.word.id,word:entry.word,type:fallback,options:fallback===type?options:[],isNew:entry.isNew,mode,expectedVersion:states.get(entry.word.id)?.version??0};
+  const exercise=objectiveExercise(entry.word,pool,entry.isNew?[]:data.events,random,hasVoice);
+  return {id:`${id}-${index}`,wordId:entry.word.id,word:entry.word,...exercise,isNew:entry.isNew,mode,expectedVersion:states.get(entry.word.id)?.version??0};
  });
- return {id,createdAt:now.toISOString(),planDate:plan.today,items,index:0,status:'active',activeTimeMs:0};
+ return {id,createdAt:now.toISOString(),planDate:plan.today,items:spaceSingleIntroduction(items),index:0,status:'active',activeTimeMs:0,introducedWordIds:[],objectiveVersion:1};
+}
+
+/** Варианты проверяем по уникальным ответам, а не только по размеру словаря. */
+export function objectiveExercise(word:Word,pool:Word[],events:ReviewEvent[]=[],random:()=>number=Math.random,hasVoice=false):Pick<SessionItem,'type'|'options'>{
+ const parts=tiles(word.greek);
+ const recognition=optionsFor(word,pool,'recognition',random);
+ const listening=optionsFor(word,pool,'listening',random);
+ const type=chooseType(word.id,events,{
+  hasAudio:(!!word.audioAssetId||hasVoice)&&listening.length===4,
+  hasOptions:recognition.length===4,canAssemble:parts.length>=2,
+ });
+ return {type,options:type==='assembly'?shuffleTiles(parts,random):type==='recognition'?recognition:type==='listening'?listening:[]};
+}
+
+export function spaceSingleIntroduction(items:SessionItem[]):SessionItem[]{
+ const fresh=items.filter(item=>item.isNew&&!item.eventId&&!item.retryOf);
+ if(fresh.length!==1||items.some(item=>item.eventId))return items;
+ return [...items.filter(item=>item.id!==fresh[0].id),fresh[0]];
 }

@@ -54,7 +54,7 @@ export function ResultScreen(){
     <p className="m-0">Ошибок: <b>{mistakes.length}</b></p>
     <p className="m-0 text-sm text-muted-foreground">
      {objective.length
-      ?`Объективная точность (выбор, аудирование, написание): ${Math.round(objective.filter(event=>event.correct).length/objective.length*100)}% из ${withCount(objective.length,['ответа','ответов','ответов'])}`
+      ?`Объективная точность (выбор, сборка, аудирование, написание): ${Math.round(objective.filter(event=>event.correct).length/objective.length*100)}% из ${withCount(objective.length,['ответа','ответов','ответов'])}`
       :'Объективных проверок в этом занятии не было — только самооценка.'}
     </p>
     <p className="m-0 text-sm text-muted-foreground">Активное время: {minutes(session?.activeTimeMs??0)}</p>
