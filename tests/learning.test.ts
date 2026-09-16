@@ -4,7 +4,7 @@ import {localDay,daysBetween,makePlan as planOf,nextState,chooseType,makeSession
 import {fromSnapshot} from '../src/domain/snapshot-source';
 import {defaultSettings,type Word,type Lesson,type Snapshot} from '../src/domain/types';
 const now=new Date('2026-09-15T09:00:00Z');
-const words:Word[]=Array.from({length:30},(_,i)=>({id:`w${i}`,greek:`λέξη${i}`,russian:`слово${i}`,ipa:'',segments:[],examples:[],sourceMastered:false,verified:false,createdAt:now.toISOString(),updatedAt:now.toISOString()}));
+const words:Word[]=Array.from({length:30},(_,i)=>({id:`w${i}`,greek:`λέξη${i}`,russian:`слово${i}`,ipa:'',segments:[],examples:[],verified:false,createdAt:now.toISOString(),updatedAt:now.toISOString()}));
 type LessonSpec=Lesson&{wordIds:string[]};
 const lesson:LessonSpec={id:'l',title:'1.2',targetDate:'2026-09-18',status:'upcoming',wordIds:words.map(w=>w.id),createdAt:now.toISOString(),updatedAt:now.toISOString()};
 type Spec=Omit<Snapshot,'lessons'|'links'>&{lessons:LessonSpec[]};

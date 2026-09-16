@@ -51,7 +51,7 @@ describe('размер компактного снимка (задача 0.4)',(
   for(const total of [500,1000,2000]){
    const db=new LexiDatabase(`lexi-size-${total}`);
    await db.delete();await db.open();
-   const words:Word[]=Array.from({length:total},(_,index)=>({id:`w99-${String(index).padStart(4,'0')}`,greek:`λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],sourceMastered:false,verified:true,createdAt:now.toISOString(),updatedAt:now.toISOString(),revision:'r1'}));
+   const words:Word[]=Array.from({length:total},(_,index)=>({id:`w99-${String(index).padStart(4,'0')}`,greek:`λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],verified:true,createdAt:now.toISOString(),updatedAt:now.toISOString(),revision:'r1'}));
    await db.words.bulkAdd(words.map(indexWord));
    await fill(db,words.map(word=>word.id),3);
    const {chars,parts}=await measure(db);

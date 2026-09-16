@@ -7,7 +7,7 @@ export interface Segment {text:string;ipa:string;explanation:string;start:number
  * `revision` — ревизия поставленного пакетом содержимого, `edited` — слово менялось локально после установки.
  * У слов пользователя обоих полей нет.
  */
-export interface Word {id:string;greek:string;russian:string;ipa:string;note?:string;segments:Segment[];examples:Example[];imageAssetId?:string;audioAssetId?:string;sourceMastered:boolean;verified:boolean;source?:string;createdAt:string;updatedAt:string;deletedAt?:string;revision?:string;edited?:boolean}
+export interface Word {id:string;greek:string;russian:string;ipa:string;note?:string;segments:Segment[];examples:Example[];imageAssetId?:string;audioAssetId?:string;verified:boolean;source?:string;createdAt:string;updatedAt:string;deletedAt?:string;revision?:string;edited?:boolean}
 /** `dateSource` заполняется только в выборке: в базе дата либо своя (задана вручную), либо пустая (по расписанию). */
 export interface Lesson {id:string;title:string;targetDate:string|null;status:'upcoming'|'completed';createdAt:string;updatedAt:string;dateSource?:'manual'|'schedule'}
 /** Членство слова в уроке: уникальная пара и порядок внутри урока. Удаление связи не трогает слово и прогресс. */

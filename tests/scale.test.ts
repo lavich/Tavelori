@@ -31,7 +31,7 @@ beforeAll(async()=>{
  for(let start=0;start<WORDS;start+=chunk){
   const words:Word[]=Array.from({length:Math.min(chunk,WORDS-start)},(_,i)=>{
    const index=start+i;
-   return {id:`w${pad(index)}`,greek:`το λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],sourceMastered:false,verified:false,createdAt:iso,updatedAt:iso,...(index%97===0?{deletedAt:iso}:{})};
+   return {id:`w${pad(index)}`,greek:`το λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],verified:false,createdAt:iso,updatedAt:iso,...(index%97===0?{deletedAt:iso}:{})};
   });
   await db.words.bulkAdd(words.map(indexWord));
  }

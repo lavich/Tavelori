@@ -117,7 +117,7 @@ describe('перенос компактного прогресса между у
  });
  it('пользовательские слова и полная история остаются локальными',async()=>{
   const phone=await device('phone',{lessons:['lesson-1-1']});
-  const own:Word={id:'w-own',greek:'η καρέκλα',russian:'стул',ipa:'',segments:[],examples:[],sourceMastered:false,verified:false,createdAt:now().toISOString(),updatedAt:now().toISOString()};
+  const own:Word={id:'w-own',greek:'η καρέκλα',russian:'стул',ipa:'',segments:[],examples:[],verified:false,createdAt:now().toISOString(),updatedAt:now().toISOString()};
   const {indexWord}=await import('../src/storage/db');
   await phone.db.words.add(indexWord(own));
   await phone.db.states.add({wordId:'w-own',card:{due:now(),stability:1,difficulty:5,elapsed_days:0,scheduled_days:1,reps:1,lapses:0,state:2,learning_steps:0},introducedAt:now().toISOString(),version:1});

@@ -11,7 +11,7 @@ import {tiles} from '../src/domain/syllables';
 const md=readFileSync('openspec/changes/archive/2026-09-16-build-greek-vocabulary-mvp/seed-lessons.md','utf8');
 const section=(title:string)=>md.split(`## ${title}`)[1].split('\n## ')[0];
 const rows=(title:string)=>section(title).split('\n').filter(line=>/^\| [^-]/.test(line)&&!line.includes('Греческий'))
- .map(line=>line.split('|').slice(1,4).map(cell=>cell.trim()));
+ .map(line=>line.split('|').slice(1,3).map(cell=>cell.trim()));
 
 const content=buildContent();
 const seedWords=content.words;
@@ -31,12 +31,11 @@ function brokenCopy(mutate:(root:string)=>void){
 }
 
 describe('исходные наборы 1.1 и 1.2 точно соответствуют seed-lessons.md',()=>{
- it.each([['Урок 1.1','lesson-1-1',33,21],['Урок 1.2','lesson-1-2',30,8]] as const)('%s',(title,lessonId,count,mastered)=>{
+ it.each([['Урок 1.1','lesson-1-1',33],['Урок 1.2','lesson-1-2',30]] as const)('%s',(title,lessonId,count)=>{
   const expected=rows(title);
   const words=wordsOf(content,lessonId);
   expect(expected).toHaveLength(count);
-  expect(words.map(w=>[w.greek,w.russian,w.sourceMastered?'да':'нет'])).toEqual(expected);
-  expect(words.filter(w=>w.sourceMastered)).toHaveLength(mastered);
+  expect(words.map(w=>[w.greek,w.russian])).toEqual(expected);
  });
  it('пакет 1.1 проведён без выдуманной даты, 1.2 назначен на 18 сентября',()=>{
   expect(packageOf('lesson-1-1').lesson).toEqual({title:'Урок 1.1',status:'completed',targetDate:null});

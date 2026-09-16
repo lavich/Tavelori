@@ -9,7 +9,7 @@ import {defaultSettings, type ExerciseType, type LearningState, type Lesson, typ
 
 const now=new Date('2026-09-15T09:00:00Z');
 const iso=now.toISOString();
-const word=(id:string,index:number):Word=>({id,greek:`λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],sourceMastered:false,verified:false,createdAt:iso,updatedAt:iso});
+const word=(id:string,index:number):Word=>({id,greek:`λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],verified:false,createdAt:iso,updatedAt:iso});
 const words=(count:number,prefix='w')=>Array.from({length:count},(_,index)=>word(`${prefix}${index}`,index));
 type LessonSpec=Lesson&{wordIds:string[]};
 const lesson=(id:string,wordIds:string[],targetDate:string|null):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso});

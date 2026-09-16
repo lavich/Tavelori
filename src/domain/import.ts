@@ -1,3 +1,8 @@
+/**
+ * Разбор вставленного текста. `sourceMastered` — отметка Quizlet из выгрузки: она подсказывает
+ * в предпросмотре, что слово в классе уже проходили, и дальше не сохраняется — освоенность в Lexi
+ * считается только по ответам пользователя.
+ */
 export interface ImportRow { greek:string; russian:string; ipa:string; sourceMastered:boolean; line:number }
 export interface ImportResult { rows:ImportRow[]; errors:{line:number;message:string}[]; ignored:number; mode:'tsv'|'pairs' }
 export const normalize=(text:string)=>text.normalize('NFC').trim().replace(/\s+/g,' ').toLocaleLowerCase('el');

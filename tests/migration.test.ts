@@ -18,7 +18,7 @@ class LegacyDatabase extends Dexie {
  }
 }
 const NAME='lexi-migrate';
-const legacyWord=(id:string,greek:string,russian:string,over:Record<string,unknown>={})=>({id,greek,russian,ipa:'',segments:[],examples:[],sourceMastered:false,verified:false,createdAt:LEGACY_CREATED,updatedAt:LEGACY_CREATED,...over});
+const legacyWord=(id:string,greek:string,russian:string,over:Record<string,unknown>={})=>({id,greek,russian,ipa:'',segments:[],examples:[],verified:false,createdAt:LEGACY_CREATED,updatedAt:LEGACY_CREATED,...over});
 
 /** База старого профиля: исходные уроки установлены seed-ом, есть своё слово, правка, удаление и история. */
 async function seedLegacy(){

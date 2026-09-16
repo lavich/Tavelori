@@ -19,7 +19,7 @@ beforeEach(async()=>{
 const now=new Date('2026-09-15T09:00:00Z');
 const iso=now.toISOString();
 const word=(index:number,over:Partial<Word>={}):Word=>({
- id:`w${String(index).padStart(5,'0')}`,greek:`το λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],sourceMastered:false,verified:false,createdAt:iso,updatedAt:iso,...over,
+ id:`w${String(index).padStart(5,'0')}`,greek:`το λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],verified:false,createdAt:iso,updatedAt:iso,...over,
 });
 /** Снимок раскладывается в базу как есть; порядок массивов приводится к порядку ключей, как у Dexie. */
 async function load(data:Snapshot){

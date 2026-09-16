@@ -158,7 +158,7 @@ export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Pro
    if(await database.words.where('greekKey').equals(normalize(row.greek)).filter(word=>!word.deletedAt).count())conflicts++;
    const word:Word={
     id:newId('w'),greek:row.greek,russian:row.russian,ipa:row.ipa,segments:[],examples:[],
-    sourceMastered:row.sourceMastered,verified:false,source:row.ipa?'Импорт пользователя (фонетика не проверена)':undefined,
+    verified:false,source:row.ipa?'Импорт пользователя (фонетика не проверена)':undefined,
     createdAt:now,updatedAt:now,
    };
    await database.words.add(indexWord(word));

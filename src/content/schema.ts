@@ -18,7 +18,7 @@ export interface PackageWord {
  id:string; greek:string; russian:string; ipa:string; note?:string;
  segments:Segment[]; examples:Example[];
  imageAssetId?:string; audioAssetId?:string;
- sourceMastered:boolean; verified:boolean; source?:string;
+ verified:boolean; source?:string;
  revision:string;
 }
 export interface PackageLink {wordId:string;position:number}
@@ -94,7 +94,7 @@ function parseWord(input:unknown,path:string):PackageWord{
  });
  const word:PackageWord={
   id:str(raw.id,`${path}.id`),greek:str(raw.greek,`${path}.greek`),russian:str(raw.russian,`${path}.russian`),ipa:str(raw.ipa??'',`${path}.ipa`),
-  segments,examples,sourceMastered:bool(raw.sourceMastered??false,`${path}.sourceMastered`),verified:bool(raw.verified??false,`${path}.verified`),
+  segments,examples,verified:bool(raw.verified??false,`${path}.verified`),
   revision:str(raw.revision,`${path}.revision`),
  };
  const note=opt(raw.note,v=>str(v,`${path}.note`)); if(note)word.note=note;
@@ -142,5 +142,5 @@ export function parsePackage(input:unknown):ContentPackage{
 }
 
 /** Поля слова, которые поставляет пакет; остальное принадлежит пользователю. */
-export const SHIPPED_FIELDS=['greek','russian','ipa','note','segments','examples','imageAssetId','audioAssetId','sourceMastered','verified','source'] as const;
+export const SHIPPED_FIELDS=['greek','russian','ipa','note','segments','examples','imageAssetId','audioAssetId','verified','source'] as const;
 export type ShippedField=typeof SHIPPED_FIELDS[number];

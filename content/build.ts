@@ -21,7 +21,7 @@ export const audioAssetId=(wordId:string)=>`snd-${wordId}`;
 const MIME:Record<string,string>={'.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.jpeg':'image/jpeg','.mp3':'audio/mpeg','.ogg':'audio/ogg','.m4a':'audio/mp4','.wav':'audio/wav'};
 
 export interface WordSource {
- id?:string; greek:string; russian:string; ipa?:string; note?:string; verified?:boolean; mastered?:boolean; source?:string;
+ id?:string; greek:string; russian:string; ipa?:string; note?:string; verified?:boolean; source?:string;
  image?:string; audio?:string;
  reading?:{text:string;ipa:string;explanation:string}[];
  examples?:{greek:string;russian:string;target:string;source?:string}[];
@@ -82,8 +82,7 @@ function describe(id:string,src:WordSource&{file:string}):PackageWord{
   return built;
  });
  const draft:Omit<PackageWord,'revision'>={
-  id,greek,russian,ipa:text(src.ipa,`${where}.ipa`,false)??'',segments,examples,
-  sourceMastered:!!src.mastered,verified:!!src.verified,
+  id,greek,russian,ipa:text(src.ipa,`${where}.ipa`,false)??'',segments,examples,verified:!!src.verified,
  };
  if(draft.ipa&&!/^\/.+\/$/.test(draft.ipa))fail(`${where}.ipa: транскрипция записывается между косыми чертами`);
  if(draft.verified&&!draft.ipa)fail(`${where}: проверенное слово должно иметь IPA`);

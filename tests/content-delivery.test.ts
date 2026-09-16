@@ -69,13 +69,10 @@ describe('установка урока',()=>{
   expect(word).toMatchObject({greek:'το σπίτι',revision:packageOf('lesson-1-2').words.find(w=>w.id==='w12-16')!.revision});
   expect(word.tokens).toContain('σπιτι');
  });
- it('пакет 1.1 даёт 33 слова, проведённый урок без даты и 21 отметку источника; 1.2 — 30 слов и 8 отметок',async()=>{
+ it('пакеты 1.1 и 1.2 дают 63 слова и проведённый урок без даты',async()=>{
   await installLessons(db,['lesson-1-1','lesson-1-2']);
   expect(await db.words.count()).toBe(63);
   expect(await db.lessons.get('lesson-1-1')).toMatchObject({status:'completed',targetDate:null});
-  const mastered=async(id:string)=>(await db.words.bulkGet((await lessonLinks(id,db)).map(l=>l.wordId))).filter(w=>w!.sourceMastered).length;
-  expect(await mastered('lesson-1-1')).toBe(21);
-  expect(await mastered('lesson-1-2')).toBe(8);
   expect(await db.events.count()).toBe(0);
   expect(await db.states.count()).toBe(0);
  });

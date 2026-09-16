@@ -19,7 +19,7 @@ export function mulberry32(seed:number){
  return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296};
 }
 const word=(index:number,over:Partial<Word>={}):Word=>({
- id:`w${index}`,greek:`το λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],sourceMastered:false,verified:false,createdAt:iso,updatedAt:iso,...over,
+ id:`w${index}`,greek:`το λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],verified:false,createdAt:iso,updatedAt:iso,...over,
 });
 type LessonSpec=Lesson&{wordIds:string[]};
 const lesson=(id:string,wordIds:string[],targetDate:string|null,over:Partial<Lesson>={}):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso,...over});
