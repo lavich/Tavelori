@@ -1,7 +1,8 @@
 import {db, type LexiDatabase} from './db';
 import {localDay, nextState, objectiveExercise, spaceSingleIntroduction} from '../domain/learning';
 import {normalize, wordKey, type ImportRow} from '../domain/import';
-import type {Asset, Lesson, ReviewEvent, Session, SessionItem, Settings, Word} from '../domain/types';
+import {scheduleLessons} from '../domain/schedule';
+import {fillSettings, type Asset, type Lesson, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from '../domain/types';
 
 export class ConflictError extends Error {constructor(){super('Слово уже отвечено в другой вкладке. Обновите страницу.')}}
 const stamp=(now:Date)=>now.toISOString();
@@ -58,23 +59,41 @@ export async function saveWord(word:Word,database:LexiDatabase=db){
 export async function deleteWord(id:string,database:LexiDatabase=db){
  await database.words.update(id,{deletedAt:stamp(new Date())});
 }
+export type LessonPatch=Partial<Pick<Lesson,'title'|'targetDate'|'status'|'wordIds'>>;
+/** Частичная правка сырой записи: вычисленная по расписанию дата из снимка не попадает в базу. */
+export async function updateLesson(id:string,patch:LessonPatch,database:LexiDatabase=db){
+ await database.lessons.update(id,{...patch,updatedAt:stamp(new Date())});
+}
 export async function removeFromLesson(lessonId:string,wordId:string,database:LexiDatabase=db){
  const lesson=await database.lessons.get(lessonId);
- if(!lesson)return;
- await database.lessons.put({...lesson,wordIds:lesson.wordIds.filter(id=>id!==wordId),updatedAt:stamp(new Date())});
+ if(lesson)await updateLesson(lessonId,{wordIds:lesson.wordIds.filter(id=>id!==wordId)},database);
 }
-export async function saveLesson(lesson:Lesson,database:LexiDatabase=db){
- await database.lessons.put({...lesson,updatedAt:stamp(new Date())});
-}
-export async function createLesson(title:string,targetDate:string|null,database:LexiDatabase=db):Promise<Lesson>{
+/** Новый набор без даты: её назначит расписание, а своя дата задаётся на экране урока. */
+export async function createLesson(title:string,database:LexiDatabase=db):Promise<Lesson>{
  const now=stamp(new Date());
- const lesson:Lesson={id:newId('lesson'),title,targetDate,status:'upcoming',wordIds:[],createdAt:now,updatedAt:now};
+ const lesson:Lesson={id:newId('lesson'),title,targetDate:null,status:'upcoming',wordIds:[],createdAt:now,updatedAt:now};
  await database.lessons.add(lesson);
  return lesson;
 }
+/**
+ * Урок, чей день по расписанию уже прошёл, становится проведённым, а дата — его собственной,
+ * поэтому дальнейшие изменения расписания его не трогают. Повторный вызов ничего не пишет.
+ */
+export async function settleLessons(now:Date,database:LexiDatabase=db):Promise<number>{
+ return database.transaction('rw',database.lessons,database.settings,async()=>{
+  const settings=fillSettings(await database.settings.get('settings'));
+  const today=localDay(now,settings.timezone);
+  const stored=await database.lessons.toArray();
+  const raw=new Map(stored.map(lesson=>[lesson.id,lesson]));
+  const passed=scheduleLessons(stored,settings.schedule)
+   .filter(lesson=>lesson.targetDate&&lesson.targetDate<today&&(raw.get(lesson.id)!.status!=='completed'||!raw.get(lesson.id)!.targetDate));
+  for(const lesson of passed)await updateLesson(lesson.id,{targetDate:lesson.targetDate,status:'completed'},database);
+  return passed.length;
+ });
+}
 export async function putAsset(asset:Asset,database:LexiDatabase=db){await database.assets.put(asset)}
 
-export interface ImportPlan {rows:ImportRow[];lessonId:string|null;lessonTitle:string;targetDate:string|null}
+export interface ImportPlan {rows:ImportRow[];lessonId:string|null;lessonTitle:string}
 export interface ImportOutcome {lessonId:string;added:number;linked:number;conflicts:number}
 export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Promise<ImportOutcome>{
  const now=stamp(new Date());
@@ -83,7 +102,7 @@ export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Pro
   const byKey=new Map(existing.filter(w=>!w.deletedAt).map(w=>[wordKey(w.greek,w.russian),w]));
   const lesson=plan.lessonId
    ?await database.lessons.get(plan.lessonId)
-   :{id:newId('lesson'),title:plan.lessonTitle,targetDate:plan.targetDate,status:'upcoming' as const,wordIds:[],createdAt:now,updatedAt:now};
+   :{id:newId('lesson'),title:plan.lessonTitle,targetDate:null,status:'upcoming' as const,wordIds:[],createdAt:now,updatedAt:now};
   if(!lesson)throw new Error('Набор не найден');
   const wordIds=[...lesson.wordIds];
   let added=0,linked=0,conflicts=0;
@@ -105,7 +124,7 @@ export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Pro
    wordIds.push(word.id);
    added++;
   }
-  await database.lessons.put({...lesson,wordIds,targetDate:plan.targetDate??lesson.targetDate,updatedAt:now});
+  await database.lessons.put({...lesson,wordIds,updatedAt:now});
   return {lessonId:lesson.id,added,linked,conflicts};
  });
 }

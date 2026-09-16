@@ -16,14 +16,13 @@ export function LessonsScreen(){
  const {data}=useSnapshot();
  const [params,setParams]=useSearchParams();
  const [title,setTitle]=useState('');
- const [date,setDate]=useState('');
  const [problem,setProblem]=useState('');
  const open=params.get('new')==='1';
  const add=async(event:React.FormEvent)=>{
   event.preventDefault();
   if(!title.trim())return setProblem('Введите название занятия, например «Урок 1.3».');
-  await createLesson(title.trim(),date||null);
-  setTitle('');setDate('');setProblem('');
+  await createLesson(title.trim());
+  setTitle('');setProblem('');
   setParams({});
  };
  const lessons=[...data.lessons].sort((a,b)=>
@@ -55,10 +54,6 @@ export function LessonsScreen(){
           <FieldLabel htmlFor="title">Название</FieldLabel>
           <Input id="title" value={title} placeholder="Урок 1.3" aria-invalid={!!problem||undefined}
            onChange={event=>setTitle(event.target.value)}/>
-         </Field>
-         <Field>
-          <FieldLabel htmlFor="date">Дата занятия</FieldLabel>
-          <Input id="date" type="date" value={date} onChange={event=>setDate(event.target.value)}/>
          </Field>
         </FieldGroup>
         {problem&&<p className={ui.error}>{problem}</p>}

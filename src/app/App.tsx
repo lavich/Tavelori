@@ -1,9 +1,13 @@
-import {Suspense, useEffect} from 'react';
+import {Suspense, useEffect, useRef} from 'react';
 import {toast} from 'sonner';
 import {Toaster} from '@/components/ui/sonner';
 import {Navigate, Route, Routes, useLocation} from 'react-router-dom';
 import {Nav} from './Nav';
 import {updateReady} from '../main';
+import {localDay} from '../domain/learning';
+import {useNow} from '../shared/clock';
+import {useSnapshot} from '../shared/store';
+import {settleLessons} from '../storage/ops';
 import {TodayScreen} from '../features/today/TodayScreen';
 import {LessonsScreen} from '../features/lessons/LessonsScreen';
 import {LessonScreen} from '../features/lessons/LessonScreen';
@@ -22,6 +26,15 @@ import ui from '../shared/ui.module.css';
 export function App(){
  const {pathname}=useLocation();
  const immersive=pathname.startsWith('/session');
+ const {data}=useSnapshot();
+ const today=localDay(useNow(),data.settings.timezone);
+ const seenDay=useRef(today);
+ useEffect(()=>{
+  // При запуске закрепление уже сделал main.tsx; здесь ловим смену дня в открытом приложении.
+  if(seenDay.current===today)return;
+  seenDay.current=today;
+  settleLessons(new Date()).catch(error=>console.error('Не удалось закрепить прошедшие уроки',error));
+ },[today]);
  useEffect(()=>{
   // Обновление предлагаем между занятиями, чтобы не прервать ответ.
   const notice=()=>{

@@ -20,7 +20,6 @@ export function ImportScreen(){
  const [text,setText]=useState('');
  const [target,setTarget]=useState('new');
  const [title,setTitle]=useState('Урок 1.3');
- const [date,setDate]=useState('');
  const [problem,setProblem]=useState('');
  const [busy,setBusy]=useState(false);
  const parsed=useMemo(()=>parseImport(text),[text]);
@@ -36,7 +35,6 @@ export function ImportScreen(){
     rows:parsed.rows,
     lessonId:target==='new'?null:target,
     lessonTitle:title.trim()||'Новый набор',
-    targetDate:target==='new'?(date||null):null,
    });
    navigate(`/lessons/${outcome.lessonId}`);
   }catch(error){
@@ -85,16 +83,10 @@ export function ImportScreen(){
      </Select>
     </Field>
     {target==='new'&&(
-     <>
-      <Field>
-       <FieldLabel htmlFor="title">Название набора</FieldLabel>
-       <Input id="title" value={title} onChange={event=>setTitle(event.target.value)}/>
-      </Field>
-      <Field>
-       <FieldLabel htmlFor="date">Дата занятия</FieldLabel>
-       <Input id="date" type="date" value={date} onChange={event=>setDate(event.target.value)}/>
-      </Field>
-     </>
+     <Field>
+      <FieldLabel htmlFor="title">Название набора</FieldLabel>
+      <Input id="title" value={title} onChange={event=>setTitle(event.target.value)}/>
+     </Field>
     )}
     {problem&&<p className={ui.error} role="alert">{problem}</p>}
     <Button size="xl" style={{marginTop:16}} disabled={busy||!parsed.rows.length} onClick={save}>

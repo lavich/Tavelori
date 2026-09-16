@@ -11,28 +11,29 @@ import {BackBar} from '../../app/TopBar';
 import {makePlan} from '../../domain/learning';
 import {useNow} from '../../shared/clock';
 import {dayMonth, DAYS, withCount, WORDS} from '../../shared/format';
-import {useLesson, useSnapshot} from '../../shared/store';
-import {removeFromLesson, saveLesson} from '../../storage/ops';
+import {useSnapshot} from '../../shared/store';
+import {removeFromLesson, updateLesson} from '../../storage/ops';
 import {startSession} from '../learning/session-actions';
 import ui from '../../shared/ui.module.css';
 
 export function LessonScreen(){
  const {id}=useParams();
- const lesson=useLesson(id);
- const {data}=useSnapshot();
+ const {data,ready}=useSnapshot();
+ const lesson=data.lessons.find(item=>item.id===id); // из снимка: с датой по расписанию, а не сырая запись
  const now=useNow();
  const navigate=useNavigate();
  const [date,setDate]=useState('');
  const [saved,setSaved]=useState(false);
- useEffect(()=>{if(lesson)setDate(lesson.targetDate??'')},[lesson?.id]);
+ useEffect(()=>{if(lesson)setDate(lesson.targetDate??'')},[lesson?.id,lesson?.targetDate]);
  const plan=useMemo(()=>makePlan(data,now),[data,now]);
- if(!lesson)return <><BackBar title="Урок"/><main className={ui.screen}><p className={ui.muted}>Урок не найден.</p></main></>;
+ if(!lesson)return <><BackBar title="Урок"/><main className={ui.screen}>{ready&&<p className={ui.muted}>Урок не найден.</p>}</main></>;
  const deadline=plan.deadlines.find(item=>item.lessonId===lesson.id);
  const words=lesson.wordIds.map(wordId=>data.words.find(word=>word.id===wordId)).filter(word=>word&&!word.deletedAt);
  const notStarted=words.filter(word=>word&&!data.states.some(state=>state.wordId===word.id)).length;
 
- const applyDate=async()=>{await saveLesson({...lesson,targetDate:date||null});setSaved(true)};
- const toggle=async()=>{await saveLesson({...lesson,status:lesson.status==='completed'?'upcoming':'completed'})};
+ const applyDate=async()=>{await updateLesson(lesson.id,{targetDate:date||null});setSaved(true)};
+ // Отметка закрепляет текущую дату как свою, чтобы урок остался якорем для следующих.
+ const toggle=async()=>{await updateLesson(lesson.id,lesson.status==='completed'?{status:'upcoming'}:{status:'completed',targetDate:lesson.targetDate})};
  const practice=async()=>{
   const created=await startSession(data,now,{wordIds:lesson.wordIds,mode:'practice'});
   navigate(created?'/session':`/lessons/${lesson.id}`);

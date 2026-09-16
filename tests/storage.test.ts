@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Rating} from 'ts-fsrs';
 import {LexiDatabase, ensureSeed, loadSnapshot} from '../src/storage/db';
-import {ConflictError, commitImport, deleteWord, markIntroduced, prepareObjectiveSession, saveSettings, saveWord, submitAnswer} from '../src/storage/ops';
+import {ConflictError, commitImport, createLesson, deleteWord, markIntroduced, prepareObjectiveSession, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
 import {makePlan, makeSession} from '../src/domain/learning';
 import {defaultSettings, type Settings} from '../src/domain/types';
 import {parseImport} from '../src/domain/import';
@@ -148,17 +148,17 @@ describe('импорт',()=>{
  it('связывает известное слово с набором и не создаёт дубликат',async()=>{
   await ensureSeed(db);
   const rows=parseImport('το σπίτι\nдом\nη ομπρέλα\nзонт').rows;
-  const outcome=await commitImport({rows,lessonId:null,lessonTitle:'Урок 1.3',targetDate:'2026-09-25'},db);
+  const outcome=await commitImport({rows,lessonId:null,lessonTitle:'Урок 1.5'},db);
   expect(outcome).toMatchObject({added:1,linked:1});
   expect(await db.words.count()).toBe(seedWords.length+1);
   const lesson=await db.lessons.get(outcome.lessonId);
   expect(lesson!.wordIds).toHaveLength(2);
-  expect(lesson!.targetDate).toBe('2026-09-25');
+  expect(lesson!.targetDate).toBeNull(); // дату назначит расписание
  });
  it('при ошибке не оставляет половину набора',async()=>{
   await ensureSeed(db);
   const rows=parseImport('η ομπρέλα\nзонт\nτο ποτήρι\nстакан').rows;
-  await expect(commitImport({rows,lessonId:'нет-такого',lessonTitle:'',targetDate:null},db)).rejects.toThrow();
+  await expect(commitImport({rows,lessonId:'нет-такого',lessonTitle:''},db)).rejects.toThrow();
   expect(await db.words.count()).toBe(seedWords.length);
  });
  it('меняет перевод без потери истории и сбрасывает проверку фонетики после правки греческого',async()=>{
@@ -191,5 +191,65 @@ describe('расписание занятий',()=>{
   expect((await db.lessons.get('lesson-1-3'))!.targetDate).toBeNull();
   const plan=makePlan(data,new Date('2026-09-16T09:00:00Z'));
   expect(plan.deadlines.map(d=>[d.lessonId,d.daysLeft])).toEqual([['lesson-1-2',2],['lesson-1-3',5],['lesson-1-4',8]]);
+ });
+});
+
+describe('операции над уроками при расписании',()=>{
+ const monThu={startDate:'2026-09-18',weekdays:[1,4]};
+ const prepare=async()=>{await ensureSeed(db);await saveSettings({...defaultSettings,schedule:monThu},db)};
+ const raw=(id:string)=>db.lessons.get(id).then(l=>l!);
+ const shown=async(id:string)=>(await snapshot()).lessons.find(l=>l.id===id)!;
+ it('правка названия урока по расписанию не записывает дату в базу',async()=>{
+  await prepare();
+  await updateLesson('lesson-1-3',{title:'Урок 1.3 (мебель)'},db);
+  expect(await raw('lesson-1-3')).toMatchObject({title:'Урок 1.3 (мебель)',targetDate:null});
+  expect((await shown('lesson-1-3')).targetDate).toBe('2026-09-21');
+ });
+ it('новый набор создаётся без даты и получает день расписания',async()=>{
+  await prepare();
+  const created=await createLesson('Урок 2.1',db);
+  expect(created.targetDate).toBeNull();
+  expect((await shown(created.id)).targetDate).toBe('2026-09-28');
+ });
+ it('закрепляет прошедший урок один раз и не трогает его при смене дней недели',async()=>{
+  await prepare();
+  expect(await settleLessons(new Date('2026-09-22T06:00:00Z'),db)).toBe(2); // 1.2 и 1.3
+  expect(await raw('lesson-1-2')).toMatchObject({targetDate:'2026-09-18',status:'completed'});
+  expect(await raw('lesson-1-3')).toMatchObject({targetDate:'2026-09-21',status:'completed'});
+  expect(await raw('lesson-1-4')).toMatchObject({targetDate:null,status:'upcoming'});
+  const before=await db.lessons.toArray();
+  expect(await settleLessons(new Date('2026-09-22T06:00:00Z'),db)).toBe(0);
+  expect(await db.lessons.toArray()).toEqual(before);
+  await saveSettings({...defaultSettings,schedule:{startDate:'2026-09-18',weekdays:[2,5]}},db);
+  expect(await shown('lesson-1-3')).toMatchObject({targetDate:'2026-09-21',status:'completed',dateSource:'manual'});
+  expect((await shown('lesson-1-4')).targetDate).toBe('2026-09-22');
+ });
+ it('закрепляет ручную дату в прошлом у предстоящего урока и не трогает будущие',async()=>{
+  await prepare();
+  const past=await createLesson('Повторение',db);
+  await updateLesson(past.id,{targetDate:'2026-09-10'},db);
+  expect(await settleLessons(new Date('2026-09-16T06:00:00Z'),db)).toBe(1);
+  expect(await raw(past.id)).toMatchObject({targetDate:'2026-09-10',status:'completed'});
+  expect(await raw('lesson-1-2')).toMatchObject({status:'upcoming'});
+ });
+ it('день считается по зоне пользователя',async()=>{
+  await prepare();
+  // 18 сентября 21:30 UTC — в Никосии уже 19-е, урок 1.2 прошёл.
+  expect(await settleLessons(new Date('2026-09-18T21:30:00Z'),db)).toBe(1);
+ });
+ it('отметка проведённым до даты закрепляет дату и не сдвигает следующие уроки',async()=>{
+  await prepare();
+  const lesson=await shown('lesson-1-3');
+  await updateLesson(lesson.id,{status:'completed',targetDate:lesson.targetDate},db);
+  expect(await raw('lesson-1-3')).toMatchObject({targetDate:'2026-09-21',status:'completed'});
+  expect((await shown('lesson-1-4')).targetDate).toBe('2026-09-24');
+ });
+ it('возврат в расписание очищает дату и снова даёт день по порядку',async()=>{
+  await prepare();
+  await updateLesson('lesson-1-3',{targetDate:'2026-09-28'},db);
+  expect(await shown('lesson-1-4')).toMatchObject({targetDate:'2026-10-01'});
+  await updateLesson('lesson-1-3',{targetDate:null},db);
+  expect(await shown('lesson-1-3')).toMatchObject({targetDate:'2026-09-21',dateSource:'schedule'});
+  expect((await shown('lesson-1-4')).targetDate).toBe('2026-09-24');
  });
 });

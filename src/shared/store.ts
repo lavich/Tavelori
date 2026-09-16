@@ -10,7 +10,6 @@ export function useSnapshot():{data:Snapshot;ready:boolean}{
  return {data:data??emptySnapshot,ready:!!data};
 }
 export const useWord=(id:string|undefined)=>useLiveQuery(()=>id?db.words.get(id):undefined,[id]);
-export const useLesson=(id:string|undefined)=>useLiveQuery(()=>id?db.lessons.get(id):undefined,[id]);
 
 /** Картинка читается из Asset, а не из HTTP-кеша, поэтому работает и после восстановления копии. */
 export function useAssetUrl(id:string|undefined):string|null{
