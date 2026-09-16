@@ -4,7 +4,9 @@ import {expect, test} from '@playwright/test';
 const dueWithHistory=(page:import('@playwright/test').Page,wordId:string,types:string[])=>page.evaluate(async({wordId,types})=>{
  const db=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open('lexi');request.onsuccess=()=>resolve(request.result)});
  const due=new Date(Date.now()-2*86400000);
- const tx=db.transaction(['states','events'],'readwrite');
+ const tx=db.transaction(['states','events','settings'],'readwrite');
+ // Новых слов в занятии нет: тогда очередь состоит из одного повторения и упражнение предсказуемо.
+ tx.objectStore('settings').put({id:'settings',timezone:'Asia/Nicosia',newWordsPerDay:0,sessionSize:20});
  tx.objectStore('states').put({wordId,version:1,introducedAt:new Date(Date.now()-9*86400000).toISOString(),
   card:{due,stability:2.5,difficulty:5,elapsed_days:2,scheduled_days:2,reps:3,lapses:0,state:2,learning_steps:0,last_review:new Date(Date.now()-4*86400000)}});
  types.forEach((type,index)=>{
@@ -19,7 +21,7 @@ const dueWithHistory=(page:import('@playwright/test').Page,wordId:string,types:s
 async function openAssembly(page:import('@playwright/test').Page){
  await page.getByRole('button',{name:/Начать занятие/}).click();
  await page.waitForURL('**/session');
- for(let step=0;step<30;step++){
+ for(let step=0;step<12;step++){
   await page.waitForTimeout(120);
   const prompt=await page.getByTestId('prompt').first().innerText().catch(()=>'');
   if(prompt==='Собери слово')return;
@@ -39,7 +41,7 @@ async function openAssembly(page:import('@playwright/test').Page){
   const input=page.getByLabel('Твой ответ по-гречески');
   if(await input.isVisible().catch(()=>false)){await input.fill('λάθος');await page.getByRole('button',{name:'Проверить'}).click();continue}
  }
- throw new Error('Сборка не выпала за 30 шагов');
+ throw new Error('Сборка не выпала за отведённые шаги');
 }
 
 test.beforeEach(async({page})=>{

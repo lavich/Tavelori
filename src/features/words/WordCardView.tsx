@@ -48,7 +48,7 @@ export function ReadingNotes({word}:{word:Word}){
  const core=coreWord(word.greek);
  const accent=stressPosition(word.greek);
  const active=open===null?null:segments[open];
- if(!note&&!segments.length)return null;
+ if(!note&&!segments.length&&!word.note)return null;
  return (
   <Card className="mb-3 bg-soft ring-0" aria-label="Как читается"><CardContent>
    {note&&(
@@ -60,6 +60,7 @@ export function ReadingNotes({word}:{word:Word}){
      </b>
     </p>
    )}
+   {word.note&&<p className={cx(ui.small)} style={{margin:segments.length?'0 0 10px':0}}>{word.note}</p>}
    {segments.length>0&&(
     <>
      <p style={{fontSize:22,margin:'0 0 6px'}}>

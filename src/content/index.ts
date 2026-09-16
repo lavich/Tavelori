@@ -45,7 +45,7 @@ function build(){
    const id=`${lesson.prefix}-${pad(index)}`;
    const prepared=!!entry.ipa;
    words.push({
-    id,greek:entry.g,russian:entry.r,ipa:entry.ipa??'',segments:toSegments(entry),examples:toExamples(entry),
+    id,greek:entry.g,russian:entry.r,ipa:entry.ipa??'',note:entry.note,segments:toSegments(entry),examples:toExamples(entry),
     imageAssetId:seedArt[entry.g]?imageAssetId(id):undefined,
     sourceMastered:entry.m,verified:prepared,source:prepared?SEED_SOURCE:CLASS_SOURCE,
     createdAt:CREATED,updatedAt:CREATED,

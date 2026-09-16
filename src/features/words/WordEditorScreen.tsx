@@ -63,6 +63,12 @@ export function WordEditorScreen(){
        <Input id="russian" value={draft.russian} aria-invalid={!!problem||undefined} onChange={event=>patch({russian:event.target.value})}/>
       </Field>
       <Field>
+       <FieldLabel htmlFor="note">Заметка о грамматике</FieldLabel>
+       <Input id="note" value={draft.note??''} placeholder="Множественное число: τα χρόνια."
+        onChange={event=>patch({note:event.target.value||undefined})}/>
+       <FieldDescription>Показывается в разборе под ударением.</FieldDescription>
+      </Field>
+      <Field>
        <FieldLabel htmlFor="ipa">Транскрипция IPA</FieldLabel>
        <Input id="ipa" value={draft.ipa} placeholder="/to ˈspiti/" onChange={event=>patch({ipa:event.target.value,verified:false})}/>
        <FieldDescription>

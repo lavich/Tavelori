@@ -57,6 +57,12 @@ describe('наборы класса переносятся без потерь �
   }
  });
 
+ it('множественное число живёт в заметке, а не в самом слове',()=>{
+  const year=seedWords.find(word=>word.russian==='год')!;
+  expect(year.greek).toBe('ο χρόνος');
+  expect(year.note).toContain('τα χρόνια');
+  expect(tiles(year.greek)).toEqual(['ο','χρό','νος']);
+ });
  it('слова без подготовленного контента честно помечены непроверенными',()=>{
   const plain=seedWords.filter(word=>!prepared.some(item=>item.id===word.id));
   expect(plain.length).toBeGreaterThan(0);
