@@ -39,7 +39,7 @@ export function ResultScreen(){
   navigate(created?'/session':'/');
  };
  return (
-  <main className={ui.screen} style={{paddingTop:24}}>
+  <main className={`${ui.screen} ${ui.roomy}`}>
    <h1>Занятие завершено</h1>
    <div className={ui.tiles}>
     <Card size="sm"><CardContent>

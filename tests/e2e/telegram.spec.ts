@@ -164,6 +164,27 @@ test.describe('навигация, тема и размеры',()=>{
   await tg(page).back();
   await expect(page.getByRole('heading',{name:'Немного каждый день'})).toBeVisible();
  });
+ test('экран результата во весь экран начинается ниже системной строки и кнопок клиента',async({page})=>{
+  await openTelegram(page,{noCloud:true,fullscreen:true,safeTop:47,contentTop:46});
+  // Занятие уже закрыто: экран результата проверяем по разметке, а не по прохождению упражнений.
+  await page.evaluate(async databaseName=>{
+   const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open(databaseName);request.onsuccess=()=>resolve(request.result)});
+   const now=new Date().toISOString();
+   const tx=database.transaction(['sessions','events'],'readwrite');
+   tx.objectStore('sessions').put({id:'done',createdAt:now,planDate:'2026-09-16',items:[],index:0,status:'done',activeTimeMs:60000,introducedWordIds:[]});
+   tx.objectStore('events').put({id:'e-done',sessionId:'done',itemId:'i-done',wordId:'w11-01',type:'recognition',mode:'scheduled',correct:true,rating:3,answer:'',localDate:'2026-09-16',createdAt:now});
+   await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
+   database.close();
+  },TG_DB);
+  await page.evaluate(()=>{history.pushState({},'','session/result/done');dispatchEvent(new PopStateEvent('popstate'))});
+  await expect(page.getByRole('heading',{name:'Занятие завершено'})).toBeVisible();
+  const main=page.locator('main').first();
+  await expect.poll(()=>main.evaluate(node=>parseFloat(getComputedStyle(node).paddingTop))).toBe(24+47+46);
+  const heading=await page.getByRole('heading',{name:'Занятие завершено'}).boundingBox();
+  expect(heading!.y).toBeGreaterThanOrEqual(47+46); // заголовок не заезжает под кнопки клиента
+  await tg(page).setFullscreen(false,0,0);
+  await expect.poll(()=>main.evaluate(node=>parseFloat(getComputedStyle(node).paddingTop))).toBe(24); // свернули — остаётся только собственный воздух экрана
+ });
  test('ширины 360 и 390, устойчивая высота и клавиатура: поле ответа и кнопка доступны без горизонтальной прокрутки',async({page})=>{
   await page.setViewportSize({width:360,height:740});
   await openTelegram(page,{stableHeight:740,platform:'android',noCloud:true});
