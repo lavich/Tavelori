@@ -61,7 +61,7 @@ export function TodayScreen(){
       ):(
        <>
         <CardTitle className="text-xl font-bold">Занятие не назначено</CardTitle>
-        <CardDescription>Добавьте набор с датой, чтобы Lexi распределила слова по дням.</CardDescription>
+        <CardDescription>Задайте расписание или дату набора на экране «Уроки», чтобы Lexi распределила слова по дням.</CardDescription>
        </>
       )}
      </CardHeader>

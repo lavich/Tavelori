@@ -3,17 +3,22 @@ import {ChevronRight, FileText, Plus} from 'lucide-react';
 import {Link, useSearchParams} from 'react-router-dom';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
-import {Field, FieldGroup, FieldLabel} from '@/components/ui/field';
+import {Field, FieldDescription, FieldGroup, FieldLabel} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
+import {localDay} from '../../domain/learning';
+import {scheduleSet} from '../../domain/schedule';
+import {useNow} from '../../shared/clock';
 import {dativeWeekday, dayMonth, shortTitle, withCount, WORDS} from '../../shared/format';
 import {useSnapshot} from '../../shared/store';
 import {createLesson} from '../../storage/ops';
+import {ScheduleCard} from './ScheduleCard';
 import ui from '../../shared/ui.module.css';
 
 export function LessonsScreen(){
  const {data}=useSnapshot();
+ const today=localDay(useNow(),data.settings.timezone);
  const [params,setParams]=useSearchParams();
  const [title,setTitle]=useState('');
  const [problem,setProblem]=useState('');
@@ -32,13 +37,14 @@ export function LessonsScreen(){
    <BrandBar/>
    <main className={ui.screen}>
     <h1>Уроки</h1>
+    <ScheduleCard settings={data.settings} today={today}/>
     <ItemGroup className="gap-2.5">
      {lessons.map(lesson=>(
       <Item key={lesson.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
        <ItemMedia variant="icon"><FileText/></ItemMedia>
        <ItemContent>
         <ItemTitle className="text-base">{shortTitle(lesson.title)} · {lesson.targetDate?`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`:'Без даты'}</ItemTitle>
-        <ItemDescription>{withCount(lesson.wordIds.length,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}</ItemDescription>
+        <ItemDescription>{withCount(lesson.wordIds.length,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}{lesson.status!=='completed'&&lesson.dateSource==='manual'?' · дата вручную':''}</ItemDescription>
        </ItemContent>
        <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
       </Item>
@@ -54,6 +60,7 @@ export function LessonsScreen(){
           <FieldLabel htmlFor="title">Название</FieldLabel>
           <Input id="title" value={title} placeholder="Урок 1.3" aria-invalid={!!problem||undefined}
            onChange={event=>setTitle(event.target.value)}/>
+          <FieldDescription>{scheduleSet(data.settings.schedule)?'Дата назначится по расписанию — следующий свободный день после предыдущего урока.':'Дату можно задать на экране урока или через расписание.'}</FieldDescription>
          </Field>
         </FieldGroup>
         {problem&&<p className={ui.error}>{problem}</p>}

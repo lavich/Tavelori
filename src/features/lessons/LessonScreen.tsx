@@ -4,7 +4,7 @@ import {Link, useNavigate, useParams} from 'react-router-dom';
 import {Button} from '@/components/ui/button';
 import {Card, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from '@/components/ui/empty';
-import {Field, FieldLabel} from '@/components/ui/field';
+import {Field, FieldDescription, FieldLabel} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle} from '@/components/ui/item';
 import {BackBar} from '../../app/TopBar';
@@ -56,6 +56,10 @@ export function LessonScreen(){
     <Field>
      <FieldLabel htmlFor="date">Дата занятия</FieldLabel>
      <Input id="date" type="date" value={date} onChange={event=>{setDate(event.target.value);setSaved(false)}}/>
+     {lesson.dateSource==='schedule'&&<FieldDescription>Дата по расписанию. Своя дата сдвинет следующие уроки.</FieldDescription>}
+     {lesson.dateSource==='manual'&&lesson.status!=='completed'&&(
+      <Button size="sm" variant="quiet" className="w-auto justify-self-start" onClick={()=>{updateLesson(lesson.id,{targetDate:null});setSaved(false)}}>Вернуть в расписание</Button>
+     )}
     </Field>
     <div className="mt-3 grid grid-cols-2 gap-2.5">
      <Button size="md" onClick={applyDate}>Сохранить дату</Button>

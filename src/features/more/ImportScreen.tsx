@@ -2,7 +2,7 @@ import {useMemo, useState} from 'react';
 import {Button} from '@/components/ui/button';
 import {useNavigate} from 'react-router-dom';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
-import {Field, FieldLabel} from '@/components/ui/field';
+import {Field, FieldDescription, FieldLabel} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {Textarea} from '@/components/ui/textarea';
@@ -86,6 +86,7 @@ export function ImportScreen(){
      <Field>
       <FieldLabel htmlFor="title">Название набора</FieldLabel>
       <Input id="title" value={title} onChange={event=>setTitle(event.target.value)}/>
+      <FieldDescription>Дата занятия назначится по расписанию; свою дату можно задать на экране урока.</FieldDescription>
      </Field>
     )}
     {problem&&<p className={ui.error} role="alert">{problem}</p>}

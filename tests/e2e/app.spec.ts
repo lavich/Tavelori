@@ -1,5 +1,8 @@
 import {expect, test} from '@playwright/test';
 import {ready, seedQueue} from './helpers';
+import {addDays} from '../../src/domain/learning';
+import {isoWeekday} from '../../src/domain/schedule';
+import {dativeWeekday, dayMonth} from '../../src/shared/format';
 
 test.beforeEach(async({page})=>{
  await page.goto('/');
@@ -99,20 +102,81 @@ test('занятие: знакомство, четыре упражнения, �
  expect(recorded).not.toContain('Всего записано 0');
 });
 
-test('будущие занятия: импорт нового набора, дата и пересчёт плана',async({page})=>{
+test('будущие занятия: импорт нового набора без даты, дата на экране урока и пересчёт плана',async({page})=>{
  await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await page.getByRole('link',{name:/Импорт слов/}).click();
  await page.locator('#text').fill('το τραπέζι\nстол\nη καρέκλα\nстул\nτο σπίτι\nдом');
  await expect(page.getByText(/распознано 3 слова/)).toBeVisible();
  await expect(page.getByText(/уже есть в словаре/)).toBeVisible();
- await page.locator('#title').fill('Урок 1.3');
- await page.locator('#date').fill('2026-09-25');
+ await expect(page.locator('#date')).toHaveCount(0); // дату назначает расписание
+ await page.locator('#title').fill('Урок 1.5');
  await page.getByRole('button',{name:/Сохранить 3 слова/}).click();
- await expect(page.getByRole('heading',{name:'Урок 1.3'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Урок 1.5'})).toBeVisible();
  await expect(page.getByText(/3 слова/)).toBeVisible();
+ await expect(page.getByText('Дата не назначена')).toBeVisible();
  await page.locator('#date').fill('2026-09-20');
  await page.getByRole('button',{name:'Сохранить дату'}).click();
  await expect(page.getByText(/План пересчитан|Дата сохранена/)).toBeVisible();
  await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click();
  await expect(page.getByText('Урок 1.2')).toBeVisible();
+});
+
+test('расписание: даты уроков 1.3 и 1.4, ручной перенос сдвигает хвост, возврат в расписание',async({page})=>{
+ // Первое занятие — не раньше сегодня и после якоря 1.2 (18 сентября), поэтому проверка не зависит от календаря.
+ const today=new Date().toISOString().slice(0,10);
+ const start=[addDays(today,2),'2026-09-19'].sort().pop()!;
+ const days=[isoWeekday(start),isoWeekday(addDays(start,3))];
+ const SHORT=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+ const lessonAt=(number:string,day:string)=>page.getByRole('link',{name:new RegExp(`${number} · К ${dativeWeekday(day)}, ${dayMonth(day)}`)});
+ const lessons=()=>page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
+
+ await lessons();
+ await expect(page.getByText('Не задано — даты уроков назначаются вручную')).toBeVisible();
+ await expect(page.getByRole('link',{name:/1\.3 · Без даты/})).toBeVisible();
+ await page.getByRole('button',{name:'Задать расписание'}).click();
+ await expect(page.locator('#start')).toHaveAttribute('min',/^\d{4}-\d{2}-\d{2}$/);
+ await page.locator('#start').fill(start);
+ await page.getByRole('button',{name:'Сохранить'}).click();
+ await expect(page.getByText('Выберите хотя бы один день недели.')).toBeVisible();
+ for(const day of days){
+  const toggle=page.getByRole('button',{name:SHORT[day-1],exact:true});
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed','true');
+ }
+ await page.getByRole('button',{name:'Сохранить'}).click();
+ const named=[...days].sort((a,b)=>a-b).map(day=>SHORT[day-1]);
+ await expect(page.getByText(`${named[0]} и ${named[1]}, первое занятие ${dayMonth(start)}`)).toBeVisible();
+ await expect(lessonAt('1\\.3',start)).toBeVisible();
+ await expect(lessonAt('1\\.4',addDays(start,3))).toBeVisible();
+ await expect(page.getByRole('link',{name:/1\.2 ·/})).toContainText('дата вручную');
+ await expect(page.getByRole('link',{name:/1\.3 ·/})).not.toContainText('дата вручную');
+
+ await lessonAt('1\\.3',start).click();
+ await expect(page.locator('#date')).toHaveValue(start);
+ await expect(page.getByText('Дата по расписанию. Своя дата сдвинет следующие уроки.')).toBeVisible();
+ await page.locator('#date').fill(addDays(start,7));
+ await page.getByRole('button',{name:'Сохранить дату'}).click();
+ await expect(page.getByText(/Дата сохранена/)).toBeVisible();
+ await expect(page.getByRole('button',{name:'Вернуть в расписание'})).toBeVisible();
+ await lessons();
+ await expect(lessonAt('1\\.3',addDays(start,7))).toContainText('дата вручную');
+ await expect(lessonAt('1\\.4',addDays(start,10))).toBeVisible();
+
+ await lessonAt('1\\.3',addDays(start,7)).click();
+ await page.getByRole('button',{name:'Вернуть в расписание'}).click();
+ await expect(page.locator('#date')).toHaveValue(start);
+ await expect(page.getByText('Дата по расписанию. Своя дата сдвинет следующие уроки.')).toBeVisible();
+ await lessons();
+ await expect(lessonAt('1\\.3',start)).toBeVisible();
+ await expect(lessonAt('1\\.4',addDays(start,3))).toBeVisible();
+
+ // Экран «Сегодня» показывает срок по дате из расписания.
+ await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click();
+ await expect(page.getByRole('link',{name:new RegExp(`1\\.3 · К ${dativeWeekday(start)}`)})).toBeVisible();
+
+ await lessons();
+ await page.getByRole('button',{name:'Изменить расписание'}).click();
+ await page.getByRole('button',{name:'Убрать расписание'}).click();
+ await expect(page.getByText('Не задано — даты уроков назначаются вручную')).toBeVisible();
+ await expect(page.getByRole('link',{name:/1\.3 · Без даты/})).toBeVisible();
 });

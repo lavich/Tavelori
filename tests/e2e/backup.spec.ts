@@ -29,6 +29,12 @@ test('полная копия переносит слова, правки и м�
  writeFileSync(file,readFileSync(await download.path()));
  const parsed=JSON.parse(readFileSync(file,'utf8'));
  expect(parsed.data.databaseName).toBe('lexi');
+ // Копия старой версии без расписания должна читаться как незаданное расписание.
+ for(const row of parsed.data.data.find((table:{tableName:string})=>table.tableName==='settings').rows){
+  delete row.schedule;
+  for(const key of Object.keys(row.$types??{}))if(key.startsWith('schedule'))delete row.$types[key];
+ }
+ writeFileSync(file,JSON.stringify(parsed));
  expect(parsed.data.tables.map((table:{name:string})=>table.name)).toEqual(expect.arrayContaining(['words','assets','states','events','sessions','settings','meta']));
  expect(parsed.data.tables.find((table:{name:string})=>table.name==='assets').rowCount).toBe(63);
  await source.close();
@@ -37,6 +43,12 @@ test('полная копия переносит слова, правки и м�
  const fresh=await clean.newPage();
  await fresh.goto('/');
  await ready(fresh);
+ await fresh.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
+ await fresh.getByRole('button',{name:'Задать расписание'}).click();
+ await fresh.locator('#start').fill('2026-12-01');
+ await fresh.getByRole('button',{name:'Пн',exact:true}).click();
+ await fresh.getByRole('button',{name:'Сохранить'}).click();
+ await expect(fresh.getByText(/Пн, первое занятие/)).toBeVisible();
  await fresh.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await fresh.getByRole('link',{name:/Копия данных/}).click();
  await fresh.locator('#backup').setInputFiles(file);
@@ -54,6 +66,8 @@ test('полная копия переносит слова, правки и м�
  await fresh.getByRole('link',{name:/το σπίτι/}).click();
  await expect(fresh.getByText('дом (моя правка)')).toBeVisible();
  await expect(fresh.getByTestId('word-art')).toBeVisible();
+ await fresh.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
+ await expect(fresh.getByText('Не задано — даты уроков назначаются вручную')).toBeVisible();
  await clean.close();
 });
 
