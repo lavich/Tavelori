@@ -2,6 +2,7 @@ import {expect, test} from '@playwright/test';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
+import {seedWords} from '../../src/content';
 import {ready} from './helpers';
 
 test('полная копия переносит слова, правки и медиа в чистый профиль',async({browser})=>{
@@ -79,5 +80,5 @@ test('повреждённый и чужой файл не меняют данн
  await expect(page.getByRole('button',{name:'Заменить данные копией'})).toBeDisabled();
 
  await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
- await expect(page.getByText('63 слова')).toBeVisible();
+ await expect(page.getByText(new RegExp(`^${seedWords.length} слов`))).toBeVisible(); // словарь не изменился
 });

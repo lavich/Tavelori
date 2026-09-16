@@ -1,1 +1,7 @@
-export interface SeedWord {g:string;r:string;ipa:string;m:boolean;n:[string,string,string][];ex:[string,string,string]}
+/** Компактная запись исходного слова. Набор без подготовленного контента задаёт только g, r и m. */
+export interface SeedWord {
+ g:string; r:string; m:boolean;
+ ipa?:string;
+ n?:[string,string,string][];
+ ex?:[string,string,string];
+}

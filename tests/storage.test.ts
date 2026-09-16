@@ -5,7 +5,7 @@ import {LexiDatabase, ensureSeed, loadSnapshot} from '../src/storage/db';
 import {ConflictError, commitImport, deleteWord, saveWord, submitAnswer} from '../src/storage/ops';
 import {makeSession} from '../src/domain/learning';
 import {parseImport} from '../src/domain/import';
-import {seedWords} from '../src/content';
+import {seedAssets, seedLessons, seedWords} from '../src/content';
 
 const now=new Date('2026-09-15T09:00:00Z');
 let db:LexiDatabase;
@@ -20,9 +20,9 @@ describe('исходные данные',()=>{
  it('наполняет базу один раз и не дублирует слова при повторном запуске',async()=>{
   expect(await ensureSeed(db)).toBe(true);
   expect(await ensureSeed(db)).toBe(false);
-  expect(await db.words.count()).toBe(63);
-  expect(await db.assets.count()).toBe(63);
-  expect(await db.lessons.count()).toBe(2);
+  expect(await db.words.count()).toBe(seedWords.length);
+  expect(await db.assets.count()).toBe(seedAssets().length);
+  expect(await db.lessons.count()).toBe(seedLessons.length);
  });
  it('не воскрешает удалённое пользователем слово',async()=>{
   await ensureSeed(db);
@@ -30,7 +30,7 @@ describe('исходные данные',()=>{
   await db.meta.delete('seed'); // имитируем обновление приложения
   await ensureSeed(db);
   expect((await db.words.get(seedWords[0].id))!.deletedAt).toBeTruthy();
-  expect(await db.words.count()).toBe(63);
+  expect(await db.words.count()).toBe(seedWords.length);
  });
  it('сохраняет blob картинки после повторного открытия базы',async()=>{
   await ensureSeed(db);
@@ -83,19 +83,19 @@ describe('запись ответа',()=>{
 describe('импорт',()=>{
  it('связывает известное слово с набором и не создаёт дубликат',async()=>{
   await ensureSeed(db);
-  const rows=parseImport('το σπίτι\nдом\nτο τραπέζι\nстол').rows;
+  const rows=parseImport('το σπίτι\nдом\nη ομπρέλα\nзонт').rows;
   const outcome=await commitImport({rows,lessonId:null,lessonTitle:'Урок 1.3',targetDate:'2026-09-25'},db);
   expect(outcome).toMatchObject({added:1,linked:1});
-  expect(await db.words.count()).toBe(64);
+  expect(await db.words.count()).toBe(seedWords.length+1);
   const lesson=await db.lessons.get(outcome.lessonId);
   expect(lesson!.wordIds).toHaveLength(2);
   expect(lesson!.targetDate).toBe('2026-09-25');
  });
  it('при ошибке не оставляет половину набора',async()=>{
   await ensureSeed(db);
-  const rows=parseImport('το τραπέζι\nстол\nη καρέκλα\nстул').rows;
+  const rows=parseImport('η ομπρέλα\nзонт\nτο ποτήρι\nстакан').rows;
   await expect(commitImport({rows,lessonId:'нет-такого',lessonTitle:'',targetDate:null},db)).rejects.toThrow();
-  expect(await db.words.count()).toBe(63);
+  expect(await db.words.count()).toBe(seedWords.length);
  });
  it('меняет перевод без потери истории и сбрасывает проверку фонетики после правки греческого',async()=>{
   await ensureSeed(db);

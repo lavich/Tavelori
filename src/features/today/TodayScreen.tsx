@@ -106,7 +106,7 @@ export function TodayScreen(){
        <Item key={item.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card" render={<Link to={`/lessons/${item.id}`}/>}>
         <ItemMedia variant="icon"><FileText/></ItemMedia>
         <ItemContent>
-         <ItemTitle className="text-base">{shortTitle(item.title)} · {item.targetDate?`К ${dativeWeekday(item.targetDate)}`:'Повторение'}</ItemTitle>
+         <ItemTitle className="text-base">{shortTitle(item.title)} · {item.targetDate?`К ${dativeWeekday(item.targetDate)}`:item.status==='completed'?'Повторение':'Без даты'}</ItemTitle>
          <ItemDescription>{withCount(item.wordIds.length,WORDS)}{left?` · ${left} новых`:''}</ItemDescription>
         </ItemContent>
         <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
