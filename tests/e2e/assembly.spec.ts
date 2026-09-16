@@ -1,4 +1,5 @@
 import {expect, test} from '@playwright/test';
+import {installLessons} from './helpers';
 
 /** Слово со сроком и пройденными recall/recognition получает сборку следующим навыком. */
 const dueWithHistory=(page:import('@playwright/test').Page,wordId:string,types:string[])=>page.evaluate(async({wordId,types})=>{
@@ -38,6 +39,7 @@ async function openAssembly(page:import('@playwright/test').Page){
 test.beforeEach(async({page})=>{
  await page.goto('/');
  await page.waitForSelector('text=Немного каждый день');
+ await installLessons(page,['lesson-1-2']);
  await dueWithHistory(page,'w12-16',['recall','recognition']);
  await page.reload();
  await page.waitForSelector('text=Немного каждый день');

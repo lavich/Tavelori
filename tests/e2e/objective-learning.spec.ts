@@ -1,5 +1,5 @@
 import {expect,test,type Page} from '@playwright/test';
-import {ready} from './helpers';
+import {installLessons, ready} from './helpers';
 
 async function installSession(page:Page,type:string,isNew=false,count=1){
  await page.evaluate(async({type,isNew,count})=>{
@@ -30,7 +30,7 @@ async function stored(page:Page){
  });
 }
 
-test.beforeEach(async({page})=>{await page.goto('/');await ready(page)});
+test.beforeEach(async({page})=>{await page.goto('/');await ready(page);await installLessons(page,['lesson-1-2'])});
 
 for(const type of ['recognition','assembly','spelling','listening']){
  test(`${type}: «Не знаю» показывает ответ, сохраняет ошибку и одну тренировку`,async({page})=>{

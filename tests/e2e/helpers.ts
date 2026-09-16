@@ -41,3 +41,12 @@ export async function seedQueue(page:Page,plan:DuePlan[]){
  await ready(page);
 }
 export const ready=(page:Page)=>page.waitForSelector('text=Немного каждый день');
+/** Уроки больше не устанавливаются при запуске: открытие урока из каталога загружает его пакет. */
+export async function installLessons(page:Page,ids:string[]){
+ for(const id of ids){
+  await page.goto(`/lessons/${id}`);
+  await page.getByRole('heading',{name:'Слова набора'}).waitFor({timeout:20000});
+ }
+ await page.goto('/');
+ await ready(page);
+}

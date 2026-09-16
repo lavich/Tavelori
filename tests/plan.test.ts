@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {createEmptyCard, Rating, State} from 'ts-fsrs';
 import {chooseType, daysBetween, localDay, makePlan, makeSession, nextState, optionsFor, shuffleTiles, spellingUnlocked} from '../src/domain/learning';
+import {fromSnapshot} from '../src/domain/snapshot-source';
 import {diffChars} from '../src/domain/spelling';
 import {checkAnswer} from '../src/domain/import';
 import {progress} from '../src/domain/stats';
@@ -10,8 +11,16 @@ const now=new Date('2026-09-15T09:00:00Z');
 const iso=now.toISOString();
 const word=(id:string,index:number):Word=>({id,greek:`λέξη${index}`,russian:`слово${index}`,ipa:'',segments:[],examples:[],sourceMastered:false,verified:false,createdAt:iso,updatedAt:iso});
 const words=(count:number,prefix='w')=>Array.from({length:count},(_,index)=>word(`${prefix}${index}`,index));
-const lesson=(id:string,wordIds:string[],targetDate:string|null):Lesson=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso});
-const base=(over:Partial<Snapshot>={}):Snapshot=>({words:[],lessons:[],states:[],events:[],sessions:[],settings:defaultSettings,...over});
+type LessonSpec=Lesson&{wordIds:string[]};
+const lesson=(id:string,wordIds:string[],targetDate:string|null):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso});
+/** Снимок для тестов: состав уроков задаётся массивами и раскладывается в связи с порядком. */
+const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):Snapshot=>({
+ words:[],states:[],events:[],sessions:[],settings:defaultSettings,...over,
+ lessons:(over.lessons??[]).map(({wordIds:_,...rest})=>rest),
+ links:(over.lessons??[]).flatMap(l=>l.wordIds.map((wordId,position)=>({lessonId:l.id,wordId,position}))),
+});
+const planOf=(data:Snapshot,at=now)=>makePlan(fromSnapshot(data),at);
+const sessionOf=(input:Omit<Parameters<typeof makeSession>[0],'source'>&{data:Snapshot})=>{const {data,...rest}=input;return makeSession({source:fromSnapshot(data),...rest})};
 const learned=(id:string,due:string,state=State.Review):LearningState=>({
  wordId:id,introducedAt:'2026-09-01T09:00:00Z',version:1,
  card:{...createEmptyCard(new Date('2026-09-01')),due:new Date(due),state,scheduled_days:3,reps:2},
@@ -19,41 +28,41 @@ const learned=(id:string,due:string,state=State.Review):LearningState=>({
 
 describe('подготовка к нескольким занятиям',()=>{
  const pool=words(40);
- it('распределяет 30 слов на три дня и предупреждает, когда лимита не хватает',()=>{
+ it('распределяет 30 слов на три дня и предупреждает, когда лимита не хватает',async()=>{
   const data=base({words:pool,lessons:[lesson('l1',pool.slice(0,30).map(w=>w.id),'2026-09-18')]});
-  expect(makePlan(data,now).requiredPerDay).toBe(10);
-  expect(makePlan(data,now).shortfall).toBe(false);
+  expect((await planOf(data)).requiredPerDay).toBe(10);
+  expect((await planOf(data)).shortfall).toBe(false);
   const urgent=base({words:pool,lessons:[lesson('l1',pool.slice(0,30).map(w=>w.id),'2026-09-16')]});
-  const plan=makePlan(urgent,now);
+  const plan=await planOf(urgent);
   expect(plan.requiredPerDay).toBe(30);
   expect(plan.shortfall).toBe(true);
-  expect(plan.newWords).toHaveLength(10); // дневной лимит не превышается автоматически
+  expect(plan.newWordIds).toHaveLength(10); // дневной лимит не превышается автоматически
  });
- it('считает общее слово двух наборов один раз по самой ранней дате',()=>{
+ it('считает общее слово двух наборов один раз по самой ранней дате',async()=>{
   const shared=pool.slice(0,10).map(w=>w.id);
   const data=base({words:pool,lessons:[lesson('l3',shared,'2026-09-17'),lesson('l4',[...shared,...pool.slice(10,20).map(w=>w.id)],'2026-09-19')]});
-  const plan=makePlan(data,now);
+  const plan=await planOf(data);
   expect(plan.deadlines.map(d=>[d.newLeft,d.requiredPerDay])).toEqual([[10,5],[20,5]]);
   expect(plan.requiredPerDay).toBe(5);
  });
- it('перенос даты меняет темп, но не трогает уже введённые слова',()=>{
+ it('перенос даты меняет темп, но не трогает уже введённые слова',async()=>{
   const ids=pool.slice(0,30).map(w=>w.id);
   const states=ids.slice(0,6).map(id=>learned(id,'2026-09-20T09:00:00Z'));
   const moved=base({words:pool,lessons:[lesson('l1',ids,'2026-09-20')],states});
-  const plan=makePlan(moved,now);
+  const plan=await planOf(moved);
   expect(plan.deadlines[0].newLeft).toBe(24);
   expect(plan.requiredPerDay).toBe(5);
-  expect(plan.newWords.every(item=>!states.some(state=>state.wordId===item.id))).toBe(true);
+  expect(plan.newWordIds.every(id=>!states.some(state=>state.wordId===id))).toBe(true);
  });
- it('прошедший урок не исчезает: слова идут в общей очереди',()=>{
+ it('прошедший урок не исчезает: слова идут в общей очереди',async()=>{
   const data=base({words:pool.slice(0,3),lessons:[lesson('old',pool.slice(0,3).map(w=>w.id),'2026-09-10')]});
-  const plan=makePlan(data,now);
+  const plan=await planOf(data);
   expect(plan.deadlines).toHaveLength(0);
-  expect(plan.newWords).toHaveLength(3);
+  expect(plan.newWordIds).toHaveLength(3);
  });
- it('день занятия считается догоняющей подготовкой с делителем один',()=>{
+ it('день занятия считается догоняющей подготовкой с делителем один',async()=>{
   const ids=pool.slice(0,8).map(w=>w.id);
-  const plan=makePlan(base({words:pool,lessons:[lesson('today',ids,'2026-09-15')]}),now);
+  const plan=await planOf(base({words:pool,lessons:[lesson('today',ids,'2026-09-15')]}));
   expect(plan.deadlines[0].daysLeft).toBe(0);
   expect(plan.deadlines[0].requiredPerDay).toBe(8);
  });
@@ -68,41 +77,41 @@ describe('подготовка к нескольким занятиям',()=>{
 describe('дневной бюджет и состав занятия',()=>{
  const pool=words(30);
  const ids=pool.map(w=>w.id);
- it('смешивает новые и повторения и не превышает размер занятия',()=>{
+ it('смешивает новые и повторения и не превышает размер занятия',async()=>{
   const states=ids.slice(20).map(id=>learned(id,'2026-09-15T06:00:00Z'));
   const data=base({words:pool,lessons:[lesson('l1',ids.slice(0,20),'2026-09-18')],states});
-  const session=makeSession({data,now,random:()=>0.5});
+  const session=await sessionOf({data,now,random:()=>0.5});
   expect(session.items).toHaveLength(20);
   expect(session.items.filter(item=>item.isNew)).toHaveLength(10);
   expect(session.items.filter(item=>!item.isNew)).toHaveLength(10);
  });
- it('вторая сессия в тот же день не выдаёт новых слов сверх лимита',()=>{
+ it('вторая сессия в тот же день не выдаёт новых слов сверх лимита',async()=>{
   const introduced=ids.slice(0,10).map(id=>({...learned(id,'2026-09-16T09:00:00Z'),introducedAt:iso}));
   const data=base({words:pool,lessons:[lesson('l1',ids,'2026-09-18')],states:introduced});
-  const plan=makePlan(data,now);
+  const plan=await planOf(data);
   expect(plan.introducedToday).toBe(10);
   expect(plan.budget).toBe(0);
-  expect(makeSession({data,now,random:()=>0.5}).items.every(item=>!item.isNew)).toBe(true);
+  expect((await sessionOf({data,now,random:()=>0.5})).items.every(item=>!item.isNew)).toBe(true);
  });
- it('сначала relearning, затем просроченные, затем сегодняшние',()=>{
+ it('сначала relearning, затем просроченные, затем сегодняшние',async()=>{
   const states=[
    learned(ids[0],'2026-09-15T08:00:00Z'),
    learned(ids[1],'2026-09-12T08:00:00Z'),
    {...learned(ids[2],'2026-09-14T08:00:00Z',State.Relearning)},
   ];
-  const plan=makePlan(base({words:pool,states}),now);
-  expect(plan.reviews.map(review=>review.word.id)).toEqual([ids[2],ids[1],ids[0]]);
+  const plan=await planOf(base({words:pool,states}));
+  expect(plan.reviews.map(review=>review.wordId)).toEqual([ids[2],ids[1],ids[0]]);
  });
- it('аудирование доступно и без своего файла, если есть системный греческий голос',()=>{
+ it('аудирование доступно и без своего файла, если есть системный греческий голос',async()=>{
   const history=(['recall','recognition','assembly','spelling'] as ExerciseType[]).map((type,index)=>({
    id:`${type}`,sessionId:'s',itemId:`${type}`,wordId:ids[0],snapshot:{greek:'',russian:''},
    type,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',
    createdAt:`2026-09-1${index}T09:00:00Z`,localDate:`2026-09-1${index}`,responseTimeMs:900,
   }));
   const data=base({words:pool,states:[learned(ids[0],'2026-09-14T08:00:00Z')],events:history});
-  const silent=makeSession({data,now,random:()=>0.5,hasVoice:false}).items.find(item=>item.wordId===ids[0])!;
+  const silent=(await sessionOf({data,now,random:()=>0.5,hasVoice:false})).items.find(item=>item.wordId===ids[0])!;
   expect(silent.type).not.toBe('listening');
-  const spoken=makeSession({data,now,random:()=>0.5,hasVoice:true}).items.find(item=>item.wordId===ids[0])!;
+  const spoken=(await sessionOf({data,now,random:()=>0.5,hasVoice:true})).items.find(item=>item.wordId===ids[0])!;
   expect(spoken.type).toBe('listening');
   expect(new Set(spoken.options).size).toBe(4);
  });
@@ -112,19 +121,19 @@ describe('дневной бюджет и состав занятия',()=>{
   expect([...mixed].sort()).toEqual([...parts].sort());
   expect(mixed.join('')).not.toBe(parts.join(''));
  });
- it('ручная тренировка набора берёт указанные слова в режиме practice',()=>{
+ it('ручная тренировка набора берёт указанные слова в режиме practice',async()=>{
   const data=base({words:pool,lessons:[lesson('l1',ids,'2026-09-18')]});
-  const session=makeSession({data,now,random:()=>0.5,mode:'practice',wordIds:ids.slice(0,3)});
+  const session=await sessionOf({data,now,random:()=>0.5,mode:'practice',wordIds:ids.slice(0,3)});
   expect(session.items.map(item=>item.wordId)).toEqual(ids.slice(0,3));
   expect(session.items.every(item=>item.mode==='practice')).toBe(true);
  });
- it('варианты ответа уникальны, а при нехватке слов упражнение заменяется на сборку',()=>{
+ it('варианты ответа уникальны, а при нехватке слов упражнение заменяется на сборку',async()=>{
   const options=optionsFor(pool[0],pool,'recognition',()=>0.5);
   expect(new Set(options).size).toBe(4);
   expect(options).toContain(pool[0].russian);
   expect(optionsFor(pool[0],pool.slice(0,3),'recognition',()=>0.5)).toEqual([]);
   const small=base({words:pool.slice(0,2),states:[learned(ids[0],'2026-09-14T08:00:00Z')]});
-  expect(makeSession({data:small,now,random:()=>0.5}).items[0].type).not.toBe('recognition');
+  expect((await sessionOf({data:small,now,random:()=>0.5})).items[0].type).not.toBe('recognition');
  });
 });
 
@@ -221,30 +230,30 @@ describe('проверка написания',()=>{
 });
 
 describe('статистика',()=>{
- it('без истории не выдумывает оценку запоминания',()=>{
-  const stats=progress(base({words:words(3)}),now);
+ it('без истории не выдумывает оценку запоминания',async()=>{
+  const stats=await progress(fromSnapshot(base({words:words(3)})),now);
   expect(stats.skills.every(skill=>skill.rate===null)).toBe(true);
   expect(stats.days).toHaveLength(7);
   expect(stats.groups.fresh).toBe(3);
  });
- it('сроки считает по календарю выбранной зоны, а не по суткам UTC',()=>{
+ it('сроки считает по календарю выбранной зоны, а не по суткам UTC',async()=>{
   const pool=words(2);
   // 22:00 UTC — это уже 01:00 следующего дня в Никосии, значит «сегодня» такое повторение не готово.
   const states=[
    {...learned(pool[0].id,'2026-09-15T22:00:00Z')},
    {...learned(pool[1].id,'2026-09-15T12:00:00Z')},
   ];
-  const stats=progress(base({words:pool,states}),now);
+  const stats=await progress(fromSnapshot(base({words:pool,states})),now);
   expect(stats.due.today).toBe(1);
   expect(stats.due.tomorrow).toBe(2);
  });
- it('считает дни по локальной полуночи выбранной зоны',()=>{
+ it('считает дни по локальной полуночи выбранной зоны',async()=>{
   const pool=words(2);
   const events:ReviewEvent[]=[{
    id:'e1',sessionId:'s',itemId:'i1',wordId:pool[0].id,snapshot:{greek:'',russian:''},type:'recall',mode:'scheduled',
    rating:3,correct:null,answer:'',createdAt:'2026-09-14T22:30:00Z',localDate:localDay(new Date('2026-09-14T22:30:00Z'),'Asia/Nicosia'),responseTimeMs:900,
   }];
-  const stats=progress(base({words:pool,events}),now);
+  const stats=await progress(fromSnapshot(base({words:pool,events})),now);
   expect(stats.days.find(day=>day.date==='2026-09-15')!.answers).toBe(1);
  });
 });

@@ -5,3 +5,5 @@ playwright-report/
 test-results/
 .DS_Store
 docs/art-sheet.html
+public/content/
+.playwright-mcp/

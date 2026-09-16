@@ -6,7 +6,7 @@ import {Nav} from './Nav';
 import {updateReady} from '../main';
 import {localDay} from '../domain/learning';
 import {useNow} from '../shared/clock';
-import {useSnapshot} from '../shared/store';
+import {useSettings} from '../shared/store';
 import {settleLessons} from '../storage/ops';
 import {TodayScreen} from '../features/today/TodayScreen';
 import {LessonsScreen} from '../features/lessons/LessonsScreen';
@@ -26,8 +26,8 @@ import ui from '../shared/ui.module.css';
 export function App(){
  const {pathname}=useLocation();
  const immersive=pathname.startsWith('/session');
- const {data}=useSnapshot();
- const today=localDay(useNow(),data.settings.timezone);
+ const {settings}=useSettings();
+ const today=localDay(useNow(),settings.timezone);
  const seenDay=useRef(today);
  useEffect(()=>{
   // При запуске закрепление уже сделал main.tsx; здесь ловим смену дня в открытом приложении.

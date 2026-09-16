@@ -1,6 +1,6 @@
 import {createEmptyCard, fsrs, generatorParameters, State, type Card, type Grade} from 'ts-fsrs';
 import {tiles} from './syllables';
-import type {ExerciseType, LearningState, ReviewEvent, Session, SessionItem, Snapshot, Word} from './types';
+import type {ExerciseType, LearningState, Lesson, ReviewEvent, Session, SessionItem, Settings, Word} from './types';
 
 export const scheduler=fsrs(generatorParameters({enable_fuzz:false}));
 
@@ -17,51 +17,102 @@ export function daysBetween(from:string,to:string):number{
 export const addDays=(day:string,count:number)=>new Date(Date.parse(`${day}T00:00:00Z`)+count*86400000).toISOString().slice(0,10);
 export const formatDay=(day:string)=>new Date(`${day}T12:00:00Z`).toLocaleDateString('ru-RU',{day:'numeric',month:'long',timeZone:'UTC'});
 export const weekdayOf=(day:string)=>new Date(`${day}T12:00:00Z`).toLocaleDateString('ru-RU',{weekday:'long',timeZone:'UTC'});
-const toDay=(value:string,timezone:string)=>localDay(new Date(value),timezone);
+/** Момент начала календарного дня в зоне; переход летнего времени учитывается повторным расчётом смещения. */
+export function zonedStart(day:string,timezone:string):Date{
+ const guess=new Date(`${day}T00:00:00Z`);
+ const offset=(date:Date)=>{
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date);
+  const get=(type:string)=>Number(parts.find(p=>p.type===type)!.value);
+  return Date.UTC(get('year'),get('month')-1,get('day'),get('hour'),get('minute'),get('second'))-date.getTime();
+ };
+ const first=new Date(guess.getTime()-offset(guess));
+ return new Date(guess.getTime()-offset(first));
+}
 
 export interface DeadlinePlan {lessonId:string;title:string;targetDate:string;daysLeft:number;newLeft:number;requiredPerDay:number}
 export interface DailyPlan {
  today:string; requiredPerDay:number; budget:number; introducedToday:number;
- newWords:Word[]; reviews:{word:Word;state:LearningState}[]; deadlines:DeadlinePlan[]; shortfall:boolean;
+ newWordIds:string[]; reviews:{wordId:string;state:LearningState}[]; deadlines:DeadlinePlan[]; shortfall:boolean;
 }
 
-const alive=(words:Word[])=>words.filter(w=>!w.deletedAt);
-export const activeWords=alive;
+/**
+ * Источник данных планировщика: ограниченные выборки вместо полного снимка.
+ * Уроки приходят с датами по расписанию в порядке первичного ключа; списки слов уроков — в порядке связей.
+ */
+export interface PlanSource {
+ settings():Promise<Settings>;
+ lessons():Promise<Lesson[]>;
+ lessonWordIds(lessonId:string):Promise<string[]>;
+ introducedToday(today:string,timezone:string):Promise<number>;
+ statesOf(wordIds:string[]):Promise<Map<string,LearningState>>;
+ /** Какие из идентификаторов существуют и не удалены; для списков размером с урок. */
+ liveWordIds(wordIds:string[]):Promise<Set<string>>;
+ /** Удалённых слов мало: их множество дешевле, чем проверять существование тысяч срочных повторений. */
+ deletedWordIds():Promise<Set<string>>;
+ dueStates(now:Date):Promise<LearningState[]>;
+ /** Живые слова в порядке идентификаторов после курсора: используется, только если датированных слов не хватило. */
+ scanLiveWordIds(after:string|null,limit:number):Promise<string[]>;
+}
+export interface SessionSource extends PlanSource {
+ wordsOf(wordIds:string[]):Promise<Word[]>;
+ historyOf(wordId:string):Promise<ReviewEvent[]>;
+ /** Ограниченный пул живых слов для вариантов ответа; маленький словарь возвращается целиком. */
+ optionPool(want:number):Promise<Word[]>;
+}
+export const OPTION_POOL=48;
+const SCAN=200;
 
-export function makePlan(data:Snapshot,now:Date):DailyPlan{
- const timezone=data.settings.timezone;
+export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
+ const settings=await source.settings();
+ const timezone=settings.timezone;
  const today=localDay(now,timezone);
- const words=new Map(alive(data.words).map(w=>[w.id,w]));
- const states=new Map(data.states.map(s=>[s.wordId,s]));
- const introducedToday=data.states.filter(s=>toDay(s.introducedAt,timezone)===today).length;
- const budget=Math.max(0,data.settings.newWordsPerDay-introducedToday);
-
- const upcoming=data.lessons
+ const introducedToday=await source.introducedToday(today,timezone);
+ const budget=Math.max(0,settings.newWordsPerDay-introducedToday);
+ const lessons=await source.lessons();
+ const upcoming=lessons
   .filter(l=>l.targetDate&&l.status!=='completed'&&daysBetween(today,l.targetDate)>=0)
   .sort((a,b)=>(a.targetDate!).localeCompare(b.targetDate!)||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id));
 
  const seen=new Set<string>(); const deadlines:DeadlinePlan[]=[]; const dated:string[]=[];
+ /** Слово новое, если оно живое и без состояния; проверяется порцией по идентификаторам урока. */
+ const fresh=async(ids:string[])=>{
+  const unseen=ids.filter(id=>!seen.has(id));
+  const [live,states]=await Promise.all([source.liveWordIds(unseen),source.statesOf(unseen)]);
+  return unseen.filter(id=>live.has(id)&&!states.has(id));
+ };
  for(const lesson of upcoming){
-  for(const id of lesson.wordIds) if(words.has(id)&&!states.has(id)&&!seen.has(id)){seen.add(id);dated.push(id)}
+  for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){seen.add(id);dated.push(id)}
   const daysLeft=Math.max(1,daysBetween(today,lesson.targetDate!));
   deadlines.push({lessonId:lesson.id,title:lesson.title,targetDate:lesson.targetDate!,daysLeft:daysBetween(today,lesson.targetDate!),newLeft:seen.size,requiredPerDay:Math.ceil(seen.size/daysLeft)});
  }
  const requiredPerDay=deadlines.reduce((max,d)=>Math.max(max,d.requiredPerDay),0);
 
- const rest:string[]=[];
- for(const lesson of data.lessons) for(const id of lesson.wordIds) if(words.has(id)&&!states.has(id)&&!seen.has(id)){seen.add(id);rest.push(id)}
- for(const word of words.values()) if(!states.has(word.id)&&!seen.has(word.id)){seen.add(word.id);rest.push(word.id)}
+ // Датированные слова идут первыми; остальные подтягиваются порциями, только пока не заполнен дневной бюджет.
+ const picked=[...dated];
+ if(picked.length<budget){
+  for(const lesson of lessons){
+   if(picked.length>=budget)break;
+   for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){seen.add(id);picked.push(id)}
+  }
+  let cursor:string|null=null;
+  while(picked.length<budget){
+   const chunk=await source.scanLiveWordIds(cursor,SCAN);
+   if(!chunk.length)break;
+   const states=await source.statesOf(chunk.filter(id=>!seen.has(id)));
+   for(const id of chunk) if(!seen.has(id)&&!states.has(id)){seen.add(id);picked.push(id)}
+   cursor=chunk[chunk.length-1];
+  }
+ }
+ const newWordIds=picked.slice(0,budget);
 
- const picked=[...dated.slice(0,Math.min(budget,requiredPerDay)),...dated.slice(Math.min(budget,requiredPerDay)).concat(rest)];
- const newWords=picked.slice(0,budget).map(id=>words.get(id)!);
-
+ const [due,deleted]=await Promise.all([source.dueStates(now),source.deletedWordIds()]);
  const rank=(state:LearningState)=>state.card.state===State.Relearning?0:state.card.state===State.Learning?1:2;
- const reviews=data.states
-  .filter(s=>words.has(s.wordId)&&new Date(s.card.due).getTime()<=now.getTime())
-  .sort((a,b)=>rank(a)-rank(b)||new Date(a.card.due).getTime()-new Date(b.card.due).getTime())
-  .map(s=>({word:words.get(s.wordId)!,state:s}));
+ const reviews=due
+  .filter(s=>!deleted.has(s.wordId))
+  .sort((a,b)=>rank(a)-rank(b)||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.wordId.localeCompare(b.wordId))
+  .map(s=>({wordId:s.wordId,state:s}));
 
- return {today,requiredPerDay,budget,introducedToday,newWords,reviews,deadlines,shortfall:requiredPerDay>data.settings.newWordsPerDay};
+ return {today,requiredPerDay,budget,introducedToday,newWordIds,reviews,deadlines,shortfall:requiredPerDay>settings.newWordsPerDay};
 }
 
 const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening'];
@@ -132,28 +183,38 @@ export function optionsFor(word:Word,pool:Word[],type:ExerciseType,random:()=>nu
  return shuffle([key(word),...shuffle(unique,random).slice(0,3).map(key)],random);
 }
 
-export interface SessionInput {data:Snapshot;now:Date;random?:()=>number;mode?:'scheduled'|'practice';wordIds?:string[];hasVoice?:boolean}
-export function makeSession({data,now,random=Math.random,mode='scheduled',wordIds,hasVoice=false}:SessionInput):Session{
- const plan=makePlan(data,now);
- const pool=alive(data.words);
- const states=new Map(data.states.map(s=>[s.wordId,s]));
- const size=Math.max(2,data.settings.sessionSize);
- let chosen:{word:Word;isNew:boolean}[];
+export interface SessionInput {source:SessionSource;now:Date;random?:()=>number;mode?:'scheduled'|'practice';wordIds?:string[];hasVoice?:boolean}
+/** Полные карточки загружаются только для выбранных слов; история — только по ним. */
+export async function makeSession({source,now,random=Math.random,mode='scheduled',wordIds,hasVoice=false}:SessionInput):Promise<Session>{
+ const plan=await makePlan(source,now);
+ const settings=await source.settings();
+ const size=Math.max(2,settings.sessionSize);
+ let chosen:{wordId:string;isNew:boolean}[];
  if(wordIds){
-  chosen=wordIds.map(id=>pool.find(w=>w.id===id)).filter((w):w is Word=>!!w).map(word=>({word,isNew:!states.has(word.id)}));
+  const live=await source.liveWordIds(wordIds);
+  const kept=wordIds.filter(id=>live.has(id));
+  const states=await source.statesOf(kept);
+  chosen=kept.map(wordId=>({wordId,isNew:!states.has(wordId)}));
  }else{
   const reserve=Math.min(plan.budget,Math.ceil(size/2));
-  const newOnes=plan.newWords.slice(0,reserve);
+  const newOnes=plan.newWordIds.slice(0,reserve);
   const reviews=plan.reviews.slice(0,Math.max(size-newOnes.length,plan.reviews.length?1:0));
-  const extraNew=plan.newWords.slice(newOnes.length,Math.min(plan.newWords.length,newOnes.length+Math.max(0,size-newOnes.length-reviews.length)));
-  chosen=[...newOnes.concat(extraNew).map(word=>({word,isNew:true})),...reviews.slice(0,Math.max(0,size-newOnes.length-extraNew.length)).map(r=>({word:r.word,isNew:false}))];
+  const extraNew=plan.newWordIds.slice(newOnes.length,Math.min(plan.newWordIds.length,newOnes.length+Math.max(0,size-newOnes.length-reviews.length)));
+  chosen=[...newOnes.concat(extraNew).map(wordId=>({wordId,isNew:true})),...reviews.slice(0,Math.max(0,size-newOnes.length-extraNew.length)).map(r=>({wordId:r.wordId,isNew:false}))];
   chosen=shuffle(chosen,random).slice(0,size);
  }
+ const ids=chosen.map(entry=>entry.wordId);
+ const [words,states,pool]=await Promise.all([source.wordsOf(ids),source.statesOf(ids),source.optionPool(OPTION_POOL)]);
+ const byId=new Map(words.map(word=>[word.id,word]));
  const id=`s-${now.getTime().toString(36)}-${Math.floor(random()*1e6).toString(36)}`;
- const items:SessionItem[]=chosen.map((entry,index)=>{
-  const exercise=objectiveExercise(entry.word,pool,entry.isNew?[]:data.events,random,hasVoice);
-  return {id:`${id}-${index}`,wordId:entry.word.id,word:entry.word,...exercise,isNew:entry.isNew,mode,expectedVersion:states.get(entry.word.id)?.version??0};
- });
+ const items:SessionItem[]=[];
+ for(const entry of chosen){
+  const word=byId.get(entry.wordId);
+  if(!word)continue;
+  const events=entry.isNew?[]:await source.historyOf(entry.wordId);
+  const exercise=objectiveExercise(word,pool,events,random,hasVoice);
+  items.push({id:`${id}-${items.length}`,wordId:word.id,word,...exercise,isNew:entry.isNew,mode,expectedVersion:states.get(word.id)?.version??0});
+ }
  return {id,createdAt:now.toISOString(),planDate:plan.today,items:spaceSingleIntroduction(items),index:0,status:'active',activeTimeMs:0,introducedWordIds:[],objectiveVersion:1};
 }
 

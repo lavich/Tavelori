@@ -1,0 +1,15 @@
+greek: το χέρι
+russian: рука
+ipa: /to ˈçeri/
+verified: true
+mastered: true
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: w12-26.svg
+reading:
+  - text: χέ
+    ipa: çe
+    explanation: χ перед ε и ι звучит мягко, как хь
+examples:
+  - greek: Δώσε μου το χέρι σου.
+    russian: Дай мне свою руку.
+    target: χέρι

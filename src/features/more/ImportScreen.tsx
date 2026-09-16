@@ -7,15 +7,17 @@ import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {Textarea} from '@/components/ui/textarea';
 import {BackBar} from '../../app/TopBar';
-import {parseImport, wordKey} from '../../domain/import';
+import {useLiveQuery} from 'dexie-react-hooks';
+import {parseImport} from '../../domain/import';
 import {withCount, WORDS} from '../../shared/format';
-import {liveWords, useSnapshot} from '../../shared/store';
+import {useLessons} from '../../shared/store';
+import {importPreview} from '../../storage/queries';
 import {commitImport} from '../../storage/ops';
 import ui from '../../shared/ui.module.css';
 import {cx} from '../../shared/cx';
 
 export function ImportScreen(){
- const {data}=useSnapshot();
+ const lessons=useLessons()??[];
  const navigate=useNavigate();
  const [text,setText]=useState('');
  const [target,setTarget]=useState('new');
@@ -23,10 +25,9 @@ export function ImportScreen(){
  const [problem,setProblem]=useState('');
  const [busy,setBusy]=useState(false);
  const parsed=useMemo(()=>parseImport(text),[text]);
- const known=useMemo(()=>new Map(liveWords(data).map(word=>[wordKey(word.greek,word.russian),word])),[data.words]);
- const duplicates=parsed.rows.filter(row=>known.has(wordKey(row.greek,row.russian))).length;
- const conflicts=parsed.rows.filter(row=>!known.has(wordKey(row.greek,row.russian))&&
-  liveWords(data).some(word=>word.greek.normalize('NFC')===row.greek.normalize('NFC'))).length;
+ // Дубликаты и совпадения считаются по индексам ключей для распознанных строк, а не по всему словарю.
+ const preview=useLiveQuery(()=>importPreview(parsed.rows),[text]);
+ const duplicates=preview?.duplicates??0, conflicts=preview?.conflicts??0;
 
  const save=async()=>{
   setBusy(true);setProblem('');
@@ -72,12 +73,12 @@ export function ImportScreen(){
      <FieldLabel htmlFor="target">Куда добавить</FieldLabel>
      <Select value={target} onValueChange={value=>setTarget(value??'new')}>
       <SelectTrigger id="target" className="w-full">
-       <SelectValue>{value=>value==='new'?'Новый набор':data.lessons.find(lesson=>lesson.id===value)?.title??'Новый набор'}</SelectValue>
+       <SelectValue>{value=>value==='new'?'Новый набор':lessons.find(lesson=>lesson.id===value)?.title??'Новый набор'}</SelectValue>
       </SelectTrigger>
       <SelectContent>
        <SelectGroup>
         <SelectItem value="new">Новый набор</SelectItem>
-        {data.lessons.map(lesson=><SelectItem key={lesson.id} value={lesson.id}>{lesson.title}</SelectItem>)}
+        {lessons.map(lesson=><SelectItem key={lesson.id} value={lesson.id}>{lesson.title}</SelectItem>)}
        </SelectGroup>
       </SelectContent>
      </Select>

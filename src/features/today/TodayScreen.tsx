@@ -1,37 +1,42 @@
-import {useMemo, useState} from 'react';
-import {ArrowRight, CalendarDays, ChevronRight, FileText, Plus, RefreshCw, TriangleAlert} from 'lucide-react';
+import {useState} from 'react';
+import {ArrowRight, BookOpen, CalendarDays, ChevronRight, FileText, Plus, RefreshCw, TriangleAlert} from 'lucide-react';
 import {Link, useNavigate} from 'react-router-dom';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
-import {makePlan, localDay} from '../../domain/learning';
+import {localDay} from '../../domain/learning';
 import {useNow} from '../../shared/clock';
 import {capitalize, dativeWeekday, dayMonth, DAYS, shortTitle, withCount, WORDS} from '../../shared/format';
-import {useSnapshot} from '../../shared/store';
-import {activeSession, startSession} from '../learning/session-actions';
+import {useActiveSession, useCatalog, useLessons, usePlan, useSettings} from '../../shared/store';
+import {startSession} from '../learning/session-actions';
 import ui from '../../shared/ui.module.css';
 
 export function TodayScreen(){
- const {data,ready}=useSnapshot();
+ const {settings}=useSettings();
  const now=useNow();
  const navigate=useNavigate();
  const [busy,setBusy]=useState(false);
  const [problem,setProblem]=useState('');
- const plan=useMemo(()=>makePlan(data,now),[data,now]);
- const unfinished=activeSession(data);
- const next=plan.deadlines[0];
- const lesson=next&&data.lessons.find(item=>item.id===next.lessonId);
- const today=localDay(now,data.settings.timezone);
- const lessons=[...data.lessons].sort((a,b)=>
+ // Экран читает план, метаданные уроков и активную сессию — не весь словарь и не историю.
+ const plan=usePlan(now);
+ const installed=useLessons(true);
+ const unfinished=useActiveSession();
+ const catalog=useCatalog();
+ const ready=!!plan&&!!installed&&unfinished!==undefined;
+ const next=plan?.deadlines[0];
+ const lesson=next&&installed?.find(item=>item.id===next.lessonId);
+ const today=localDay(now,settings.timezone);
+ const lessons=[...(installed??[])].sort((a,b)=>
   Number(!!b.targetDate)-Number(!!a.targetDate)||(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt));
+ const available=(catalog?.entries??[]).filter(entry=>!catalog?.packages.some(pack=>pack.lessonId===entry.id)).length;
 
  const begin=async()=>{
   setBusy(true); setProblem('');
   try{
    if(unfinished)return navigate('/session');
-   const session=await startSession(data,now);
+   const session=await startSession(now);
    if(!session)return setProblem('На сегодня очередь пуста. Можно потренировать слова вручную в разделе «Слова».');
    navigate('/session');
   }catch(error){setProblem(error instanceof Error?error.message:'Не удалось начать занятие');}
@@ -70,24 +75,24 @@ export function TodayScreen(){
     <div className={ui.tiles}>
      <Card size="sm">
       <CardContent>
-       <div className="text-[30px] leading-tight font-bold text-primary">{plan.newWords.length}</div>
-       <div className="text-sm text-muted-foreground">{plan.budget?'новых сегодня':'новых на сегодня нет'}</div>
+       <div className="text-[30px] leading-tight font-bold text-primary">{plan?.newWordIds.length??0}</div>
+       <div className="text-sm text-muted-foreground">{plan?.budget?'новых сегодня':'новых на сегодня нет'}</div>
       </CardContent>
      </Card>
      <Card size="sm">
       <CardContent>
        <div className="flex items-center gap-2 text-sm text-muted-foreground"><RefreshCw className="size-[18px]"/>Повторение</div>
-       <div className="text-[26px] leading-tight font-bold text-primary">{plan.reviews.length}</div>
+       <div className="text-[26px] leading-tight font-bold text-primary">{plan?.reviews.length??0}</div>
       </CardContent>
      </Card>
     </div>
 
-    {plan.shortfall&&(
+    {plan?.shortfall&&(
      <Alert variant="warning" className="mb-3">
       <TriangleAlert/>
       <AlertTitle>Дневного лимита не хватает</AlertTitle>
       <AlertDescription>
-       Чтобы успеть к сроку, нужно {withCount(plan.requiredPerDay,WORDS)} в день, а лимит — {data.settings.newWordsPerDay}.
+       Чтобы успеть к сроку, нужно {withCount(plan.requiredPerDay,WORDS)} в день, а лимит — {settings.newWordsPerDay}.
        Увеличьте лимит в настройках или перенесите дату.
       </AlertDescription>
      </Alert>
@@ -99,20 +104,26 @@ export function TodayScreen(){
     {problem&&<p className={ui.error}>{problem}</p>}
 
     <h2>Мои занятия</h2>
+    {installed&&!installed.length&&(
+     <Card className="mb-3">
+      <CardHeader>
+       <CardTitle className="text-lg">Уроков на устройстве пока нет</CardTitle>
+       <CardDescription>{available?`В каталоге ${withCount(available,['урок','урока','уроков'])}: откройте урок, и его слова загрузятся на устройство.`:'Каталог ещё не загружен. Проверьте сеть или импортируйте свои слова.'}</CardDescription>
+      </CardHeader>
+      <CardContent><Button size="md" variant="soft" render={<Link to="/lessons"/>}><BookOpen data-icon="inline-start"/>Открыть каталог</Button></CardContent>
+     </Card>
+    )}
     <ItemGroup className="gap-2.5">
-     {lessons.map(item=>{
-      const left=item.wordIds.filter(id=>!data.states.some(state=>state.wordId===id)).length;
-      return (
-       <Item key={item.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card" render={<Link to={`/lessons/${item.id}`}/>}>
-        <ItemMedia variant="icon"><FileText/></ItemMedia>
-        <ItemContent>
-         <ItemTitle className="text-base">{shortTitle(item.title)} · {item.targetDate?`К ${dativeWeekday(item.targetDate)}`:item.status==='completed'?'Повторение':'Без даты'}</ItemTitle>
-         <ItemDescription>{withCount(item.wordIds.length,WORDS)}{left?` · ${left} новых`:''}</ItemDescription>
-        </ItemContent>
-        <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
-       </Item>
-      );
-     })}
+     {lessons.map(item=>(
+      <Item key={item.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card" render={<Link to={`/lessons/${item.id}`}/>}>
+       <ItemMedia variant="icon"><FileText/></ItemMedia>
+       <ItemContent>
+        <ItemTitle className="text-base">{shortTitle(item.title)} · {item.targetDate?`К ${dativeWeekday(item.targetDate)}`:item.status==='completed'?'Повторение':'Без даты'}</ItemTitle>
+        <ItemDescription>{withCount(item.wordCount,WORDS)}{item.newCount?` · ${item.newCount} новых`:''}</ItemDescription>
+       </ItemContent>
+       <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
+      </Item>
+     ))}
     </ItemGroup>
     <Button size="xl" variant="soft" className="mt-2.5" render={<Link to="/lessons?new=1"/>}><Plus data-icon="inline-start"/>Добавить занятие</Button>
    </main>

@@ -1,5 +1,7 @@
-import {db, type LexiDatabase} from './db';
-import {localDay, nextState, objectiveExercise, spaceSingleIntroduction} from '../domain/learning';
+import Dexie from 'dexie';
+import {db, indexWord, type LexiDatabase} from './db';
+import {optionPool} from './queries';
+import {localDay, nextState, objectiveExercise, OPTION_POOL, spaceSingleIntroduction} from '../domain/learning';
 import {normalize, wordKey, type ImportRow} from '../domain/import';
 import {scheduleLessons} from '../domain/schedule';
 import {fillSettings, type Asset, type Lesson, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from '../domain/types';
@@ -50,28 +52,44 @@ export async function submitAnswer({session,item,correct,answer,responseTimeMs,a
 export const saveSession=(session:Session,database:LexiDatabase=db)=>database.sessions.put(session);
 export const endSession=async(session:Session,database:LexiDatabase=db)=>{await database.sessions.put({...session,status:session.index>=session.items.length?'done':'ended'})};
 
+/** Правка поставленного слова помечается локальной: обновление пакета её не перезапишет. Индекс поиска обновляется вместе с записью. */
 export async function saveWord(word:Word,database:LexiDatabase=db){
  const previous=await database.words.get(word.id);
  const greekChanged=previous&&normalize(previous.greek)!==normalize(word.greek);
- await database.words.put({...word,verified:greekChanged?false:word.verified,updatedAt:stamp(new Date())});
+ const edited=(previous?.revision??word.revision)?true:word.edited;
+ await database.words.put(indexWord({...word,verified:greekChanged?false:word.verified,updatedAt:stamp(new Date()),...(edited?{edited}:{})}));
 }
 /** Мягкое удаление: история ответов остаётся достоверной. */
 export async function deleteWord(id:string,database:LexiDatabase=db){
  await database.words.update(id,{deletedAt:stamp(new Date())});
 }
-export type LessonPatch=Partial<Pick<Lesson,'title'|'targetDate'|'status'|'wordIds'>>;
+export type LessonPatch=Partial<Pick<Lesson,'title'|'targetDate'|'status'>>;
 /** Частичная правка сырой записи: вычисленная по расписанию дата из снимка не попадает в базу. */
 export async function updateLesson(id:string,patch:LessonPatch,database:LexiDatabase=db){
  await database.lessons.update(id,{...patch,updatedAt:stamp(new Date())});
 }
+/** Убирается только связь: слово, его состояние и история остаются. Для поставленного урока удаление запоминается, чтобы обновление пакета не вернуло слово. */
 export async function removeFromLesson(lessonId:string,wordId:string,database:LexiDatabase=db){
- const lesson=await database.lessons.get(lessonId);
- if(lesson)await updateLesson(lessonId,{wordIds:lesson.wordIds.filter(id=>id!==wordId)},database);
+ await database.transaction('rw',database.lessons,database.lessonWords,database.packages,async()=>{
+  await database.lessonWords.delete([lessonId,wordId]);
+  const pack=await database.packages.get(lessonId);
+  if(pack&&!pack.removed.includes(wordId))await database.packages.put({...pack,removed:[...pack.removed,wordId]});
+  await updateLesson(lessonId,{},database);
+ });
+}
+/** Связи добавляются в конец урока; повторная связь не создаёт дубликат. */
+export async function linkWords(lessonId:string,wordIds:string[],database:LexiDatabase=db):Promise<number>{
+ const existing=await database.lessonWords.where('[lessonId+position]').between([lessonId,Dexie.minKey],[lessonId,Dexie.maxKey]).toArray();
+ const known=new Set(existing.map(link=>link.wordId));
+ let position=existing.reduce((max,link)=>Math.max(max,link.position+1),0);
+ const fresh=wordIds.filter(id=>!known.has(id)&&known.add(id));
+ await database.lessonWords.bulkAdd(fresh.map(wordId=>({lessonId,wordId,position:position++})));
+ return fresh.length;
 }
 /** Новый набор без даты: её назначит расписание, а своя дата задаётся на экране урока. */
 export async function createLesson(title:string,database:LexiDatabase=db):Promise<Lesson>{
  const now=stamp(new Date());
- const lesson:Lesson={id:newId('lesson'),title,targetDate:null,status:'upcoming',wordIds:[],createdAt:now,updatedAt:now};
+ const lesson:Lesson={id:newId('lesson'),title,targetDate:null,status:'upcoming',createdAt:now,updatedAt:now};
  await database.lessons.add(lesson);
  return lesson;
 }
@@ -95,37 +113,32 @@ export async function putAsset(asset:Asset,database:LexiDatabase=db){await datab
 
 export interface ImportPlan {rows:ImportRow[];lessonId:string|null;lessonTitle:string}
 export interface ImportOutcome {lessonId:string;added:number;linked:number;conflicts:number}
+/** Дубликаты и совпадения по написанию ищутся по индексам ключей, а не полным чтением словаря. */
 export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Promise<ImportOutcome>{
  const now=stamp(new Date());
- return database.transaction('rw',database.words,database.lessons,async()=>{
-  const existing=await database.words.toArray();
-  const byKey=new Map(existing.filter(w=>!w.deletedAt).map(w=>[wordKey(w.greek,w.russian),w]));
+ return database.transaction('rw',database.words,database.lessons,database.lessonWords,async()=>{
   const lesson=plan.lessonId
    ?await database.lessons.get(plan.lessonId)
-   :{id:newId('lesson'),title:plan.lessonTitle,targetDate:null,status:'upcoming' as const,wordIds:[],createdAt:now,updatedAt:now};
+   :{id:newId('lesson'),title:plan.lessonTitle,targetDate:null,status:'upcoming' as const,createdAt:now,updatedAt:now};
   if(!lesson)throw new Error('Набор не найден');
-  const wordIds=[...lesson.wordIds];
-  let added=0,linked=0,conflicts=0;
+  const wordIds:string[]=[];
+  let added=0,conflicts=0;
   for(const row of plan.rows){
-   const key=wordKey(row.greek,row.russian);
-   const known=byKey.get(key);
-   if(known){
-    if(!wordIds.includes(known.id)){wordIds.push(known.id);linked++}
-    continue;
-   }
-   if(existing.some(w=>!w.deletedAt&&normalize(w.greek)===normalize(row.greek)))conflicts++;
+   const known=await database.words.where('key').equals(wordKey(row.greek,row.russian)).filter(word=>!word.deletedAt).first();
+   if(known){if(!wordIds.includes(known.id))wordIds.push(known.id);continue}
+   if(await database.words.where('greekKey').equals(normalize(row.greek)).filter(word=>!word.deletedAt).count())conflicts++;
    const word:Word={
     id:newId('w'),greek:row.greek,russian:row.russian,ipa:row.ipa,segments:[],examples:[],
     sourceMastered:row.sourceMastered,verified:false,source:row.ipa?'Импорт пользователя (фонетика не проверена)':undefined,
     createdAt:now,updatedAt:now,
    };
-   await database.words.add(word);
-   byKey.set(key,word);
+   await database.words.add(indexWord(word));
    wordIds.push(word.id);
    added++;
   }
-  await database.lessons.put({...lesson,wordIds,updatedAt:now});
-  return {lessonId:lesson.id,added,linked,conflicts};
+  await database.lessons.put({...lesson,updatedAt:now});
+  const linked=await linkWords(lesson.id,wordIds,database);
+  return {lessonId:lesson.id,added,linked:linked-added,conflicts};
  });
 }
 export async function saveSettings(settings:Settings,database:LexiDatabase=db){await database.settings.put(settings)}
@@ -140,7 +153,7 @@ export async function prepareObjectiveSession(id:string,database:LexiDatabase=db
  await database.transaction('rw',database.sessions,database.words,async()=>{
   const session=await database.sessions.get(id);
   if(!session||session.objectiveVersion===1)return;
-  const pool=(await database.words.toArray()).filter(word=>!word.deletedAt);
+  const pool=await optionPool(OPTION_POOL,database);
   const items=session.items.map(item=>item.type==='recall'&&!item.eventId
    ?{...item,...objectiveExercise(item.word,pool)}:item);
   await database.sessions.put({...session,items:spaceSingleIntroduction(items),objectiveVersion:1,introducedWordIds:session.introducedWordIds??[]});

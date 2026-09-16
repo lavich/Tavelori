@@ -5,7 +5,7 @@ import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, I
 import {BrandBar} from '../../app/TopBar';
 import {withCount, WORDS} from '../../shared/format';
 import {megabytes, useOfflineStatus} from '../../shared/offline';
-import {liveWords, useSnapshot} from '../../shared/store';
+import {useCounts} from '../../shared/store';
 import ui from '../../shared/ui.module.css';
 
 const LINKS=[
@@ -16,7 +16,7 @@ const LINKS=[
 ];
 export function MoreScreen(){
  const offline=useOfflineStatus();
- const {data}=useSnapshot();
+ const counts=useCounts();
  return (
   <>
    <BrandBar/>
@@ -30,8 +30,8 @@ export function MoreScreen(){
       </p>
       <p className="m-0 text-sm text-muted-foreground">
        {offline.ready
-        ?'Приложение и исходные карточки открываются без сети.'
-        :'Оставьте страницу открытой на несколько секунд — файлы загружаются в кеш.'}
+        ?'Оболочка приложения открывается без сети. Слова и медиа доступны для уроков, скачанных на экране урока.'
+        :'Оставьте страницу открытой на несколько секунд — оболочка загружается в кеш.'}
        {offline.quota>0&&` Занято ${megabytes(offline.usage)} из ${megabytes(offline.quota)}.`}
        {offline.persisted?' Хранилище защищено от автоочистки.':' Браузер может очистить данные — делайте полную копию.'}
       </p>
@@ -51,7 +51,7 @@ export function MoreScreen(){
      ))}
     </ItemGroup>
     <p className="mt-5 text-sm text-muted-foreground">
-     Lexi хранит {withCount(liveWords(data).length,WORDS)} и {withCount(data.events.length,['ответ','ответа','ответов'])} только на этом устройстве. Регистрация и сервер не нужны.
+     Lexi хранит {withCount(counts?.words??0,WORDS)} и {withCount(counts?.answers??0,['ответ','ответа','ответов'])} только на этом устройстве. Регистрация и сервер не нужны.
     </p>
    </main>
   </>

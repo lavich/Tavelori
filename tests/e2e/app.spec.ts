@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {ready, seedQueue} from './helpers';
+import {installLessons, ready, seedQueue} from './helpers';
 import {addDays} from '../../src/domain/learning';
 import {isoWeekday} from '../../src/domain/schedule';
 import {capitalize, dativeWeekday, dayMonth, weekday} from '../../src/shared/format';
@@ -7,6 +7,7 @@ import {capitalize, dativeWeekday, dayMonth, weekday} from '../../src/shared/for
 test.beforeEach(async({page})=>{
  await page.goto('/');
  await ready(page);
+ await installLessons(page,['lesson-1-1','lesson-1-2','lesson-1-3','lesson-1-4']);
 });
 
 test('оболочка открывается, разделы доступны с клавиатуры',async({page})=>{

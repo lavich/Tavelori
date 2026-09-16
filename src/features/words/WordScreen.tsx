@@ -7,7 +7,7 @@ import {Badge} from '@/components/ui/badge';
 import {BackBar} from '../../app/TopBar';
 import {useNow} from '../../shared/clock';
 import {shortTitle} from '../../shared/format';
-import {lessonsOf, useSnapshot, useWord} from '../../shared/store';
+import {useWord, useWordLessons} from '../../shared/store';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from './WordCardView';
 import {startSession} from '../learning/session-actions';
 import ui from '../../shared/ui.module.css';
@@ -17,14 +17,13 @@ import {cx} from '../../shared/cx';
 export function WordScreen(){
  const {id}=useParams();
  const word=useWord(id);
- const {data}=useSnapshot();
+ const lessons=useWordLessons(word?.id);
  const now=useNow();
  const navigate=useNavigate();
  const [problem,setProblem]=useState('');
  if(!word)return <><BackBar title="Слово"/><main className={ui.screen}><p className={ui.muted}>Слово не найдено.</p></main></>;
- const lessons=lessonsOf(data,word.id);
  const practice=async()=>{
-  const session=await startSession(data,now,{wordIds:[word.id],mode:'practice'});
+  const session=await startSession(now,{wordIds:[word.id],mode:'practice'});
   if(!session)return setProblem('Не удалось собрать тренировку для этого слова.');
   navigate('/session');
  };

@@ -4,30 +4,30 @@ import {Field, FieldDescription, FieldGroup, FieldLabel} from '@/components/ui/f
 import {Input} from '@/components/ui/input';
 import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {BackBar} from '../../app/TopBar';
-import {useSnapshot} from '../../shared/store';
+import {useSettings} from '../../shared/store';
 import {saveSettings} from '../../storage/ops';
 import ui from '../../shared/ui.module.css';
 
 const ZONES=['Asia/Nicosia','Europe/Athens','Europe/Moscow','Europe/Berlin','Europe/London','UTC'];
 export function SettingsScreen(){
- const {data}=useSnapshot();
+ const {settings}=useSettings();
  const [daily,setDaily]=useState('10');
  const [size,setSize]=useState('20');
  const [zone,setZone]=useState('Asia/Nicosia');
  const [problem,setProblem]=useState('');
  const [saved,setSaved]=useState(false);
  useEffect(()=>{
-  setDaily(String(data.settings.newWordsPerDay));
-  setSize(String(data.settings.sessionSize));
-  setZone(data.settings.timezone);
- },[data.settings]);
+  setDaily(String(settings.newWordsPerDay));
+  setSize(String(settings.sessionSize));
+  setZone(settings.timezone);
+ },[settings]);
  const submit=async(event:React.FormEvent)=>{
   event.preventDefault();
   const perDay=Number(daily), sessionSize=Number(size);
   if(!Number.isInteger(perDay)||perDay<0||perDay>100)return setProblem('Дневной лимит — целое число от 0 до 100.');
   if(!Number.isInteger(sessionSize)||sessionSize<2||sessionSize>100)return setProblem('Размер занятия — целое число от 2 до 100.');
   setProblem('');
-  await saveSettings({...data.settings,newWordsPerDay:perDay,sessionSize,timezone:zone});
+  await saveSettings({...settings,newWordsPerDay:perDay,sessionSize,timezone:zone});
   setSaved(true);
  };
  return (

@@ -2,14 +2,14 @@ import {expect, test} from '@playwright/test';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {seedWords} from '../../src/content';
-import {ready} from './helpers';
+import {installLessons, ready} from './helpers';
 
 test('полная копия переносит слова, правки и медиа в чистый профиль',async({browser})=>{
  const source=await browser.newContext();
  const page=await source.newPage();
  await page.goto('/');
  await ready(page);
+ await installLessons(page,['lesson-1-2']);
  // Правка, которой нет в исходном наборе: по ней и проверяем перенос.
  await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
  await page.getByRole('searchbox').fill('σπίτι');
@@ -35,8 +35,10 @@ test('полная копия переносит слова, правки и м�
   for(const key of Object.keys(row.$types??{}))if(key.startsWith('schedule'))delete row.$types[key];
  }
  writeFileSync(file,JSON.stringify(parsed));
- expect(parsed.data.tables.map((table:{name:string})=>table.name)).toEqual(expect.arrayContaining(['words','assets','states','events','sessions','settings','meta']));
- expect(parsed.data.tables.find((table:{name:string})=>table.name==='assets').rowCount).toBe(63);
+ expect(parsed.data.tables.map((table:{name:string})=>table.name)).toEqual(expect.arrayContaining(['words','lessonWords','packages','media','assets','states','events','sessions','settings','meta']));
+ // Картинка σπίτι скачана при просмотре карточки и входит в копию; остальные медиа не тянулись.
+ expect(parsed.data.tables.find((table:{name:string})=>table.name==='assets').rowCount).toBe(1);
+ expect(parsed.data.tables.find((table:{name:string})=>table.name==='packages').rowCount).toBe(1);
  await source.close();
 
  const clean=await browser.newContext();
@@ -74,6 +76,7 @@ test('полная копия переносит слова, правки и м�
 test('повреждённый и чужой файл не меняют данные',async({page})=>{
  await page.goto('/');
  await ready(page);
+ await installLessons(page,['lesson-1-2']);
  await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await page.getByRole('link',{name:/Копия данных/}).click();
  const broken=join(tmpdir(),'lexi-broken.json');
@@ -94,5 +97,5 @@ test('повреждённый и чужой файл не меняют данн
  await expect(page.getByRole('button',{name:'Заменить данные копией'})).toBeDisabled();
 
  await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
- await expect(page.getByText(new RegExp(`^${seedWords.length} слов`))).toBeVisible(); // словарь не изменился
+ await expect(page.getByTestId('word-count')).toHaveText('30 слов'); // словарь не изменился
 });

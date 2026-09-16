@@ -4,19 +4,19 @@ import {X} from 'lucide-react';
 import {useLiveQuery} from 'dexie-react-hooks';
 import {useNavigate} from 'react-router-dom';
 import {stopAudio} from '../../shared/audio';
-import {useSnapshot} from '../../shared/store';
+import {useActiveSession, useSettings} from '../../shared/store';
 import {Progress} from '@/components/ui/progress';
 import {Skeleton} from '@/components/ui/skeleton';
 import {db} from '../../storage/db';
 import {ConflictError, endSession, submitAnswer, markIntroduced, prepareObjectiveSession} from '../../storage/ops';
 import {Assembly, Introduction, Listening, Recognition, Spelling, type Answer} from './exercises';
-import {activeSession} from './session-actions';
 import ui from '../../shared/ui.module.css';
 import s from './session.module.css';
 
 export function SessionScreen(){
  const navigate=useNavigate();
- const {data}=useSnapshot();
+ const {settings}=useSettings();
+ const other=useActiveSession();
  const [sessionId,setSessionId]=useState<string|null>(null);
  // Сессию держим по id: последний ответ переводит её в done, но экран должен дорисовать обратную связь.
  const session=useLiveQuery(()=>sessionId
@@ -70,7 +70,6 @@ export function SessionScreen(){
   </main>
  );
  if(!session||!item){
-  const other=activeSession(data);
   return (
    <main className={s.session}>
     <p className={ui.muted}>Активного занятия нет.</p>
@@ -89,7 +88,7 @@ export function SessionScreen(){
    await submitAnswer({
     session,item,correct,answer:text,
     responseTimeMs:Date.now()-shown.current,activeTimeMs:activeMs(),
-    timezone:data.settings.timezone,
+    timezone:settings.timezone,
    });
    return true;
   }catch(error){

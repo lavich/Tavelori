@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {splitSyllables, tiles} from '../src/domain/syllables';
-import {seedWords} from '../src/content';
+import {buildContent} from '../content/build';
+const seedWords=buildContent().words;
 
 describe('деление на слоги',()=>{
  it.each([

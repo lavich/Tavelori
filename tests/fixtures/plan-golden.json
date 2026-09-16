@@ -1,0 +1,867 @@
+{
+ "mixed": {
+  "plan": {
+   "today": "2026-09-15",
+   "requiredPerDay": 5,
+   "budget": 8,
+   "introducedToday": 2,
+   "shortfall": false,
+   "newWords": [
+    "w2",
+    "w4",
+    "w6",
+    "w8",
+    "w9",
+    "w10",
+    "w11",
+    "w12"
+   ],
+   "reviews": [
+    "w22",
+    "w23",
+    "w21",
+    "w24",
+    "w20"
+   ],
+   "deadlines": [
+    {
+     "lessonId": "l1",
+     "title": "l1",
+     "targetDate": "2026-09-18",
+     "daysLeft": 3,
+     "newLeft": 15,
+     "requiredPerDay": 5
+    },
+    {
+     "lessonId": "l2",
+     "title": "l2",
+     "targetDate": "2026-09-20",
+     "daysLeft": 5,
+     "newLeft": 19,
+     "requiredPerDay": 4
+    }
+   ]
+  },
+  "scheduled": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w22",
+     "type": "assembly",
+     "options": [
+      "λέ",
+      "ξη22",
+      "το"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-1",
+     "wordId": "w24",
+     "type": "recognition",
+     "options": [
+      "слово4",
+      "слово25",
+      "слово34",
+      "слово24"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-2",
+     "wordId": "w8",
+     "type": "recognition",
+     "options": [
+      "слово35",
+      "слово8",
+      "слово6",
+      "слово34"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-3",
+     "wordId": "w10",
+     "type": "recognition",
+     "options": [
+      "слово15",
+      "слово13",
+      "слово10",
+      "слово20"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-4",
+     "wordId": "w4",
+     "type": "recognition",
+     "options": [
+      "слово21",
+      "слово4",
+      "слово13",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-5",
+     "wordId": "w23",
+     "type": "recognition",
+     "options": [
+      "слово16",
+      "слово21",
+      "слово23",
+      "слово19"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-6",
+     "wordId": "w6",
+     "type": "recognition",
+     "options": [
+      "слово6",
+      "слово2",
+      "слово13",
+      "слово16"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-7",
+     "wordId": "w9",
+     "type": "recognition",
+     "options": [
+      "слово24",
+      "слово31",
+      "слово12",
+      "слово9"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-8",
+     "wordId": "w11",
+     "type": "recognition",
+     "options": [
+      "слово11",
+      "слово27",
+      "слово39",
+      "слово38"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-9",
+     "wordId": "w21",
+     "type": "recognition",
+     "options": [
+      "слово18",
+      "слово6",
+      "слово26",
+      "слово21"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-10",
+     "wordId": "w20",
+     "type": "spelling",
+     "options": [],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-11",
+     "wordId": "w2",
+     "type": "recognition",
+     "options": [
+      "слово2",
+      "слово17",
+      "слово13",
+      "слово20"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    }
+   ]
+  },
+  "spoken": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w22",
+     "type": "assembly",
+     "options": [
+      "λέ",
+      "ξη22",
+      "το"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-1",
+     "wordId": "w24",
+     "type": "listening",
+     "options": [
+      "το λέξη2",
+      "το λέξη19",
+      "το λέξη24",
+      "το λέξη37"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-2",
+     "wordId": "w8",
+     "type": "recognition",
+     "options": [
+      "слово35",
+      "слово8",
+      "слово6",
+      "слово34"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-3",
+     "wordId": "w10",
+     "type": "recognition",
+     "options": [
+      "слово15",
+      "слово13",
+      "слово10",
+      "слово20"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-4",
+     "wordId": "w4",
+     "type": "recognition",
+     "options": [
+      "слово21",
+      "слово4",
+      "слово13",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-5",
+     "wordId": "w23",
+     "type": "recognition",
+     "options": [
+      "слово16",
+      "слово21",
+      "слово23",
+      "слово19"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-6",
+     "wordId": "w6",
+     "type": "recognition",
+     "options": [
+      "слово6",
+      "слово2",
+      "слово13",
+      "слово16"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-7",
+     "wordId": "w9",
+     "type": "recognition",
+     "options": [
+      "слово24",
+      "слово31",
+      "слово12",
+      "слово9"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-8",
+     "wordId": "w11",
+     "type": "recognition",
+     "options": [
+      "слово11",
+      "слово27",
+      "слово39",
+      "слово38"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-9",
+     "wordId": "w21",
+     "type": "listening",
+     "options": [
+      "το λέξη23",
+      "το λέξη34",
+      "το λέξη21",
+      "το λέξη9"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-10",
+     "wordId": "w20",
+     "type": "spelling",
+     "options": [],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-11",
+     "wordId": "w2",
+     "type": "recognition",
+     "options": [
+      "слово2",
+      "слово17",
+      "слово13",
+      "слово20"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    }
+   ]
+  },
+  "practice": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w0",
+     "type": "recognition",
+     "options": [
+      "слово0",
+      "слово14",
+      "слово9",
+      "слово32"
+     ],
+     "isNew": false,
+     "mode": "practice",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-1",
+     "wordId": "w1",
+     "type": "recognition",
+     "options": [
+      "слово1",
+      "слово21",
+      "слово23",
+      "слово13"
+     ],
+     "isNew": false,
+     "mode": "practice",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-2",
+     "wordId": "w2",
+     "type": "recognition",
+     "options": [
+      "слово6",
+      "слово34",
+      "слово39",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "practice",
+     "expectedVersion": 0
+    }
+   ]
+  }
+ },
+ "budgetExhausted": {
+  "plan": {
+   "today": "2026-09-15",
+   "requiredPerDay": 7,
+   "budget": 0,
+   "introducedToday": 10,
+   "shortfall": false,
+   "newWords": [],
+   "reviews": [],
+   "deadlines": [
+    {
+     "lessonId": "l1",
+     "title": "l1",
+     "targetDate": "2026-09-18",
+     "daysLeft": 3,
+     "newLeft": 20,
+     "requiredPerDay": 7
+    }
+   ]
+  },
+  "scheduled": {
+   "planDate": "2026-09-15",
+   "items": []
+  },
+  "spoken": {
+   "planDate": "2026-09-15",
+   "items": []
+  },
+  "practice": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w0",
+     "type": "recognition",
+     "options": [
+      "слово9",
+      "слово20",
+      "слово0",
+      "слово1"
+     ],
+     "isNew": false,
+     "mode": "practice",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-1",
+     "wordId": "w1",
+     "type": "recognition",
+     "options": [
+      "слово16",
+      "слово26",
+      "слово10",
+      "слово1"
+     ],
+     "isNew": false,
+     "mode": "practice",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-2",
+     "wordId": "w2",
+     "type": "recognition",
+     "options": [
+      "слово16",
+      "слово28",
+      "слово19",
+      "слово2"
+     ],
+     "isNew": false,
+     "mode": "practice",
+     "expectedVersion": 1
+    }
+   ]
+  }
+ },
+ "noDated": {
+  "plan": {
+   "today": "2026-09-15",
+   "requiredPerDay": 0,
+   "budget": 5,
+   "introducedToday": 0,
+   "shortfall": false,
+   "newWords": [
+    "w4",
+    "w5",
+    "w6",
+    "w7",
+    "w0"
+   ],
+   "reviews": [],
+   "deadlines": []
+  },
+  "scheduled": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w7",
+     "type": "recognition",
+     "options": [
+      "слово8",
+      "слово6",
+      "слово7",
+      "слово9"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-1",
+     "wordId": "w5",
+     "type": "recognition",
+     "options": [
+      "слово3",
+      "слово2",
+      "слово1",
+      "слово5"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-2",
+     "wordId": "w6",
+     "type": "recognition",
+     "options": [
+      "слово6",
+      "слово8",
+      "слово1",
+      "слово9"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-3",
+     "wordId": "w0",
+     "type": "recognition",
+     "options": [
+      "слово1",
+      "слово9",
+      "слово10",
+      "слово0"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-4",
+     "wordId": "w4",
+     "type": "recognition",
+     "options": [
+      "слово4",
+      "слово9",
+      "слово0",
+      "слово7"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    }
+   ]
+  },
+  "spoken": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w7",
+     "type": "recognition",
+     "options": [
+      "слово8",
+      "слово6",
+      "слово7",
+      "слово9"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-1",
+     "wordId": "w5",
+     "type": "recognition",
+     "options": [
+      "слово3",
+      "слово2",
+      "слово1",
+      "слово5"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-2",
+     "wordId": "w6",
+     "type": "recognition",
+     "options": [
+      "слово6",
+      "слово8",
+      "слово1",
+      "слово9"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-3",
+     "wordId": "w0",
+     "type": "recognition",
+     "options": [
+      "слово1",
+      "слово9",
+      "слово10",
+      "слово0"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-4",
+     "wordId": "w4",
+     "type": "recognition",
+     "options": [
+      "слово4",
+      "слово9",
+      "слово0",
+      "слово7"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    }
+   ]
+  },
+  "practice": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w0",
+     "type": "recognition",
+     "options": [
+      "слово0",
+      "слово9",
+      "слово8",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "practice",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-1",
+     "wordId": "w1",
+     "type": "recognition",
+     "options": [
+      "слово1",
+      "слово10",
+      "слово7",
+      "слово8"
+     ],
+     "isNew": true,
+     "mode": "practice",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-2",
+     "wordId": "w2",
+     "type": "recognition",
+     "options": [
+      "слово2",
+      "слово8",
+      "слово10",
+      "слово9"
+     ],
+     "isNew": true,
+     "mode": "practice",
+     "expectedVersion": 0
+    }
+   ]
+  }
+ },
+ "smallDict": {
+  "plan": {
+   "today": "2026-09-15",
+   "requiredPerDay": 0,
+   "budget": 10,
+   "introducedToday": 0,
+   "shortfall": false,
+   "newWords": [
+    "w1",
+    "w2"
+   ],
+   "reviews": [
+    "w0"
+   ],
+   "deadlines": []
+  },
+  "scheduled": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w2",
+     "type": "assembly",
+     "options": [
+      "ξη2",
+      "το",
+      "λέ"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-1",
+     "wordId": "w0",
+     "type": "assembly",
+     "options": [
+      "ξη0",
+      "λέ",
+      "το"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-2",
+     "wordId": "w1",
+     "type": "assembly",
+     "options": [
+      "λέ",
+      "το",
+      "ξη1"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    }
+   ]
+  },
+  "spoken": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w2",
+     "type": "assembly",
+     "options": [
+      "ξη2",
+      "το",
+      "λέ"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-1",
+     "wordId": "w0",
+     "type": "assembly",
+     "options": [
+      "ξη0",
+      "λέ",
+      "το"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-2",
+     "wordId": "w1",
+     "type": "assembly",
+     "options": [
+      "λέ",
+      "το",
+      "ξη1"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    }
+   ]
+  },
+  "practice": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w0",
+     "type": "assembly",
+     "options": [
+      "το",
+      "ξη0",
+      "λέ"
+     ],
+     "isNew": false,
+     "mode": "practice",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-1",
+     "wordId": "w1",
+     "type": "assembly",
+     "options": [
+      "το",
+      "ξη1",
+      "λέ"
+     ],
+     "isNew": true,
+     "mode": "practice",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-2",
+     "wordId": "w2",
+     "type": "assembly",
+     "options": [
+      "ξη2",
+      "το",
+      "λέ"
+     ],
+     "isNew": true,
+     "mode": "practice",
+     "expectedVersion": 0
+    }
+   ]
+  }
+ }
+}

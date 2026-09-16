@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {db} from '../storage/db';
+import {ensureAsset} from '../content/client';
 import type {Word} from '../domain/types';
 
 export type AudioKind='file'|'voice'|'none';
@@ -40,7 +40,7 @@ export function stopAudio(){
 export async function playWord(word:Word):Promise<AudioKind>{
  stopAudio();
  if(word.audioAssetId){
-  const asset=await db.assets.get(word.audioAssetId);
+  const asset=await ensureAsset(word.audioAssetId).catch(()=>null);
   if(asset){
    const url=URL.createObjectURL(asset.blob);
    const audio=new Audio(url);

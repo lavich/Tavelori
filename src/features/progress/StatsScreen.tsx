@@ -1,25 +1,24 @@
-import {useMemo} from 'react';
 import {ChartNoAxesColumn} from 'lucide-react';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from '@/components/ui/empty';
 import {Progress} from '@/components/ui/progress';
 import {BackBar} from '../../app/TopBar';
-import {progress, SKILL_NAMES} from '../../domain/stats';
+import {SKILL_NAMES} from '../../domain/stats';
 import {useNow} from '../../shared/clock';
 import {dayMonth, withCount, WORDS} from '../../shared/format';
-import {useSnapshot} from '../../shared/store';
+import {useStats} from '../../shared/store';
 import ui from '../../shared/ui.module.css';
 
 export function StatsScreen(){
- const {data}=useSnapshot();
  const now=useNow();
- const stats=useMemo(()=>progress(data,now),[data,now]);
+ const stats=useStats(now);
+ if(!stats)return <><BackBar title="Статистика"/><main className={ui.screen}/></>;
  const peak=Math.max(1,...stats.days.map(day=>day.answers));
  return (
   <>
    <BackBar title="Статистика"/>
    <main className={ui.screen}>
-    {data.events.length===0?(
+    {stats.totals.answers===0?(
      <Empty>
       <EmptyHeader>
        <EmptyMedia variant="icon"><ChartNoAxesColumn/></EmptyMedia>
@@ -82,7 +81,7 @@ export function StatsScreen(){
     </Card>
 
     <p className={`${ui.small} ${ui.muted}`}>
-     Всего записано {withCount(data.events.length,['ответ','ответа','ответов'])} по {withCount(new Set(data.events.map(event=>event.wordId)).size,WORDS)}.
+     Всего записано {withCount(stats.totals.answers,['ответ','ответа','ответов'])} по {withCount(stats.totals.words,WORDS)}.
     </p>
    </main>
   </>

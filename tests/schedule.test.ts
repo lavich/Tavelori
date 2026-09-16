@@ -3,7 +3,7 @@ import {lessonOrder, nextLessonDay, scheduleLessons} from '../src/domain/schedul
 import type {Lesson, Schedule} from '../src/domain/types';
 
 const created='2026-09-01T09:00:00Z';
-const lesson=(id:string,title:string,over:Partial<Lesson>={}):Lesson=>({id,title,targetDate:null,status:'upcoming',wordIds:[],createdAt:created,updatedAt:created,...over});
+const lesson=(id:string,title:string,over:Partial<Lesson>={}):Lesson=>({id,title,targetDate:null,status:'upcoming',createdAt:created,updatedAt:created,...over});
 const monThu:Schedule={startDate:'2026-09-14',weekdays:[1,4]};
 const dates=(lessons:Lesson[],schedule:Schedule)=>Object.fromEntries(scheduleLessons(lessons,schedule).map(l=>[l.id,l.targetDate]));
 

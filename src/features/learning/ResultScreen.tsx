@@ -1,4 +1,3 @@
-import {useMemo} from 'react';
 import {Info} from 'lucide-react';
 import {Alert, AlertDescription} from '@/components/ui/alert';
 import {Button} from '@/components/ui/button';
@@ -8,7 +7,8 @@ import {useLiveQuery} from 'dexie-react-hooks';
 import {formatDay, localDay} from '../../domain/learning';
 import {useNow} from '../../shared/clock';
 import {minutes, plural, withCount, WORDS} from '../../shared/format';
-import {useSnapshot} from '../../shared/store';
+import {useSettings} from '../../shared/store';
+import {statesOf} from '../../storage/queries';
 import {db} from '../../storage/db';
 import {startSession} from './session-actions';
 import ui from '../../shared/ui.module.css';
@@ -17,24 +17,26 @@ export function ResultScreen(){
  const {id}=useParams();
  const navigate=useNavigate();
  const now=useNow();
- const {data}=useSnapshot();
+ const {settings}=useSettings();
  const session=useLiveQuery(()=>id?db.sessions.get(id):undefined,[id]);
- const events=useMemo(()=>data.events.filter(event=>event.sessionId===id),[data.events,id]);
+ // Читаются только события этой сессии и состояния слов с ошибками.
+ const result=useLiveQuery(async()=>{
+  const events=id?await db.events.where('sessionId').equals(id).toArray():[];
+  const mistakes=events.filter(event=>event.correct===false||(event.correct===null&&event.rating===1));
+  const mistakeWords=[...new Set(mistakes.map(event=>event.wordId))];
+  return {events,mistakes,mistakeWords,states:await statesOf(mistakeWords)};
+ },[id]);
+ const events=result?.events??[], mistakes=result?.mistakes??[], mistakeWords=result?.mistakeWords??[];
  const words=new Set(events.map(event=>event.wordId));
  const objective=events.filter(event=>event.correct!==null);
- const mistakes=events.filter(event=>event.correct===false||(event.correct===null&&event.rating===1));
- const mistakeWords=[...new Set(mistakes.map(event=>event.wordId))];
  const readyAgain=mistakeWords.filter(wordId=>{
-  const state=data.states.find(item=>item.wordId===wordId);
+  const state=result?.states.get(wordId);
   return state&&new Date(state.card.due).getTime()<=now.getTime();
  });
- const nextDue=data.states
-  .filter(state=>mistakeWords.includes(state.wordId))
-  .map(state=>new Date(state.card.due))
-  .sort((a,b)=>a.getTime()-b.getTime())[0];
+ const nextDue=[...(result?.states.values()??[])].map(state=>new Date(state.card.due)).sort((a,b)=>a.getTime()-b.getTime())[0];
 
  const repeat=async()=>{
-  const created=await startSession(data,now,{wordIds:readyAgain});
+  const created=await startSession(now,{wordIds:readyAgain});
   navigate(created?'/session':'/');
  };
  return (
@@ -62,7 +64,7 @@ export function ResultScreen(){
    {mistakeWords.length>0&&(
     readyAgain.length>0
      ?<Button variant="soft" size="xl" onClick={repeat}>Повторить ошибки ({readyAgain.length})</Button>
-     :<Alert className="mb-3"><Info/><AlertDescription>Слова с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,data.settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</AlertDescription></Alert>
+     :<Alert className="mb-3"><Info/><AlertDescription>Слова с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</AlertDescription></Alert>
    )}
    <Button size="xl" style={{marginTop:12}} onClick={()=>navigate('/')}>Готово</Button>
   </main>

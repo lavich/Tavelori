@@ -6,13 +6,11 @@ import {Field, FieldLabel} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {BackBar} from '../../app/TopBar';
 import {megabytes} from '../../shared/offline';
-import {useSnapshot} from '../../shared/store';
 import {backupName, download, exportFull, exportWordsTsv, inspectBackup, restoreBackup, type BackupReport} from './backup';
 import ui from '../../shared/ui.module.css';
 import {cx} from '../../shared/cx';
 
 export function BackupScreen(){
- const {data}=useSnapshot();
  const [file,setFile]=useState<File|null>(null);
  const [report,setReport]=useState<BackupReport|null>(null);
  const [problem,setProblem]=useState('');
@@ -42,12 +40,12 @@ export function BackupScreen(){
    <BackBar title="Копия данных"/>
    <main className={ui.screen}>
     <Card className="mb-3"><CardHeader><CardTitle>Полная копия</CardTitle></CardHeader><CardContent>
-     <p className={cx(ui.small, ui.muted)}>Слова, наборы, картинки и аудио, прогресс FSRS, ответы, сессии и настройки. Этот файл переносит всё.</p>
+     <p className={cx(ui.small, ui.muted)}>Слова, наборы и их связи, скачанные картинки и аудио, версии установленных уроков и ваши правки, прогресс FSRS, ответы, сессии и настройки. Этот файл переносит всё.</p>
      <Button size="xl" onClick={async()=>{setBusy(true);download(await exportFull(),backupName());setBusy(false)}} disabled={busy}>Скачать полную копию</Button>
     </CardContent></Card>
     <Card className="mb-3"><CardHeader><CardTitle>Только слова (TSV)</CardTitle></CardHeader><CardContent>
      <p className={cx(ui.small, ui.muted)}>Греческий, перевод и IPA для переноса в другие приложения. Прогресс обучения в этот файл не входит.</p>
-     <Button variant="soft" size="xl" onClick={()=>download(exportWordsTsv(data),'lexi-words.tsv')}>Скачать TSV</Button>
+     <Button variant="soft" size="xl" onClick={async()=>download(await exportWordsTsv(),'lexi-words.tsv')}>Скачать TSV</Button>
     </CardContent></Card>
     <Card className="mb-3"><CardHeader><CardTitle>Восстановление</CardTitle></CardHeader><CardContent>
      <Field>
@@ -56,7 +54,7 @@ export function BackupScreen(){
      </Field>
      {report&&(
       <div className={ui.small} style={{marginTop:10}}>
-       <p style={{margin:'0 0 4px'}}>Файл проверен: база «{report.databaseName}», {megabytes(report.bytes)}{report.createdAt?`, копия от ${new Date(report.createdAt).toLocaleString('ru-RU')}`:''}.</p>
+       <p style={{margin:'0 0 4px'}}>Файл проверен: база «{report.databaseName}», {megabytes(report.bytes)}{report.createdAt?`, копия от ${new Date(report.createdAt).toLocaleString('ru-RU')}`:''}.{report.legacy?' Копия старого формата: наборы будут преобразованы в связи без скачивания пакетов.':''}</p>
        <p className={ui.muted} style={{margin:0}}>{report.tables.map(table=>`${table.name}: ${table.rows}`).join(' · ')}</p>
       </div>
      )}

@@ -1,0 +1,15 @@
+greek: ξέρω
+russian: знать
+ipa: /ˈksero/
+verified: true
+mastered: true
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: w11-25.svg
+reading:
+  - text: ξ
+    ipa: ks
+    explanation: ξ — это сразу два звука, кс
+examples:
+  - greek: Ξέρω αυτή τη λέξη.
+    russian: Я знаю это слово.
+    target: Ξέρω

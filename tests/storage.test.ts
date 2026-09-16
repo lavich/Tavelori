@@ -1,12 +1,13 @@
 import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Rating} from 'ts-fsrs';
-import {LexiDatabase, ensureSeed, loadSnapshot} from '../src/storage/db';
-import {ConflictError, commitImport, createLesson, deleteWord, markIntroduced, prepareObjectiveSession, saveSchedule, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
+import {LexiDatabase} from '../src/storage/db';
+import {dexieSource, lessonLinks, loadLessons} from '../src/storage/queries';
+import {ConflictError, commitImport, createLesson, markIntroduced, prepareObjectiveSession, saveSchedule, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
 import {makePlan, makeSession} from '../src/domain/learning';
 import {defaultSettings, type Settings} from '../src/domain/types';
 import {parseImport} from '../src/domain/import';
-import {seedAssets, seedLessons, seedWords} from '../src/content';
+import {content, installLessons} from './helpers/content';
 
 const now=new Date('2026-09-15T09:00:00Z');
 let db:LexiDatabase;
@@ -15,45 +16,21 @@ beforeEach(async()=>{
  db=new LexiDatabase('lexi-test');
  await db.open();
 });
-const snapshot=()=>loadSnapshot(db);
-
-describe('исходные данные',()=>{
- it('наполняет базу один раз и не дублирует слова при повторном запуске',async()=>{
-  expect(await ensureSeed(db)).toBe(true);
-  expect(await ensureSeed(db)).toBe(false);
-  expect(await db.words.count()).toBe(seedWords.length);
-  expect(await db.assets.count()).toBe(seedAssets().length);
-  expect(await db.lessons.count()).toBe(seedLessons.length);
- });
- it('не воскрешает удалённое пользователем слово',async()=>{
-  await ensureSeed(db);
-  await deleteWord(seedWords[0].id,db);
-  await db.meta.delete('seed'); // имитируем обновление приложения
-  await ensureSeed(db);
-  expect((await db.words.get(seedWords[0].id))!.deletedAt).toBeTruthy();
-  expect(await db.words.count()).toBe(seedWords.length);
- });
- it('сохраняет blob картинки после повторного открытия базы',async()=>{
-  await ensureSeed(db);
-  db.close();
-  const again=new LexiDatabase('lexi-test');
-  await again.open();
-  const asset=await again.assets.get('img-w12-16');
-  expect(asset!.blob.size).toBeGreaterThan(200);
-  expect(await asset!.blob.text()).toContain('<svg');
-  again.close();
- });
-});
+const ALL=['lesson-1-1','lesson-1-2','lesson-1-3','lesson-1-4'];
+const seedWords=content.words;
+/** Замена старого seed: все четыре урока устанавливаются из пакетов в памяти. */
+const ensureSeed=(database=db)=>installLessons(database,ALL);
+const source=()=>dexieSource(db);
+const scheduled=async(id:string)=>(await loadLessons(db)).find(l=>l.id===id)!;
 
 describe('запись ответа',()=>{
  const prepare=async()=>{
   await ensureSeed(db);
-  const data=await snapshot();
-  const session=makeSession({data,now,random:()=>0.42});
+  const session=await makeSession({source:source(),now,random:()=>0.42});
   await db.sessions.add(session);
-  return {data,session};
+  return {session};
  };
- const answer=(session:ReturnType<typeof makeSession>,item=session.items[0],extra={})=>submitAnswer({
+ const answer=(session:Awaited<ReturnType<typeof makeSession>>,item=session.items[0],extra={})=>submitAnswer({
   session,item,correct:true,answer:'',responseTimeMs:1200,activeTimeMs:5000,
   timezone:'Asia/Nicosia',now,database:db,...extra,
  });
@@ -95,8 +72,8 @@ describe('запись ответа',()=>{
   expect(await db.events.count()).toBe(2);
  });
  it('последняя ошибка не завершает занятие до дополнительной попытки',async()=>{
-  const {data}=await prepare();
-  const session=makeSession({data,now,wordIds:[seedWords[0].id],random:()=>0.7});
+  await prepare();
+  const session=await makeSession({source:source(),now,wordIds:[seedWords[0].id],random:()=>0.7});
   await db.sessions.add(session);
   await answer(session,session.items[0],{correct:false});
   const stored=(await db.sessions.get(session.id))!;
@@ -135,8 +112,8 @@ describe('запись ответа',()=>{
   expect(await db.events.count()).toBe(1);
  });
  it('practice не сдвигает интервалы, но сохраняет результат навыка',async()=>{
-  const {data}=await prepare();
-  const practice=makeSession({data,now,random:()=>0.3,mode:'practice',wordIds:[seedWords[0].id]});
+  await prepare();
+  const practice=await makeSession({source:source(),now,random:()=>0.3,mode:'practice',wordIds:[seedWords[0].id]});
   await db.sessions.add(practice);
   await answer(practice,practice.items[0]);
   expect(await db.states.count()).toBe(0);
@@ -152,7 +129,7 @@ describe('импорт',()=>{
   expect(outcome).toMatchObject({added:1,linked:1});
   expect(await db.words.count()).toBe(seedWords.length+1);
   const lesson=await db.lessons.get(outcome.lessonId);
-  expect(lesson!.wordIds).toHaveLength(2);
+  expect(await lessonLinks(outcome.lessonId,db)).toHaveLength(2);
   expect(lesson!.targetDate).toBeNull(); // дату назначит расписание
  });
  it('при ошибке не оставляет половину набора',async()=>{
@@ -177,20 +154,19 @@ describe('расписание занятий',()=>{
  it('дополняет запись настроек без расписания значением по умолчанию',async()=>{
   await ensureSeed(db);
   await db.settings.put(legacy);
-  expect((await snapshot()).settings.schedule).toEqual({startDate:null,weekdays:[]});
+  expect((await source().settings()).schedule).toEqual({startDate:null,weekdays:[]});
   expect(defaultSettings.schedule).toEqual({startDate:null,weekdays:[]});
  });
  it('снимок даёт урокам 1.3 и 1.4 дни расписания после 1.2, а план считает сроки по ним',async()=>{
   await ensureSeed(db);
   await saveSettings({...defaultSettings,schedule:monThu},db);
-  const data=await snapshot();
-  const byId=Object.fromEntries(data.lessons.map(l=>[l.id,l]));
+  const byId=Object.fromEntries((await loadLessons(db)).map(l=>[l.id,l]));
   expect(byId['lesson-1-1']).toMatchObject({targetDate:'2026-09-14',dateSource:'schedule',status:'completed'});
   expect(byId['lesson-1-2']).toMatchObject({targetDate:'2026-09-18',dateSource:'manual'});
   expect(byId['lesson-1-3']).toMatchObject({targetDate:'2026-09-21',dateSource:'schedule'});
   expect(byId['lesson-1-4']).toMatchObject({targetDate:'2026-09-24',dateSource:'schedule'});
   expect((await db.lessons.get('lesson-1-3'))!.targetDate).toBeNull();
-  const plan=makePlan(data,new Date('2026-09-16T09:00:00Z'));
+  const plan=await makePlan(source(),new Date('2026-09-16T09:00:00Z'));
   expect(plan.deadlines.map(d=>[d.lessonId,d.daysLeft])).toEqual([['lesson-1-2',2],['lesson-1-3',5],['lesson-1-4',8]]);
  });
 });
@@ -199,7 +175,7 @@ describe('операции над уроками при расписании',()
  const monThu={startDate:'2026-09-14',weekdays:[1,4]};
  const prepare=async()=>{await ensureSeed(db);await saveSettings({...defaultSettings,schedule:monThu},db)};
  const raw=(id:string)=>db.lessons.get(id).then(l=>l!);
- const shown=async(id:string)=>(await snapshot()).lessons.find(l=>l.id===id)!;
+ const shown=scheduled;
  it('правка названия урока по расписанию не записывает дату в базу',async()=>{
   await prepare();
   await updateLesson('lesson-1-3',{title:'Урок 1.3 (мебель)'},db);
@@ -242,7 +218,7 @@ describe('операции над уроками при расписании',()
   expect(await raw('lesson-1-2')).toMatchObject({targetDate:'2026-09-04',status:'completed'});
   expect(await raw('lesson-1-3')).toMatchObject({targetDate:'2026-09-08',status:'completed'});
   expect(await raw('lesson-1-4')).toMatchObject({targetDate:'2026-09-11',status:'completed'});
-  expect((await snapshot()).settings.schedule).toEqual({startDate:'2026-09-01',weekdays:[2,5]});
+  expect((await source().settings()).schedule).toEqual({startDate:'2026-09-01',weekdays:[2,5]});
  });
  it('день считается по зоне пользователя',async()=>{
   await prepare();

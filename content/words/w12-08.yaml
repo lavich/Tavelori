@@ -1,0 +1,18 @@
+greek: το μπάνιο
+russian: ванна
+ipa: /to ˈbaɲo/
+verified: true
+mastered: false
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: w12-08.svg
+reading:
+  - text: μπ
+    ipa: b
+    explanation: μπ в начале слова — это б
+  - text: νι
+    ipa: ɲ
+    explanation: νι перед гласной звучит как нь
+examples:
+  - greek: Το μπάνιο είναι μικρό.
+    russian: Ванная маленькая.
+    target: μπάνιο
