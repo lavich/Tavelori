@@ -122,6 +122,19 @@ describe('запись ответа',()=>{
  });
 });
 
+describe('свои наборы',()=>{
+ it('созданный набор и набор из импорта попадают в курс «Мои слова»',async()=>{
+  await ensureSeed(db);
+  const own=await createLesson('Мой набор',db);
+  expect(own.courseId).toBe('my');
+  expect((await db.lessons.get(own.id))!.courseId).toBe('my');
+  const rows=parseImport('η ομπρέλα\nзонт').rows;
+  const outcome=await commitImport({rows,lessonId:null,lessonTitle:'Из Quizlet'},db);
+  expect((await db.lessons.get(outcome.lessonId))!.courseId).toBe('my');
+  expect(await db.courses.get('my')).toMatchObject({origin:'local',subscribed:true});
+ });
+});
+
 describe('импорт',()=>{
  it('связывает известное слово с набором и не создаёт дубликат',async()=>{
   await ensureSeed(db);

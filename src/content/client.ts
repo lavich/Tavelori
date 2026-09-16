@@ -75,6 +75,51 @@ export const installPhase=(lessonId:string):InstallPhase=>phases.get(lessonId)??
 export const subscribeInstall=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener)}};
 
 const inflight=new Map<string,Promise<InstallResult>>();
+/** Ключ курса в общем хранилище состояний загрузки: идентификаторы курса и урока не пересекаются. */
+const courseKey=(courseId:string)=>`course:${courseId}`;
+export const coursePhase=(courseId:string)=>installPhase(courseKey(courseId));
+
+export async function setCourseSubscription(courseId:string,subscribed:boolean,database:LexiDatabase=db):Promise<void>{
+ const stored=await database.courses.get(courseId);
+ if(!stored||stored.subscribed===subscribed)return;
+ await database.courses.put({...stored,subscribed,updatedAt:new Date().toISOString()});
+}
+
+export interface CourseInstallResult {installed:number;updated:number;failed:number;conflicts:Conflict[]}
+
+/**
+ * Установка и обновление курса целиком. Уроки идут по одному: прерывание оставляет установленными
+ * уже полученные, а ошибка не отменяет успешные — курс просто остаётся частично свежим.
+ */
+export async function installCourse(courseId:string,database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<CourseInstallResult>{
+ await setCourseSubscription(courseId,true,database);
+ const entries=await database.catalog.where('courseId').equals(courseId).toArray();
+ const result:CourseInstallResult={installed:0,updated:0,failed:0,conflicts:[]};
+ setPhase(courseKey(courseId),{phase:'loading'});
+ let failure:ContentError|null=null;
+ for(const entry of entries){
+  try{
+   const outcome=await installLesson(entry.id,database,source);
+   if(outcome.status==='installed')result.installed++;
+   if(outcome.status==='updated')result.updated++;
+   result.conflicts.push(...outcome.conflicts);
+  }catch(error){result.failed++;failure=toContentError(error)}
+ }
+ if(failure)setPhase(courseKey(courseId),{phase:'error',message:failure.message,kind:failure.kind});
+ else{
+  setPhase(courseKey(courseId),{phase:'idle'});
+  const stored=await database.courses.get(courseId);
+  if(stored)await database.courses.put({...stored,syncedAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+ }
+ return result;
+}
+
+/** Фоновая догрузка подписанных курсов: вызывается после обновления каталога при запуске. */
+export async function syncCourses(database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<void>{
+ const subscribed=(await database.courses.toArray()).filter(course=>course.origin==='content'&&course.subscribed);
+ for(const course of subscribed)await installCourse(course.id,database,source);
+}
+
 export function installLesson(lessonId:string,database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<InstallResult>{
  const running=inflight.get(lessonId);
  if(running)return running;
@@ -88,6 +133,7 @@ export function installLesson(lessonId:string,database:LexiDatabase=db,source:Co
    const pack=parsePackage(await source.json(entry.url));
    if(pack.id!==lessonId||pack.version!==entry.version)throw new ContentError('Пакет не соответствует записи каталога.');
    const result=await applyPackage(pack,database);
+   if(pack.courseId)await setCourseSubscription(pack.courseId,true,database);
    setPhase(lessonId,{phase:'idle'});
    return result;
   }catch(error){

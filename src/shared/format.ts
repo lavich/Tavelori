@@ -7,6 +7,7 @@ export const withCount=(count:number,forms:[string,string,string])=>`${count} ${
 export const WORDS:[string,string,string]=['слово','слова','слов'];
 export const DAYS:[string,string,string]=['день','дня','дней'];
 export const LESSONS:[string,string,string]=['занятия','занятий','занятий'];
+export const LESSONS_COUNT:[string,string,string]=['урок','урока','уроков'];
 export const TIMES:[string,string,string]=['ответ','ответа','ответов'];
 const day=(value:string)=>new Date(`${value}T12:00:00Z`);
 export const weekday=(value:string)=>day(value).toLocaleDateString('ru-RU',{weekday:'long',timeZone:'UTC'});

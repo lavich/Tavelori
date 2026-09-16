@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import {db, indexWord, type LexiDatabase} from './db';
+import {db, ensureLocalCourse, indexWord, type LexiDatabase} from './db';
 import {optionPool} from './queries';
 import {localDay, nextState, objectiveExercise, OPTION_POOL, spaceSingleIntroduction} from '../domain/learning';
 import {normalize, wordKey, type ImportRow} from '../domain/import';
@@ -119,7 +119,7 @@ export async function linkWords(lessonId:string,wordIds:string[],database:LexiDa
 /** Новый набор без даты: её назначит расписание, а своя дата задаётся на экране урока. */
 export async function createLesson(title:string,database:LexiDatabase=db):Promise<Lesson>{
  const now=stamp(new Date());
- const lesson:Lesson={id:newId('lesson'),title,targetDate:null,status:'upcoming',createdAt:now,updatedAt:now};
+ const lesson:Lesson={id:newId('lesson'),courseId:await ensureLocalCourse(database),title,targetDate:null,status:'upcoming',createdAt:now,updatedAt:now};
  await database.lessons.add(lesson);
  return lesson;
 }
@@ -145,10 +145,10 @@ export interface ImportPlan {rows:ImportRow[];lessonId:string|null;lessonTitle:s
 export interface ImportOutcome {lessonId:string;added:number;linked:number;conflicts:number}
 export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Promise<ImportOutcome>{
  const now=stamp(new Date());
- return database.transaction('rw',database.words,database.lessons,database.lessonWords,async()=>{
+ return database.transaction('rw',database.words,database.lessons,database.lessonWords,database.courses,async()=>{
   const lesson=plan.lessonId
    ?await database.lessons.get(plan.lessonId)
-   :{id:newId('lesson'),title:plan.lessonTitle,targetDate:null,status:'upcoming' as const,createdAt:now,updatedAt:now};
+   :{id:newId('lesson'),courseId:await ensureLocalCourse(database),title:plan.lessonTitle,targetDate:null,status:'upcoming' as const,createdAt:now,updatedAt:now};
   if(!lesson)throw new Error('Набор не найден');
   const wordIds:string[]=[];
   let added=0,conflicts=0;

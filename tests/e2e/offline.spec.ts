@@ -17,6 +17,17 @@ test('работает без сети после закрытия страни�
  await page.waitForFunction(()=>!!navigator.serviceWorker.controller,null,{timeout:20000});
  await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await expect(page.getByText(/Готово офлайн|Офлайн-пакет/)).toBeVisible();
+ // Подписанный курс доустанавливает все уроки, поэтому неустановленный урок для проверки готовим сами.
+ await page.evaluate(async()=>{
+  const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open('lexi');request.onsuccess=()=>resolve(request.result)});
+  const tx=database.transaction(['lessons','packages','lessonWords'],'readwrite');
+  tx.objectStore('lessons').delete('lesson-1-3');
+  tx.objectStore('packages').delete('lesson-1-3');
+  const links=tx.objectStore('lessonWords').getAllKeys();
+  links.onsuccess=()=>{for(const key of links.result as [string,string][])if(key[0]==='lesson-1-3')tx.objectStore('lessonWords').delete(key)};
+  await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
+  database.close();
+ });
  await page.close();
 
  await context.setOffline(true);

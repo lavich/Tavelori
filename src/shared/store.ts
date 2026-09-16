@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import {useLiveQuery} from 'dexie-react-hooks';
 import {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
-import {ensureAsset, installPhase, lessonReadiness, subscribeInstall} from '../content/client';
+import {coursePhase, ensureAsset, installPhase, lessonReadiness, subscribeInstall} from '../content/client';
 import {makePlan} from '../domain/learning';
 import {progress} from '../domain/stats';
 import {defaultSettings, type Session} from '../domain/types';
@@ -29,6 +29,8 @@ export const useCounts=()=>useLiveQuery(async()=>({words:await db.words.count()-
 
 export const useCatalog=()=>useLiveQuery(async()=>({entries:await db.catalog.toArray(),packages:await db.packages.toArray()}),[]);
 export const useInstallPhase=(lessonId:string|undefined)=>useSyncExternalStore(subscribeInstall,()=>installPhase(lessonId??''));
+export const useCourses=()=>useLiveQuery(()=>db.courses.toArray(),[]);
+export const useCoursePhase=(courseId:string|undefined)=>useSyncExternalStore(subscribeInstall,()=>coursePhase(courseId??''));
 export const useReadiness=(lessonId:string|undefined)=>useLiveQuery(()=>lessonId?lessonReadiness(lessonId):undefined,[lessonId]);
 
 export function useAssetUrl(id:string|undefined):string|null{

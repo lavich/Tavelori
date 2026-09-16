@@ -38,7 +38,10 @@ test('полная копия переносит слова, правки и м�
  expect(parsed.data.tables.map((table:{name:string})=>table.name)).toEqual(expect.arrayContaining(['words','lessonWords','packages','media','assets','states','events','sessions','settings','meta']));
  // Картинка σπίτι скачана при просмотре карточки и входит в копию; остальные медиа не тянулись.
  expect(parsed.data.tables.find((table:{name:string})=>table.name==='assets').rowCount).toBe(1);
- expect(parsed.data.tables.find((table:{name:string})=>table.name==='packages').rowCount).toBe(1);
+ // Курс подписан открытием урока, поэтому в профиле лежат пакеты всех его уроков — по одному на урок.
+ const rows=(name:string)=>parsed.data.tables.find((table:{name:string})=>table.name===name).rowCount;
+ expect(rows('packages')).toBe(rows('lessons'));
+ expect(rows('packages')).toBeGreaterThan(1);
  await source.close();
 
  const clean=await browser.newContext();
@@ -77,6 +80,10 @@ test('повреждённый и чужой файл не меняют данн
  await page.goto('/');
  await ready(page);
  await installLessons(page,['lesson-1-2']);
+ await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
+ // Курс догружается фоном: ждём устоявшийся словарь, иначе снимок поймает промежуточное число.
+ await expect(page.getByTestId('word-count')).toHaveText('Показано 50 слов, есть ещё');
+ const before=await page.getByTestId('word-count').innerText();
  await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
  await page.getByRole('link',{name:/Копия данных/}).click();
  const broken=join(tmpdir(),'lexi-broken.json');
@@ -97,5 +104,5 @@ test('повреждённый и чужой файл не меняют данн
  await expect(page.getByRole('button',{name:'Заменить данные копией'})).toBeDisabled();
 
  await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
- await expect(page.getByTestId('word-count')).toHaveText('30 слов'); // словарь не изменился
+ await expect(page.getByTestId('word-count')).toHaveText(before); // словарь не изменился
 });

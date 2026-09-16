@@ -15,6 +15,10 @@ test('данные не переходят между origin сами; пере�
  await page.goto('/');
  await ready(page);
  await installLessons(page,['lesson-1-2']);
+ await page.goto('/words');
+ // Подписанный курс догружается фоном: копию снимаем с устоявшегося словаря и с ним же сверяем перенос.
+ await expect(page.getByTestId('word-count')).toHaveText('Показано 50 слов, есть ещё');
+ const source=await page.getByTestId('word-count').innerText();
  await page.goto('/more/backup');
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Сохранить полную копию'}).click()]);
  const file=join(tmpdir(),`lexi-origin-${Date.now()}.json`);
@@ -34,6 +38,6 @@ test('данные не переходят между origin сами; пере�
  await Promise.all([moved.waitForEvent('download'),moved.getByRole('button',{name:'Заменить',exact:true}).click()]);
  await expect(moved.getByText('Данные восстановлены полностью.')).toBeVisible();
  await moved.goto('/words');
- await expect(moved.getByTestId('word-count')).toHaveText('30 слов');
+ await expect(moved.getByTestId('word-count')).toHaveText(source);
  await fresh.close();
 });

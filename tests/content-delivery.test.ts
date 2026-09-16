@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {LexiDatabase} from '../src/storage/db';
-import {applyPackage, downloadLessonMedia, ensureAsset, installLesson, lessonReadiness, mergeWord, refreshCatalog} from '../src/content/client';
+import {applyPackage, coursePhase, downloadLessonMedia, ensureAsset, installCourse, installLesson, lessonReadiness, mergeWord, refreshCatalog, setCourseSubscription, syncCourses} from '../src/content/client';
 import {ContentError, type ContentPackage} from '../src/content/schema';
 import {revisionOf} from '../content/build';
 import {deleteWord, removeFromLesson, saveWord} from '../src/storage/ops';
@@ -56,6 +56,70 @@ describe('курсы',()=>{
   await refreshCatalog(db,memoryFetcher());
   expect(await db.courses.count()).toBe(1);
   expect((await db.courses.get('leeke'))!.createdAt).toBe(first!.createdAt);
+ });
+});
+
+describe('подписка на курс',()=>{
+ const packs=(fetcher:{requests:string[]})=>fetcher.requests.filter(url=>url.includes('/packages/'));
+ const media=(fetcher:{requests:string[]})=>fetcher.requests.filter(url=>url.includes('/media/'));
+ it('открытие урока подписывает его курс',async()=>{
+  const fetcher=memoryFetcher();
+  await refreshCatalog(db,fetcher);
+  expect(await db.courses.get('leeke')).toMatchObject({subscribed:false});
+  await installLesson('lesson-2-1',db,fetcher);
+  expect(await db.courses.get('leeke')).toMatchObject({subscribed:true});
+ });
+ it('«Учить курс» ставит все уроки курса и не трогает медиа',async()=>{
+  const fetcher=memoryFetcher();
+  await refreshCatalog(db,fetcher);
+  const result=await installCourse('leeke',db,fetcher);
+  expect(result.installed).toBe(content.catalog.lessons.length);
+  expect(await db.packages.count()).toBe(content.catalog.lessons.length);
+  expect(media(fetcher)).toEqual([]);
+  expect(await db.courses.get('leeke')).toMatchObject({subscribed:true});
+ });
+ it('подписанный курс сам доустанавливает недостающее и подтягивает версию',async()=>{
+  const first=memoryFetcher();
+  await refreshCatalog(db,first);
+  await installLesson('lesson-1-1',db,first);
+  const next=bump(packageOf('lesson-1-1'),words=>{words[0].russian='новый перевод'});
+  const fetcher=await upgrade('lesson-1-1',next);
+  fetcher.requests.length=0;
+  await syncCourses(db,fetcher);
+  expect(await db.packages.count()).toBe(content.catalog.lessons.length);
+  expect((await db.packages.get('lesson-1-1'))!.version).toBe(next.version);
+  expect(media(fetcher)).toEqual([]);
+ });
+ it('неподписанный курс сам не качается',async()=>{
+  const fetcher=memoryFetcher();
+  await refreshCatalog(db,fetcher);
+  fetcher.requests.length=0;
+  await syncCourses(db,fetcher);
+  expect(packs(fetcher)).toEqual([]);
+  expect(await db.packages.count()).toBe(0);
+ });
+ it('отписка прекращает автозагрузку и ничего не удаляет',async()=>{
+  const fetcher=memoryFetcher();
+  await refreshCatalog(db,fetcher);
+  await installLesson('lesson-1-1',db,fetcher);
+  await setCourseSubscription('leeke',false,db);
+  fetcher.requests.length=0;
+  await syncCourses(db,fetcher);
+  expect(packs(fetcher)).toEqual([]);
+  expect(await db.packages.count()).toBe(1); // установленное осталось
+ });
+ it('ошибка сети оставляет прежние версии и сообщается на уровне курса',async()=>{
+  const ok=memoryFetcher();
+  await refreshCatalog(db,ok);
+  await installLesson('lesson-1-1',db,ok);
+  const broken=memoryFetcher();
+  broken.json=async url=>{if(url.includes('/packages/'))throw new ContentError('Нет сети','network');return content.catalog};
+  await syncCourses(db,broken);
+  expect(await db.packages.count()).toBe(1);
+  expect(coursePhase('leeke')).toMatchObject({phase:'error',kind:'network'});
+  await syncCourses(db,memoryFetcher());
+  expect(coursePhase('leeke')).toEqual({phase:'idle'});
+  expect(await db.packages.count()).toBe(content.catalog.lessons.length);
  });
 });
 

@@ -63,6 +63,7 @@ export class LexiDatabase extends Dexie {
   this.version(4).stores({
    courses:'id,origin',
    lessons:'id,targetDate,status,courseId',
+   catalog:'id,courseId',
   }).upgrade(tx=>migrateCourses(tx));
  }
 }
@@ -131,4 +132,13 @@ export async function migrateLegacy(tx:Pick<Transaction,'table'>):Promise<void>{
 
 export async function ensureDefaults(database:LexiDatabase=db):Promise<void>{
  if(!await database.settings.get('settings'))await database.settings.add(defaultSettings);
+ await ensureLocalCourse(database);
+}
+/** Курс своих наборов заводится и в новой базе, где миграция не выполнялась. */
+export async function ensureLocalCourse(database:LexiDatabase=db):Promise<string>{
+ if(!await database.courses.get(LOCAL_COURSE)){
+  const now=new Date().toISOString();
+  await database.courses.put({id:LOCAL_COURSE,title:'Мои слова',origin:'local',subscribed:true,createdAt:now,updatedAt:now});
+ }
+ return LOCAL_COURSE;
 }

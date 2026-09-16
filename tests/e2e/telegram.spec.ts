@@ -244,6 +244,10 @@ test.describe('аудио, копии и облако',()=>{
  test('копия: границы синхронизации, нейтральный статус передачи, отмена защитной копии останавливает замену',async({page,browser})=>{
   await openTelegram(page);
   await installLessons(page,['lesson-1-2']);
+  await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
+  // Подписанный курс догружается фоном: копию снимаем с устоявшегося словаря и с ним же сверяем перенос.
+  await expect(page.getByTestId('word-count')).toHaveText('Показано 50 слов, есть ещё');
+  const source=await page.getByTestId('word-count').innerText();
   await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click();
   await expect(page.getByTestId('storage-scope')).toContainText('Telegram: облачная синхронизация');
   await page.getByRole('link',{name:/Копия данных/}).click();
@@ -275,7 +279,7 @@ test.describe('аудио, копии и облако',()=>{
   await Promise.all([web.waitForEvent('download'),web.getByRole('button',{name:'Заменить',exact:true}).click()]);
   await expect(web.getByText('Данные восстановлены полностью.')).toBeVisible();
   await web.goto('/words');
-  await expect(web.getByTestId('word-count')).toHaveText('30 слов');
+  await expect(web.getByTestId('word-count')).toHaveText(source);
   await clean.close();
  });
  test('CloudStorage: статус синхронизации, перенос прогресса второму устройству, изоляция другого аккаунта',async({page,browser})=>{

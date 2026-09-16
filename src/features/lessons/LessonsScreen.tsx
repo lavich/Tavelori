@@ -12,8 +12,11 @@ import {lessonOrder, scheduleSet} from '../../domain/schedule';
 import {useNow} from '../../shared/clock';
 import {capitalize, dativeWeekday, dayMonth, shortTitle, weekday, withCount, WORDS} from '../../shared/format';
 import {fileSize} from '../../shared/offline';
-import {useCatalog, useLessons, useSettings} from '../../shared/store';
+import {useCatalog, useCourses, useLessons, useSettings} from '../../shared/store';
+import {installCourse} from '../../content/client';
 import {createLesson} from '../../storage/ops';
+import {groupByCourse} from './courses';
+import {CourseHeader} from './CourseHeader';
 import {ScheduleCard} from './ScheduleCard';
 import ui from '../../shared/ui.module.css';
 
@@ -21,6 +24,7 @@ export function LessonsScreen(){
  const {settings}=useSettings();
  const installed=useLessons()??[];
  const catalog=useCatalog();
+ const courses=useCourses();
  const today=localDay(useNow(),settings.timezone);
  const [params,setParams]=useSearchParams();
  const [title,setTitle]=useState('');
@@ -33,33 +37,30 @@ export function LessonsScreen(){
   setTitle('');setProblem('');
   setParams({});
  };
- const lessons=[...installed].sort((a,b)=>
-  Number(!!b.targetDate)-Number(!!a.targetDate)||(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt));
- const available=(catalog?.entries??[]).filter(entry=>!installed.some(lesson=>lesson.id===entry.id));
+ const byDate=(a:{targetDate:string|null;createdAt:string},b:{targetDate:string|null;createdAt:string})=>
+  Number(!!b.targetDate)-Number(!!a.targetDate)||(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt);
+ const groups=groupByCourse(courses??[],[...installed].sort(byDate),catalog?.entries??[]);
  return (
   <>
    <BrandBar/>
    <main className={ui.screen}>
     <h1>Уроки</h1>
     <ScheduleCard settings={settings} today={today} first={[...installed].sort(lessonOrder)[0]?.title}/>
-    <ItemGroup className="gap-2.5">
-     {lessons.map(lesson=>(
-      <Item key={lesson.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
-       <ItemMedia variant="icon"><FileText/></ItemMedia>
-       <ItemContent>
-        <ItemTitle className="text-base">{shortTitle(lesson.title)} · {!lesson.targetDate?'Без даты':lesson.status==='completed'?`${capitalize(weekday(lesson.targetDate))}, ${dayMonth(lesson.targetDate)}`:`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`}</ItemTitle>
-        <ItemDescription>{withCount(lesson.wordCount,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}{lesson.status!=='completed'&&lesson.dateSource==='manual'?' · дата вручную':''}</ItemDescription>
-       </ItemContent>
-       <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
-      </Item>
-     ))}
-    </ItemGroup>
-    {available.length>0&&(
-     <>
-      <h2>Доступны для загрузки</h2>
-      <p className={`${ui.small} ${ui.muted}`}>Слова урока загрузятся на устройство, когда вы его откроете.</p>
-      <ItemGroup className="gap-2.5" aria-label="Каталог уроков">
-       {available.map(entry=>(
+    {groups.map(group=>(
+     <section key={group.id} className="mt-3">
+      <CourseHeader group={group} onLearn={()=>installCourse(group.id).catch(()=>undefined)}/>
+      <ItemGroup className="gap-2.5">
+       {group.lessons.map(lesson=>(
+        <Item key={lesson.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
+         <ItemMedia variant="icon"><FileText/></ItemMedia>
+         <ItemContent>
+          <ItemTitle className="text-base">{shortTitle(lesson.title)} · {!lesson.targetDate?'Без даты':lesson.status==='completed'?`${capitalize(weekday(lesson.targetDate))}, ${dayMonth(lesson.targetDate)}`:`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`}</ItemTitle>
+          <ItemDescription>{withCount(lesson.wordCount,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}{lesson.status!=='completed'&&lesson.dateSource==='manual'?' · дата вручную':''}</ItemDescription>
+         </ItemContent>
+         <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
+        </Item>
+       ))}
+       {group.available.map(entry=>(
         <Item key={entry.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${entry.id}`}/>}>
          <ItemMedia variant="icon"><CloudDownload/></ItemMedia>
          <ItemContent>
@@ -70,8 +71,8 @@ export function LessonsScreen(){
         </Item>
        ))}
       </ItemGroup>
-     </>
-    )}
+     </section>
+    ))}
     {open?(
      <Card className="mt-3">
       <CardHeader><CardTitle className="text-lg">Новое занятие</CardTitle></CardHeader>
