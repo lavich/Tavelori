@@ -19,7 +19,6 @@ export function ResultScreen(){
  const now=useNow();
  const {settings}=useSettings();
  const session=useLiveQuery(()=>id?db.sessions.get(id):undefined,[id]);
- // Читаются только события этой сессии и состояния слов с ошибками.
  const result=useLiveQuery(async()=>{
   const events=id?await db.events.where('sessionId').equals(id).toArray():[];
   const mistakes=events.filter(event=>event.correct===false||(event.correct===null&&event.rating===1));

@@ -1,0 +1,16 @@
+id: w11-28
+greek: τρώω
+russian: есть
+ipa: /ˈtroo/
+verified: true
+mastered: true
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: τρώω.svg
+reading:
+  - text: ώω
+    ipa: oo
+    explanation: ω и ω читаются двумя слогами
+examples:
+  - greek: Τρώω ψωμί με μέλι.
+    russian: Я ем хлеб с мёдом.
+    target: Τρώω

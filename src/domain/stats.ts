@@ -6,12 +6,10 @@ export interface DayStat {date:string;answers:number;words:number}
 export interface SkillStat {type:ExerciseType;attempts:number;correct:number;rate:number|null}
 export interface Progress {days:DayStat[];skills:SkillStat[];due:{today:number;tomorrow:number;week:number};groups:{fresh:number;learning:number;review:number;solid:number};totals:{answers:number;words:number}}
 
-/** Статистика читает только нужный период и агрегаты, а не всю историю ответов. */
 export interface StatsSource {
  settings():Promise<Settings>;
  eventsBetween(fromDay:string,toDay:string):Promise<ReviewEvent[]>;
  recentByType(type:ExerciseType,limit:number):Promise<ReviewEvent[]>;
- /** Идентификаторы слов со сроком раньше момента; только ключи индекса, без карточек. */
  dueWordIdsBefore(instant:Date):Promise<string[]>;
  deletedWordIds():Promise<Set<string>>;
  wordCount():Promise<number>;

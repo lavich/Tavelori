@@ -35,7 +35,6 @@ export function LessonsScreen(){
  };
  const lessons=[...installed].sort((a,b)=>
   Number(!!b.targetDate)-Number(!!a.targetDate)||(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt));
- // Каталог показывает только то, чего ещё нет локально; пакет скачивается при открытии урока, а не при просмотре списка.
  const available=(catalog?.entries??[]).filter(entry=>!installed.some(lesson=>lesson.id===entry.id));
  return (
   <>

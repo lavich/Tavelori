@@ -19,7 +19,6 @@ export function TodayScreen(){
  const navigate=useNavigate();
  const [busy,setBusy]=useState(false);
  const [problem,setProblem]=useState('');
- // Экран читает план, метаданные уроков и активную сессию — не весь словарь и не историю.
  const plan=usePlan(now);
  const installed=useLessons(true);
  const unfinished=useActiveSession();

@@ -52,7 +52,7 @@ export async function submitAnswer({session,item,correct,answer,responseTimeMs,a
 export const saveSession=(session:Session,database:LexiDatabase=db)=>database.sessions.put(session);
 export const endSession=async(session:Session,database:LexiDatabase=db)=>{await database.sessions.put({...session,status:session.index>=session.items.length?'done':'ended'})};
 
-/** Правка поставленного слова помечается локальной: обновление пакета её не перезапишет. Индекс поиска обновляется вместе с записью. */
+/** Правка поставленного слова помечается локальной: обновление пакета её не перезапишет. */
 export async function saveWord(word:Word,database:LexiDatabase=db){
  const previous=await database.words.get(word.id);
  const greekChanged=previous&&normalize(previous.greek)!==normalize(word.greek);
@@ -68,7 +68,7 @@ export type LessonPatch=Partial<Pick<Lesson,'title'|'targetDate'|'status'>>;
 export async function updateLesson(id:string,patch:LessonPatch,database:LexiDatabase=db){
  await database.lessons.update(id,{...patch,updatedAt:stamp(new Date())});
 }
-/** Убирается только связь: слово, его состояние и история остаются. Для поставленного урока удаление запоминается, чтобы обновление пакета не вернуло слово. */
+/** Для поставленного урока удаление связи запоминается, чтобы обновление пакета её не вернуло. */
 export async function removeFromLesson(lessonId:string,wordId:string,database:LexiDatabase=db){
  await database.transaction('rw',database.lessons,database.lessonWords,database.packages,async()=>{
   await database.lessonWords.delete([lessonId,wordId]);
@@ -77,7 +77,6 @@ export async function removeFromLesson(lessonId:string,wordId:string,database:Le
   await updateLesson(lessonId,{},database);
  });
 }
-/** Связи добавляются в конец урока; повторная связь не создаёт дубликат. */
 export async function linkWords(lessonId:string,wordIds:string[],database:LexiDatabase=db):Promise<number>{
  const existing=await database.lessonWords.where('[lessonId+position]').between([lessonId,Dexie.minKey],[lessonId,Dexie.maxKey]).toArray();
  const known=new Set(existing.map(link=>link.wordId));
@@ -113,7 +112,6 @@ export async function putAsset(asset:Asset,database:LexiDatabase=db){await datab
 
 export interface ImportPlan {rows:ImportRow[];lessonId:string|null;lessonTitle:string}
 export interface ImportOutcome {lessonId:string;added:number;linked:number;conflicts:number}
-/** Дубликаты и совпадения по написанию ищутся по индексам ключей, а не полным чтением словаря. */
 export async function commitImport(plan:ImportPlan,database:LexiDatabase=db):Promise<ImportOutcome>{
  const now=stamp(new Date());
  return database.transaction('rw',database.words,database.lessons,database.lessonWords,async()=>{

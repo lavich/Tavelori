@@ -23,7 +23,6 @@ export function WordsScreen(){
  const [query,setQuery]=useState('');
  const [filter,setFilter]=useState<WordFilter>('all');
  const [lessonId,setLessonId]=useState('all');
- // Страница — до 50 карточек по курсору; поиск идёт по индексу токенов загруженных слов.
  const page=useWordPages({query,filter,lessonId:lessonId==='all'?null:lessonId});
  return (
   <>

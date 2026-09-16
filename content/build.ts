@@ -8,8 +8,10 @@ import {ContentError, SCHEMA_VERSION, SHIPPED_FIELDS, type Catalog, type Catalog
 import type {Example, Lesson, Segment} from '../src/domain/types.ts';
 
 /**
- * Публикация контента. Исходники — YAML: одно слово — один файл в `words/`, урок — упорядоченный список
- * идентификаторов в `lessons/`, иллюстрации и аудио — отдельные файлы в `art/` и `audio/`.
+ * Публикация контента. Исходники — YAML: одно слово — один файл в `words/` с греческим именем, урок —
+ * упорядоченный список идентификаторов в `lessons/`, иллюстрации и аудио — отдельные файлы в `art/` и `audio/`.
+ * Идентификатор слова — поле `id`, а без него — имя файла; у исходных слов сохранены прежние `w11-01`,
+ * чтобы прогресс и миграция пользователей не зависели от переименования файлов.
  * Генератор собирает каталог, неизменяемые пакеты уроков и медиа; клиент исходники не читает.
  */
 export const LANGUAGE='el';
@@ -18,9 +20,8 @@ export const imageAssetId=(wordId:string)=>`img-${wordId}`;
 export const audioAssetId=(wordId:string)=>`snd-${wordId}`;
 const MIME:Record<string,string>={'.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.jpeg':'image/jpeg','.mp3':'audio/mpeg','.ogg':'audio/ogg','.m4a':'audio/mp4','.wav':'audio/wav'};
 
-/** Файл слова: id — имя файла без расширения. */
 export interface WordSource {
- greek:string; russian:string; ipa?:string; note?:string; verified?:boolean; mastered?:boolean; source?:string;
+ id?:string; greek:string; russian:string; ipa?:string; note?:string; verified?:boolean; mastered?:boolean; source?:string;
  image?:string; audio?:string;
  reading?:{text:string;ipa:string;explanation:string}[];
  examples?:{greek:string;russian:string;target:string;source?:string}[];
@@ -39,22 +40,30 @@ const text=(value:unknown,where:string,required=true):string|undefined=>{
  return (value as string).normalize('NFC');
 };
 
-export interface ContentRoot {words:Map<string,WordSource>;lessons:Map<string,LessonSource>;files:Map<string,Uint8Array>}
+export interface ContentRoot {words:Map<string,WordSource&{file:string}>;lessons:Map<string,LessonSource>;files:Map<string,Uint8Array>}
 export function readSources(root:string):ContentRoot{
- const read=<T,>(dir:string):Map<string,T>=>new Map(
-  (existsSync(join(root,dir))?readdirSync(join(root,dir)):[]).filter(file=>/\.ya?ml$/.test(file)).sort()
-   .map(file=>[basename(file,extname(file)),parse(readFileSync(join(root,dir,file),'utf8')) as T]));
+ const list=(dir:string)=>(existsSync(join(root,dir))?readdirSync(join(root,dir)):[]).filter(file=>/\.ya?ml$/.test(file)).sort();
+ const load=<T,>(dir:string,file:string)=>parse(readFileSync(join(root,dir,file),'utf8')) as T;
+ const words=new Map<string,WordSource&{file:string}>();
+ for(const file of list('words')){
+  const doc=load<WordSource>('words',file);
+  const id=String(doc.id??basename(file,extname(file))).normalize('NFC');
+  const twin=words.get(id);
+  if(twin)fail(`words/${file}: идентификатор «${id}» уже занят файлом words/${twin.file}`);
+  words.set(id,{...doc,file});
+ }
+ const lessons=new Map(list('lessons').map(file=>[basename(file,extname(file)),load<LessonSource>('lessons',file)]));
  const files=new Map<string,Uint8Array>();
  for(const dir of ['art','audio']) if(existsSync(join(root,dir))) for(const file of readdirSync(join(root,dir)))files.set(`${dir}/${file}`,readFileSync(join(root,dir,file)));
- return {words:read<WordSource>('words'),lessons:read<LessonSource>('lessons'),files};
+ return {words,lessons,files};
 }
 
 export interface BuiltFile {path:string;body:string|Uint8Array;mimeType:string}
 export interface BuiltContent {catalog:Catalog;packages:ContentPackage[];files:BuiltFile[];words:PackageWord[];sources:ContentRoot}
 
-function describe(id:string,src:WordSource):PackageWord{
- const where=`words/${id}.yaml`;
- if(!/^[a-z0-9][a-z0-9-]*$/i.test(id))fail(`${where}: имя файла — идентификатор слова, допустимы латиница, цифры и дефис`);
+function describe(id:string,src:WordSource&{file:string}):PackageWord{
+ const where=`words/${src.file}`;
+ if(!/^[\p{L}\p{N}][\p{L}\p{N}-]*$/u.test(id))fail(`${where}: идентификатор «${id}» — буквы, цифры и дефис без пробелов`);
  const greek=text(src.greek,`${where}.greek`)!, russian=text(src.russian,`${where}.russian`)!;
  if(!/[Ͱ-Ͽἀ-῿]/u.test(greek))fail(`${where}: в греческом написании нет греческих букв`);
  const segments=(src.reading??[]).map((note,index):Segment=>{
@@ -85,11 +94,11 @@ function describe(id:string,src:WordSource):PackageWord{
  return {...draft,revision:revisionOf(draft)};
 }
 
-function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8Array>,word:PackageWord):{item:PackageMedia;body:Uint8Array}{
+function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8Array>,word:PackageWord,where:string):{item:PackageMedia;body:Uint8Array}{
  const body=files.get(`${dir}/${file}`);
- if(!body)fail(`words/${word.id}.yaml: файла ${dir}/${file} нет`);
+ if(!body)fail(`${where}: файла ${dir}/${file} нет`);
  const ext=extname(file).toLowerCase();
- const mimeType=MIME[ext]??fail(`words/${word.id}.yaml: неизвестный тип файла ${file}`);
+ const mimeType=MIME[ext]??fail(`${where}: неизвестный тип файла ${file}`);
  if(dir==='art'&&mimeType==='image/svg+xml'&&/<text[\s>]/.test(Buffer.from(body!).toString('utf8')))fail(`art/${file}: подпись в картинке выдаёт ответ`);
  const version=hash(body!,10);
  return {body:body!,item:{
@@ -109,14 +118,14 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   const word=describe(id,src);
   const key=wordKey(word.greek,word.russian);
   const twin=byKey.get(key);
-  if(twin)fail(`words/${id}.yaml повторяет слово «${word.greek} — ${word.russian}» из words/${twin}.yaml`);
+  if(twin)fail(`words/${src.file} повторяет слово «${word.greek} — ${word.russian}» из words/${sources.words.get(twin)!.file}`);
   byKey.set(key,id); words.set(id,word);
  }
  const media=new Map<string,{item:PackageMedia;body:Uint8Array}>();
  for(const [id,src] of sources.words){
   const word=words.get(id)!;
-  if(src.image)media.set(word.imageAssetId!,mediaFor(word.imageAssetId!,src.image,'art',sources.files,word));
-  if(src.audio)media.set(word.audioAssetId!,mediaFor(word.audioAssetId!,src.audio,'audio',sources.files,word));
+  if(src.image)media.set(word.imageAssetId!,mediaFor(word.imageAssetId!,src.image,'art',sources.files,word,`words/${src.file}`));
+  if(src.audio)media.set(word.audioAssetId!,mediaFor(word.audioAssetId!,src.audio,'audio',sources.files,word,`words/${src.file}`));
  }
  const used=new Set<string>();
  const packages:ContentPackage[]=[]; const entries:CatalogEntry[]=[]; const files:BuiltFile[]=[];
@@ -147,7 +156,7 @@ export function buildContent(root=defaultRoot()):BuiltContent{
    media:{count:packMedia.length,bytes:packMedia.reduce((sum,item)=>sum+item.bytes,0)},
   });
  }
- for(const id of words.keys()) if(!used.has(id))fail(`words/${id}.yaml не входит ни в один урок и не будет опубликовано`);
+ for(const id of words.keys()) if(!used.has(id))fail(`words/${sources.words.get(id)!.file} не входит ни в один урок и не будет опубликовано`);
  for(const {item,body} of media.values())files.push({path:item.url,body,mimeType:item.mimeType});
  const catalog:Catalog={schemaVersion:SCHEMA_VERSION,generatedAt:new Date().toISOString(),lessons:entries};
  files.push({path:'content/catalog.json',body:JSON.stringify(catalog),mimeType:'application/json'});

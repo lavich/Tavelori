@@ -45,18 +45,15 @@ export interface PlanSource {
  lessonWordIds(lessonId:string):Promise<string[]>;
  introducedToday(today:string,timezone:string):Promise<number>;
  statesOf(wordIds:string[]):Promise<Map<string,LearningState>>;
- /** Какие из идентификаторов существуют и не удалены; для списков размером с урок. */
  liveWordIds(wordIds:string[]):Promise<Set<string>>;
  /** Удалённых слов мало: их множество дешевле, чем проверять существование тысяч срочных повторений. */
  deletedWordIds():Promise<Set<string>>;
  dueStates(now:Date):Promise<LearningState[]>;
- /** Живые слова в порядке идентификаторов после курсора: используется, только если датированных слов не хватило. */
  scanLiveWordIds(after:string|null,limit:number):Promise<string[]>;
 }
 export interface SessionSource extends PlanSource {
  wordsOf(wordIds:string[]):Promise<Word[]>;
  historyOf(wordId:string):Promise<ReviewEvent[]>;
- /** Ограниченный пул живых слов для вариантов ответа; маленький словарь возвращается целиком. */
  optionPool(want:number):Promise<Word[]>;
 }
 export const OPTION_POOL=48;
@@ -74,7 +71,6 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
   .sort((a,b)=>(a.targetDate!).localeCompare(b.targetDate!)||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id));
 
  const seen=new Set<string>(); const deadlines:DeadlinePlan[]=[]; const dated:string[]=[];
- /** Слово новое, если оно живое и без состояния; проверяется порцией по идентификаторам урока. */
  const fresh=async(ids:string[])=>{
   const unseen=ids.filter(id=>!seen.has(id));
   const [live,states]=await Promise.all([source.liveWordIds(unseen),source.statesOf(unseen)]);
@@ -184,7 +180,6 @@ export function optionsFor(word:Word,pool:Word[],type:ExerciseType,random:()=>nu
 }
 
 export interface SessionInput {source:SessionSource;now:Date;random?:()=>number;mode?:'scheduled'|'practice';wordIds?:string[];hasVoice?:boolean}
-/** Полные карточки загружаются только для выбранных слов; история — только по ним. */
 export async function makeSession({source,now,random=Math.random,mode='scheduled',wordIds,hasVoice=false}:SessionInput):Promise<Session>{
  const plan=await makePlan(source,now);
  const settings=await source.settings();

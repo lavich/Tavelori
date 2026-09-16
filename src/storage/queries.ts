@@ -7,7 +7,6 @@ import {scheduleLessons} from '../domain/schedule';
 import type {StatsSource} from '../domain/stats';
 import {fillSettings, type LearningState, type Lesson, type LessonWord, type Word} from '../domain/types';
 
-/** Границы составного индекса по первому компоненту. */
 const span=(first:string)=>[[first,Dexie.minKey],[first,Dexie.maxKey]] as const;
 export const PAGE_SIZE=50;
 
@@ -18,18 +17,15 @@ export const lessonLinks=(lessonId:string,database:LexiDatabase=db):Promise<Less
  database.lessonWords.where('[lessonId+position]').between(...span(lessonId)).toArray();
 export const lessonWordCount=(lessonId:string,database:LexiDatabase=db)=>database.lessonWords.where('[lessonId+position]').between(...span(lessonId)).count();
 export const deletedWordIds=async(database:LexiDatabase=db)=>new Set(await database.words.where('deletedAt').above('').primaryKeys());
-/** Существующие и не удалённые идентификаторы: читаются ключи индекса, а не карточки. */
 export async function liveWordIds(ids:string[],database:LexiDatabase=db):Promise<Set<string>>{
  if(!ids.length)return new Set();
  const [present,deleted]=await Promise.all([database.words.where('id').anyOf(ids).primaryKeys(),deletedWordIds(database)]);
  return new Set(present.filter(id=>!deleted.has(id)));
 }
 export const statesOf=async(ids:string[],database:LexiDatabase=db)=>new Map((await database.states.bulkGet(ids)).filter((s):s is LearningState=>!!s).map(s=>[s.wordId,s]));
-/** Живые карточки в заданном порядке; отсутствующие пропускаются. */
 export const liveWords=async(ids:string[],database:LexiDatabase=db):Promise<StoredWord[]>=>
  (await database.words.bulkGet(ids)).filter((w):w is StoredWord=>!!w&&!w.deletedAt);
 
-/** Источник планировщика и статистики на Dexie: ограниченные выборки по индексам. */
 export function dexieSource(database:LexiDatabase=db):SessionSource&StatsSource{
  return {
   settings:()=>loadSettings(database),
@@ -123,7 +119,6 @@ export interface WordPageRequest {query:string;filter:WordFilter;lessonId:string
 export type WordCursor={kind:'browse';sortKey:string;id:string}|{kind:'list';offset:number};
 export interface WordPage {items:{word:StoredWord;group:WordGroup}[];cursor:WordCursor|null;scope:'search'|'lesson'|'all'}
 
-/** Идентификаторы совпадений по префиксам токенов: только ключи индекса, порядок — по совпавшему токену. */
 export async function searchWordIds(query:string,database:LexiDatabase=db):Promise<string[]>{
  const tokens=searchTokens(query);
  if(!tokens.length)return [];
@@ -133,7 +128,6 @@ export async function searchWordIds(query:string,database:LexiDatabase=db):Promi
  return [...new Set(first)].filter(id=>others.every(set=>set.has(id)));
 }
 
-/** Страница словаря не больше `limit` карточек; фильтры применяются к порциям, пока страница не заполнится или список не кончится. */
 export async function wordPage({query,filter,lessonId,cursor,limit=PAGE_SIZE}:WordPageRequest,database:LexiDatabase=db):Promise<WordPage>{
  const items:WordPage['items']=[];
  const groupsOf=async(words:(StoredWord|undefined)[])=>{
@@ -176,14 +170,12 @@ export async function wordPage({query,filter,lessonId,cursor,limit=PAGE_SIZE}:Wo
   }
  }
 }
-/** Внутри урока поиск идёт по тем же токенам, но ограничен его словами. */
 async function matches(query:string,database:LexiDatabase){
  if(!query.trim())return()=>true;
  const found=new Set(await searchWordIds(query,database));
  return(id:string)=>found.has(id);
 }
 
-/** Предпросмотр импорта: дубликаты и совпадения по написанию ищутся по ключам, без чтения словаря целиком. */
 export async function importPreview(rows:{greek:string;russian:string}[],database:LexiDatabase=db):Promise<{duplicates:number;conflicts:number}>{
  let duplicates=0,conflicts=0;
  for(const row of rows){

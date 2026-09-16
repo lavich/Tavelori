@@ -27,12 +27,10 @@ export const useActiveSession=():Session|undefined|null=>useLiveQuery(()=>
  db.sessions.where('[status+createdAt]').between(['active',Dexie.minKey],['active',Dexie.maxKey]).reverse().first().then(session=>session??null),[]);
 export const useCounts=()=>useLiveQuery(async()=>({words:await db.words.count()-(await deletedWordIds()).size,answers:await db.events.count()}),[]);
 
-/** Каталог и установленные пакеты читаются вместе: экран сам решает, что показывать как доступное к загрузке. */
 export const useCatalog=()=>useLiveQuery(async()=>({entries:await db.catalog.toArray(),packages:await db.packages.toArray()}),[]);
 export const useInstallPhase=(lessonId:string|undefined)=>useSyncExternalStore(subscribeInstall,()=>installPhase(lessonId??''));
 export const useReadiness=(lessonId:string|undefined)=>useLiveQuery(()=>lessonId?lessonReadiness(lessonId):undefined,[lessonId]);
 
-/** Картинка читается из базы; отсутствующий файл догружается по описанию пакета и сохраняется локально. */
 export function useAssetUrl(id:string|undefined):string|null{
  const [url,setUrl]=useState<string|null>(null);
  useEffect(()=>{

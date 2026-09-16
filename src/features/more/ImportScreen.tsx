@@ -25,7 +25,6 @@ export function ImportScreen(){
  const [problem,setProblem]=useState('');
  const [busy,setBusy]=useState(false);
  const parsed=useMemo(()=>parseImport(text),[text]);
- // Дубликаты и совпадения считаются по индексам ключей для распознанных строк, а не по всему словарю.
  const preview=useLiveQuery(()=>importPreview(parsed.rows),[text]);
  const duplicates=preview?.duplicates??0, conflicts=preview?.conflicts??0;
 

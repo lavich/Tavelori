@@ -9,7 +9,7 @@ const KNOWN_MARKERS=['lexi:1',APP_MARKER];
 const SCHEMA_VERSION=2;
 export interface BackupReport {databaseName:string;tables:{name:string;rows:number}[];createdAt:string|null;bytes:number;legacy:boolean}
 
-/** Полная копия читает все таблицы напрямую, без реактивной подписки экранов; каталог — кеш и в копию не входит. */
+/** Каталог — кеш, а не данные пользователя: в копию не входит. */
 export async function exportFull(database:LexiDatabase=db):Promise<Blob>{
  await database.meta.put({key:'app',value:APP_MARKER});
  await database.meta.put({key:'exportedAt',value:new Date().toISOString()});
@@ -23,7 +23,6 @@ export function download(blob:Blob,name:string){
 }
 export const backupName=(now=new Date())=>`lexi-backup-${now.toISOString().slice(0,10)}.json`;
 
-/** TSV собирается потоком по таблице слов, а не из снимка приложения. */
 export async function exportWordsTsv(database:LexiDatabase=db):Promise<Blob>{
  const rows:string[]=['Греческий\tРусский\tIPA'];
  await database.words.orderBy('[sortKey+id]').each(word=>{

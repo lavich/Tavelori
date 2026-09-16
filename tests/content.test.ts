@@ -19,7 +19,7 @@ const prepared=[...wordsOf(content,'lesson-1-1'),...wordsOf(content,'lesson-1-2'
 const packageOf=(id:string)=>content.packages.find(p=>p.id===id)!;
 const fileOf=(path:string)=>content.files.find(file=>file.path===path)!;
 const lessonSource=(id:string)=>content.sources.lessons.get(id)!;
-const seedArt=(id:string)=>Buffer.from(content.sources.files.get(`art/${id}.svg`)!).toString('utf8');
+const seedArt=(id:string)=>Buffer.from(content.sources.files.get(`art/${content.sources.words.get(id)!.image}`)!).toString('utf8');
 
 /** Копия исходников, в которой можно сломать один файл и проверить отказ публикации. */
 function brokenCopy(mutate:(root:string)=>void){
@@ -126,17 +126,26 @@ describe('каталог и пакеты',()=>{
   expect([...content.sources.lessons.keys()]).toEqual(content.packages.map(p=>p.id));
  });
  it('публикация отклоняет дубликаты слов, битые ссылки уроков, сирот и подписи в картинках',()=>{
-  const copy=(root:string,from:string,to:string)=>writeFileSync(join(root,'words',`${to}.yaml`),readFileSync(join('content','words',`${from}.yaml`)));
+  const house=readFileSync('content/words/το-σπίτι.yaml','utf8');
   expect(()=>brokenCopy(root=>{
-   copy(root,'w12-16','w99-01');
+   writeFileSync(join(root,'words','дубль.yaml'),house.replace('id: w12-16','id: w99-01'));
    writeFileSync(join(root,'lessons','lesson-1-2.yaml'),readFileSync('content/lessons/lesson-1-2.yaml','utf8').replace('- w12-16','- w99-01'));
   })).toThrow(/повторяет слово «το σπίτι — дом»/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','дубль.yaml'),house))).toThrow(/идентификатор «w12-16» уже занят/);
   expect(()=>brokenCopy(root=>writeFileSync(join(root,'lessons','lesson-1-2.yaml'),readFileSync('content/lessons/lesson-1-2.yaml','utf8').replace('- w12-16','- w12-99'))))
    .toThrow(/слова w12-99 нет/);
-  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','w99-01.yaml'),'greek: το τεστ\nrussian: тест\n'))).toThrow(/не входит ни в один урок/);
-  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','w12-16.svg'),'<svg xmlns="http://www.w3.org/2000/svg"><text>дом</text></svg>'))).toThrow(/выдаёт ответ/);
-  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','w12-16.yaml'),readFileSync('content/words/w12-16.yaml','utf8').replace('image: w12-16.svg','image: нет.svg')))).toThrow(/файла art\/нет.svg нет/);
-  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','w12-16.yaml'),readFileSync('content/words/w12-16.yaml','utf8').replace('target: σπίτι','target: σπιτάκι')))).toThrow(/не встречается в предложении/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','το-τεστ.yaml'),'greek: το τεστ\nrussian: тест\n'))).toThrow(/не входит ни в один урок/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),'<svg xmlns="http://www.w3.org/2000/svg"><text>дом</text></svg>'))).toThrow(/выдаёт ответ/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','το-σπίτι.yaml'),house.replace('image: το-σπίτι.svg','image: нет.svg')))).toThrow(/файла art\/нет.svg нет/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','το-σπίτι.yaml'),house.replace('target: σπίτι','target: σπιτάκι')))).toThrow(/не встречается в предложении/);
+ });
+ it('новое слово без поля id получает идентификатор из имени файла',()=>{
+  const built=brokenCopy(root=>{
+   writeFileSync(join(root,'words','το-δοκίμιο.yaml'),'greek: το δοκίμιο\nrussian: очерк\n');
+   writeFileSync(join(root,'lessons','lesson-1-4.yaml'),readFileSync('content/lessons/lesson-1-4.yaml','utf8')+'  - το-δοκίμιο\n');
+  });
+  expect(built.words.find(word=>word.id==='το-δοκίμιο')).toMatchObject({greek:'το δοκίμιο',russian:'очерк'});
+  expect(built.packages.find(p=>p.id==='lesson-1-4')!.links.at(-1)!.wordId).toBe('το-δοκίμιο');
  });
  it('повреждённый, неполный и несовместимый пакет отклоняются понятной ошибкой',()=>{
   const pack=JSON.parse(fileOf(content.catalog.lessons[0].url).body as string);

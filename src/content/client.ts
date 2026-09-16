@@ -2,13 +2,11 @@ import {db, indexWord, type LexiDatabase} from '../storage/db';
 import {ContentError, parseCatalog, parsePackage, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackageWord, type ShippedField} from './schema';
 import type {Asset, InstalledPackage, Word} from '../domain/types';
 
-/** Доставка контента отделена от его проверки и установки: в тестах подставляется источник в памяти. */
 export interface ContentFetcher {json(url:string):Promise<unknown>;blob(url:string):Promise<Blob>}
 
 const offline=()=>typeof navigator!=='undefined'&&navigator.onLine===false;
 const networkError=(what:string)=>new ContentError(offline()?`Нет сети: ${what} ещё не загружен на это устройство.`:`Не удалось загрузить ${what}. Проверьте соединение и повторите.`,'network');
 
-/** Ссылки каталога относительные: работают при любом базовом пути приложения. */
 export function httpFetcher(base:string=import.meta.env.BASE_URL):ContentFetcher{
  const resolve=(url:string)=>`${base.endsWith('/')?base:`${base}/`}${url}`;
  const load=async(url:string,what:string,init?:RequestInit)=>{
@@ -19,7 +17,6 @@ export function httpFetcher(base:string=import.meta.env.BASE_URL):ContentFetcher
   return response;
  };
  return {
-  // Каталог обновляется, пакеты и медиа неизменяемы: их можно брать из HTTP-кеша.
   json:async url=>(await load(url,url.endsWith('catalog.json')?'каталог уроков':'пакет урока',url.endsWith('catalog.json')?{cache:'no-cache'}:undefined)).json().catch(()=>{throw new ContentError('Файл контента повреждён: это не JSON.')}),
   blob:async url=>(await load(url,'файл медиа')).blob(),
  };
@@ -27,7 +24,6 @@ export function httpFetcher(base:string=import.meta.env.BASE_URL):ContentFetcher
 export let fetcher:ContentFetcher=httpFetcher();
 export const useFetcher=(next:ContentFetcher)=>{fetcher=next};
 
-/** Каталог заменяется целиком после проверки; ошибка сети оставляет прежний кеш и установленные уроки. */
 export async function refreshCatalog(database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<Catalog>{
  const catalog=parseCatalog(await source.json('content/catalog.json'));
  await database.transaction('rw',database.catalog,database.meta,async()=>{
@@ -41,7 +37,6 @@ export async function refreshCatalog(database:LexiDatabase=db,source:ContentFetc
 export interface Conflict {wordId:string;greek:string;fields:(ShippedField|'deleted')[]}
 export interface InstallResult {status:'installed'|'updated'|'current';added:number;changed:number;conflicts:Conflict[]}
 
-/** Состояние загрузки живёт в памяти вкладки и не путается с данными: экраны подписываются на него отдельно. */
 export type InstallPhase={phase:'idle'}|{phase:'loading'}|{phase:'error';message:string;kind:ContentError['kind']};
 const IDLE:InstallPhase={phase:'idle'};
 const phases=new Map<string,InstallPhase>();
@@ -52,7 +47,6 @@ export const installPhase=(lessonId:string):InstallPhase=>phases.get(lessonId)??
 export const subscribeInstall=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener)}};
 
 const inflight=new Map<string,Promise<InstallResult>>();
-/** Одновременные запросы одного урока объединяются; повторная установка той же версии ничего не меняет. */
 export function installLesson(lessonId:string,database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<InstallResult>{
  const running=inflight.get(lessonId);
  if(running)return running;
@@ -110,7 +104,6 @@ function assign(word:Word,field:ShippedField,value:unknown){
  if(value===undefined)delete target[field]; else target[field]=value;
 }
 
-/** Слова, связи, медиа и версия пишутся одной транзакцией: ошибка не оставляет частичного урока. */
 export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db):Promise<InstallResult>{
  const now=new Date().toISOString();
  return database.transaction('rw',database.words,database.lessons,database.lessonWords,database.packages,database.media,async()=>{
@@ -129,7 +122,6 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
    }
    if(local.revision===incoming.revision)continue;
    if(local.deletedAt){
-    // Удалённое слово не воскресает; если пакет его изменил, пользователь узнаёт об этом.
     if(!same(shipped(incoming),shipped(base.get(incoming.id)??{...incoming,...pickShipped(local)})))result.conflicts.push({wordId:local.id,greek:local.greek,fields:['deleted']});
     await database.words.update(local.id,{revision:incoming.revision});
     continue;
@@ -151,7 +143,6 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
 const pickShipped=(word:Word)=>Object.fromEntries(SHIPPED_FIELDS.filter(field=>word[field]!==undefined).map(field=>[field,word[field]]));
 
 const mediaInflight=new Map<string,Promise<Asset|null>>();
-/** Медиа скачивается при первом использовании и сохраняется в базе; ссылка на файл берётся из описания пакета. */
 export function ensureAsset(id:string,database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<Asset|null>{
  const running=mediaInflight.get(id);
  if(running)return running;
@@ -174,7 +165,6 @@ export function ensureAsset(id:string,database:LexiDatabase=db,source:ContentFet
 }
 
 export interface Readiness {installed:boolean;version:string|null;updateAvailable:boolean;required:number;present:number;missing:string[]}
-/** Готовность считается по фактическому наличию файлов, а не по факту запуска загрузки. */
 export async function lessonReadiness(lessonId:string,database:LexiDatabase=db):Promise<Readiness>{
  const [pack,entry]=await Promise.all([database.packages.get(lessonId),database.catalog.get(lessonId)]);
  if(!pack)return {installed:false,version:null,updateAvailable:false,required:0,present:0,missing:[]};
@@ -186,7 +176,6 @@ export async function lessonReadiness(lessonId:string,database:LexiDatabase=db):
   required:required.length,present:present.length,missing:required.filter(item=>!have.has(item.id)).map(item=>item.id),
  };
 }
-/** «Скачать для офлайн»: все обязательные ресурсы урока; ошибки собираются, а не прячутся за успехом. */
 export async function downloadLessonMedia(lessonId:string,database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<{fetched:number;failed:string[]}>{
  const readiness=await lessonReadiness(lessonId,database);
  let fetched=0; const failed:string[]=[];

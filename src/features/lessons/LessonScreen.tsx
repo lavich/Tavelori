@@ -19,7 +19,6 @@ import {removeFromLesson, updateLesson} from '../../storage/ops';
 import {startSession} from '../learning/session-actions';
 import ui from '../../shared/ui.module.css';
 
-/** Сообщение об обновлении: локальные правки сохранены, конфликты названы, а не проглочены. */
 export function reportInstall(result:InstallResult){
  if(result.status==='current')return;
  const summary=result.status==='installed'?`Урок загружен: ${withCount(result.added,WORDS)}.`:`Урок обновлён: новых ${result.added}, изменено ${result.changed}.`;

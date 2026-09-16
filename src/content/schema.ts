@@ -19,13 +19,11 @@ export interface PackageWord {
  segments:Segment[]; examples:Example[];
  imageAssetId?:string; audioAssetId?:string;
  sourceMastered:boolean; verified:boolean; source?:string;
- /** Ревизия содержимого: по ней сравниваются установленная и новая версии слова. */
  revision:string;
 }
 export interface PackageLink {wordId:string;position:number}
 export interface PackageMedia {
  id:string; kind:'image'|'audio'; mimeType:string; url:string; bytes:number; version:string;
- /** Обязательный ресурс входит в готовность урока офлайн. */
  required:boolean; alt:string; source:string;
 }
 export interface ContentPackage {
@@ -54,7 +52,6 @@ const nullableDay=(value:unknown,path:string):string|null=>{
  if(!/^\d{4}-\d{2}-\d{2}$/.test(day))throw new ContentError(`${path}: дата должна быть в формате ГГГГ-ММ-ДД`);
  return day;
 };
-/** Ссылки внутри контента относительные и не выходят за базовый путь приложения. */
 const relativeUrl=(value:unknown,path:string):string=>{
  const url=str(value,path);
  if(!url||url.startsWith('/')||url.includes('..')||/^[a-z]+:/i.test(url))throw new ContentError(`${path}: ссылка должна быть относительной`);

@@ -4,7 +4,6 @@ import {normalize, wordKey} from '../domain/import';
 import {defaultSettings, type Asset, type InstalledPackage, type LearningState, type Lesson, type LessonWord, type MediaRef, type ReviewEvent, type Session, type Settings, type Word} from '../domain/types';
 
 export interface MetaRow {key:string;value:string}
-/** Служебные поля индексов: ключ дедупликации, ключ сортировки и токены поиска. Считаются при каждой записи слова. */
 export interface IndexFields {key:string;greekKey:string;sortKey:string;tokens:string[]}
 export type StoredWord=Word&IndexFields;
 
@@ -88,7 +87,6 @@ export async function migrateLegacy(tx:Pick<Transaction,'table'>):Promise<void>{
  await meta.delete('seed');
 }
 
-/** Настройки по умолчанию появляются при первом открытии; контент больше не устанавливается автоматически. */
 export async function ensureDefaults(database:LexiDatabase=db):Promise<void>{
  if(!await database.settings.get('settings'))await database.settings.add(defaultSettings);
 }
