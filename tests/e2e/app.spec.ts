@@ -2,7 +2,7 @@ import {expect, test} from '@playwright/test';
 import {ready, seedQueue} from './helpers';
 import {addDays} from '../../src/domain/learning';
 import {isoWeekday} from '../../src/domain/schedule';
-import {dativeWeekday, dayMonth} from '../../src/shared/format';
+import {capitalize, dativeWeekday, dayMonth, weekday} from '../../src/shared/format';
 
 test.beforeEach(async({page})=>{
  await page.goto('/');
@@ -122,7 +122,7 @@ test('будущие занятия: импорт нового набора бе
 });
 
 test('расписание: даты уроков 1.3 и 1.4, ручной перенос сдвигает хвост, возврат в расписание',async({page})=>{
- // Первое занятие — не раньше сегодня и после якоря 1.2 (18 сентября), поэтому проверка не зависит от календаря.
+ // Первое занятие — урок 1.1 — не раньше сегодня и после якоря 1.2 (18 сентября), поэтому проверка не зависит от календаря.
  const today=new Date().toISOString().slice(0,10);
  const start=[addDays(today,2),'2026-09-19'].sort().pop()!;
  const days=[isoWeekday(start),isoWeekday(addDays(start,3))];
@@ -145,13 +145,14 @@ test('расписание: даты уроков 1.3 и 1.4, ручной пе�
  await page.getByRole('button',{name:'Сохранить'}).click();
  const named=[...days].sort((a,b)=>a-b).map(day=>SHORT[day-1]);
  await expect(page.getByText(`${named[0]} и ${named[1]}, первое занятие ${dayMonth(start)}`)).toBeVisible();
- await expect(lessonAt('1\\.3',start)).toBeVisible();
- await expect(lessonAt('1\\.4',addDays(start,3))).toBeVisible();
+ await expect(page.getByRole('link',{name:new RegExp(`1\\.1 · ${capitalize(weekday(start))}, ${dayMonth(start)}`)})).toContainText('проведён');
+ await expect(lessonAt('1\\.3',addDays(start,3))).toBeVisible();
+ await expect(lessonAt('1\\.4',addDays(start,7))).toBeVisible();
  await expect(page.getByRole('link',{name:/1\.2 ·/})).toContainText('дата вручную');
  await expect(page.getByRole('link',{name:/1\.3 ·/})).not.toContainText('дата вручную');
 
- await lessonAt('1\\.3',start).click();
- await expect(page.locator('#date')).toHaveValue(start);
+ await lessonAt('1\\.3',addDays(start,3)).click();
+ await expect(page.locator('#date')).toHaveValue(addDays(start,3));
  await expect(page.getByText('Дата по расписанию. Своя дата сдвинет следующие уроки.')).toBeVisible();
  await page.locator('#date').fill(addDays(start,7));
  await page.getByRole('button',{name:'Сохранить дату'}).click();
@@ -163,15 +164,15 @@ test('расписание: даты уроков 1.3 и 1.4, ручной пе�
 
  await lessonAt('1\\.3',addDays(start,7)).click();
  await page.getByRole('button',{name:'Вернуть в расписание'}).click();
- await expect(page.locator('#date')).toHaveValue(start);
+ await expect(page.locator('#date')).toHaveValue(addDays(start,3));
  await expect(page.getByText('Дата по расписанию. Своя дата сдвинет следующие уроки.')).toBeVisible();
  await lessons();
- await expect(lessonAt('1\\.3',start)).toBeVisible();
- await expect(lessonAt('1\\.4',addDays(start,3))).toBeVisible();
+ await expect(lessonAt('1\\.3',addDays(start,3))).toBeVisible();
+ await expect(lessonAt('1\\.4',addDays(start,7))).toBeVisible();
 
  // Экран «Сегодня» показывает срок по дате из расписания.
  await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click();
- await expect(page.getByRole('link',{name:new RegExp(`1\\.3 · К ${dativeWeekday(start)}`)})).toBeVisible();
+ await expect(page.getByRole('link',{name:new RegExp(`1\\.3 · К ${dativeWeekday(addDays(start,3))}`)})).toBeVisible();
 
  await lessons();
  await page.getByRole('button',{name:'Изменить расписание'}).click();
@@ -199,8 +200,8 @@ test('расписание с первым занятием в прошлом с
  await expect(page.getByText('Дата в прошлом: уроки, чьи дни уже прошли, будут отмечены проведёнными.')).toBeVisible();
  for(const day of days)await page.getByRole('button',{name:SHORT[day-1],exact:true}).click();
  await page.getByRole('button',{name:'Сохранить'}).click();
- for(const [number,day] of [['1\\.2',start],['1\\.3',addDays(start,3)],['1\\.4',addDays(start,7)]] as const){
-  const item=page.getByRole('link',{name:new RegExp(`${number} · К ${dativeWeekday(day)}, ${dayMonth(day)}`)});
+ for(const [number,day] of [['1\\.1',start],['1\\.2',addDays(start,3)],['1\\.3',addDays(start,7)],['1\\.4',addDays(start,10)]] as const){
+  const item=page.getByRole('link',{name:new RegExp(`${number} · ${capitalize(weekday(day))}, ${dayMonth(day)}`)});
   await expect(item).toContainText('проведён');
  }
  await expect(page.getByRole('link',{name:/1\.2 ·/})).not.toContainText('предстоит');

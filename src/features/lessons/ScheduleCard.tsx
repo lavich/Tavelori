@@ -16,7 +16,7 @@ export const listDays=(days:number[])=>{
  return names.length>1?`${names.slice(0,-1).join(', ')} и ${names[names.length-1]}`:names[0]??'';
 };
 
-export function ScheduleCard({settings,today}:{settings:Settings;today:string}){
+export function ScheduleCard({settings,today,first}:{settings:Settings;today:string;first?:string}){
  const {schedule}=settings;
  const active=scheduleSet(schedule);
  const [editing,setEditing]=useState(false);
@@ -46,6 +46,7 @@ export function ScheduleCard({settings,today}:{settings:Settings;today:string}){
        <FieldLabel htmlFor="start">Первое занятие</FieldLabel>
        <Input id="start" type="date" value={start} aria-invalid={problem.includes('дату')||undefined}
         onChange={event=>{setStart(event.target.value);setProblem('')}}/>
+       {first&&<FieldDescription>Первый урок по порядку — «{first}».</FieldDescription>}
        {start&&start<today&&<FieldDescription>Дата в прошлом: уроки, чьи дни уже прошли, будут отмечены проведёнными.</FieldDescription>}
       </Field>
       <div className="mt-3 grid grid-cols-7 gap-1.5" role="group" aria-label="Дни недели">

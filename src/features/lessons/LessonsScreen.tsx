@@ -8,9 +8,9 @@ import {Input} from '@/components/ui/input';
 import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
 import {localDay} from '../../domain/learning';
-import {scheduleSet} from '../../domain/schedule';
+import {lessonOrder, scheduleSet} from '../../domain/schedule';
 import {useNow} from '../../shared/clock';
-import {dativeWeekday, dayMonth, shortTitle, withCount, WORDS} from '../../shared/format';
+import {capitalize, dativeWeekday, dayMonth, shortTitle, weekday, withCount, WORDS} from '../../shared/format';
 import {useSnapshot} from '../../shared/store';
 import {createLesson} from '../../storage/ops';
 import {ScheduleCard} from './ScheduleCard';
@@ -37,13 +37,13 @@ export function LessonsScreen(){
    <BrandBar/>
    <main className={ui.screen}>
     <h1>Уроки</h1>
-    <ScheduleCard settings={data.settings} today={today}/>
+    <ScheduleCard settings={data.settings} today={today} first={[...data.lessons].sort(lessonOrder)[0]?.title}/>
     <ItemGroup className="gap-2.5">
      {lessons.map(lesson=>(
       <Item key={lesson.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
        <ItemMedia variant="icon"><FileText/></ItemMedia>
        <ItemContent>
-        <ItemTitle className="text-base">{shortTitle(lesson.title)} · {lesson.targetDate?`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`:'Без даты'}</ItemTitle>
+        <ItemTitle className="text-base">{shortTitle(lesson.title)} · {!lesson.targetDate?'Без даты':lesson.status==='completed'?`${capitalize(weekday(lesson.targetDate))}, ${dayMonth(lesson.targetDate)}`:`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`}</ItemTitle>
         <ItemDescription>{withCount(lesson.wordIds.length,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}{lesson.status!=='completed'&&lesson.dateSource==='manual'?' · дата вручную':''}</ItemDescription>
        </ItemContent>
        <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>

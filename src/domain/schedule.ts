@@ -21,7 +21,7 @@ export function nextLessonDay(day:string,weekdays:number[],inclusive:boolean):st
  return cursor;
 }
 
-/** Копии уроков с датами по расписанию в исходном порядке массива; исходные объекты не меняются. */
+/** Копии уроков с датами по расписанию в исходном порядке массива; исходные объекты не меняются. Дата первого занятия — день первого урока по порядку, проведённые не исключение. */
 export function scheduleLessons(lessons:Lesson[],schedule:Schedule):Lesson[]{
  const {weekdays}=schedule;
  let cursor=scheduleSet(schedule)?nextLessonDay(schedule.startDate!,weekdays,true):null;
@@ -30,7 +30,7 @@ export function scheduleLessons(lessons:Lesson[],schedule:Schedule):Lesson[]{
   if(lesson.targetDate){
    dated.set(lesson.id,{...lesson,dateSource:'manual'});
    if(cursor){const after=nextLessonDay(lesson.targetDate,weekdays,false);if(after>cursor)cursor=after}
-  }else if(!cursor||lesson.status==='completed'){
+  }else if(!cursor){
    dated.set(lesson.id,{...lesson});
   }else{
    dated.set(lesson.id,{...lesson,targetDate:cursor,dateSource:'schedule'});
