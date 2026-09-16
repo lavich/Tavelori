@@ -54,7 +54,7 @@ describe('миграция схемы без сети',()=>{
   await seedLegacy();
   const db=new LexiDatabase(NAME);
   await db.open();
-  expect(db.verno).toBe(3);
+  expect(db.verno).toBe(4);
   const l12=wordsOf('lesson-1-2');
   expect((await lessonLinks('lesson-1-2',db)).map(link=>link.wordId)).toEqual(l12.map(w=>w.id));
   expect((await lessonLinks('lesson-own',db)).map(link=>[link.wordId,link.position])).toEqual([['w-own',0],['w12-16',1]]);
@@ -76,6 +76,17 @@ describe('миграция схемы без сети',()=>{
   // Индексы построены для уже установленных слов.
   expect(await searchWordIds('σπι',db)).toEqual(['w12-16']);
   expect(await searchWordIds('стул',db)).toEqual(['w-own']);
+  db.close();
+ });
+ it('заводит локальный курс и кладёт в него наборы без пакета, а поставляемые оставляет без курса',async()=>{
+  await seedLegacy();
+  const db=new LexiDatabase(NAME);
+  await db.open();
+  expect(db.verno).toBe(4);
+  expect(await db.courses.get('my')).toMatchObject({id:'my',origin:'local',subscribed:true});
+  expect((await db.lessons.get('lesson-own'))!.courseId).toBe('my'); // создан пользователем — пакета нет
+  expect((await db.lessons.get('lesson-1-2'))!.courseId).toBeUndefined(); // пакет прежней сборки курса не знает
+  expect(await db.courses.count()).toBe(1); // курсы из поставки появятся с каталогом
   db.close();
  });
  it('после миграции первое обновление пакета заменяет нетронутые слова и сохраняет правки, удаления и порядок',async()=>{
@@ -156,7 +167,7 @@ describe('резервная копия',()=>{
   await installLessons(db,['lesson-1-1']);
   const before=await db.words.count();
   expect(await inspectBackup(new Blob(['{не json']))).toMatchObject({ok:false});
-  expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:4,tables:[],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/более новой версией/)});
+  expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:5,tables:[],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/более новой версией/)});
   expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:2,tables:[{name:'words',rowCount:0}],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/обязательных таблиц/)});
   const good=JSON.parse(await (await exportFull(db)).text());
   const links=good.data.data.find((t:{tableName:string})=>t.tableName==='lessonWords');

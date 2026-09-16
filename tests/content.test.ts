@@ -25,7 +25,7 @@ const seedArt=(id:string)=>Buffer.from(content.sources.files.get(`art/${content.
 /** Копия исходников, в которой можно сломать один файл и проверить отказ публикации. */
 function brokenCopy(mutate:(root:string)=>void){
  const root=mkdtempSync(join(tmpdir(),'lexi-content-'));
- for(const dir of ['words','lessons','art'])cpSync(join('content',dir),join(root,dir),{recursive:true});
+ for(const dir of ['words','lessons','art','courses'])cpSync(join('content',dir),join(root,dir),{recursive:true});
  mutate(root);
  try{return buildContent(root)}finally{rmSync(root,{recursive:true,force:true})}
 }
@@ -92,6 +92,33 @@ describe('наборы класса переносятся без потерь �
     expect(word.imageAssetId,word.greek).toBeUndefined();
    }
   }
+ });
+});
+
+describe('уроки принадлежат курсам',()=>{
+ it('каталог отдаёт состав курса, а урок и пакет знают свой курс',()=>{
+  const leeke=content.catalog.courses.find(course=>course.id==='leeke')!;
+  expect(leeke.title).toBe('LEEKE A2');
+  expect(leeke.lessonIds).toEqual(content.packages.map(pack=>pack.id));
+  for(const entry of content.catalog.lessons)expect(entry.courseId,entry.id).toBe('leeke');
+  for(const pack of content.packages)expect(pack.courseId,pack.id).toBe('leeke');
+ });
+ it('публикация требует, чтобы урок входил ровно в один курс',()=>{
+  const leeke=readFileSync('content/courses/leeke.yaml','utf8');
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'courses','leeke.yaml'),leeke.replace('  - lesson-2-2\n',''))))
+   .toThrow(/lessons\/lesson-2-2.yaml: урок не входит ни в один курс/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'courses','другой.yaml'),'title: Другой курс\nlessons:\n  - lesson-2-2\n')))
+   .toThrow(/courses\/другой.yaml: урок lesson-2-2 уже входит в курс leeke/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'courses','leeke.yaml'),leeke+'  - lesson-9-9\n')))
+   .toThrow(/courses\/leeke.yaml: урока lesson-9-9 нет/);
+ });
+ it('каталог и пакет прежней версии без курса читаются как раньше',()=>{
+  const catalog=JSON.parse(fileOf('content/catalog.json').body as string);
+  const {courses:_,...flat}=catalog;
+  expect(parseCatalog({...flat,lessons:catalog.lessons.map(({courseId:_id,...rest}:Record<string,unknown>)=>rest)}).courses).toEqual([]);
+  const pack=JSON.parse(fileOf(content.catalog.lessons[0].url).body as string);
+  const {courseId:_c,...older}=pack;
+  expect(parsePackage(older).courseId).toBe('');
  });
 });
 

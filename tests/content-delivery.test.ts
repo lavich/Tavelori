@@ -29,6 +29,36 @@ function withUpdate(id:string,next:ContentPackage){
 /** Каталог уже знает о новой версии: так выглядит обновление после фонового refreshCatalog. */
 async function upgrade(id:string,next:ContentPackage){const fetcher=withUpdate(id,next);await refreshCatalog(db,fetcher);return fetcher}
 
+describe('курсы',()=>{
+ it('установка запоминает курс урока и в уроке, и в пакете',async()=>{
+  await installLessons(db,['lesson-2-1']);
+  expect((await db.lessons.get('lesson-2-1'))!.courseId).toBe('leeke');
+  expect((await db.packages.get('lesson-2-1'))!.courseId).toBe('leeke');
+ });
+ it('обновление проставляет курс уроку, установленному без него',async()=>{
+  await installLessons(db,['lesson-1-2']);
+  await db.lessons.update('lesson-1-2',{courseId:undefined}); // база после перехода на курсы
+  await applyPackage(packageOf('lesson-1-2'),db);
+  expect((await db.lessons.get('lesson-1-2'))!.courseId).toBe('leeke');
+ });
+ it('обновление каталога заводит курсы и подписывает тот, чьи уроки уже стоят',async()=>{
+  await installLessons(db,['lesson-1-1']);
+  await db.lessons.update('lesson-1-1',{courseId:undefined});
+  await db.courses.clear();
+  await refreshCatalog(db,memoryFetcher());
+  expect((await db.lessons.get('lesson-1-1'))!.courseId).toBe('leeke');
+  expect(await db.courses.get('leeke')).toMatchObject({title:'LEEKE A2',origin:'content',subscribed:true});
+ });
+ it('курс без установленных уроков остаётся неподписанным, а повторное обновление ничего не ломает',async()=>{
+  await refreshCatalog(db,memoryFetcher());
+  expect(await db.courses.get('leeke')).toMatchObject({subscribed:false});
+  const first=await db.courses.get('leeke');
+  await refreshCatalog(db,memoryFetcher());
+  expect(await db.courses.count()).toBe(1);
+  expect((await db.courses.get('leeke'))!.createdAt).toBe(first!.createdAt);
+ });
+});
+
 describe('каталог',()=>{
  it('запуск читает только каталог: ни одного пакета и медиа',async()=>{
   const fetcher=memoryFetcher();

@@ -1,7 +1,7 @@
 import {db, indexWord, type LexiDatabase} from '../storage/db';
 import {adoptStash} from '../sync/snapshot';
 import {ContentError, parseCatalog, parsePackage, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackageWord, type ShippedField} from './schema';
-import type {Asset, InstalledPackage, Word} from '../domain/types';
+import type {Asset, Course, InstalledPackage, Word} from '../domain/types';
 
 export interface ContentFetcher {json(url:string):Promise<unknown>;blob(url:string):Promise<Blob>}
 
@@ -27,12 +27,39 @@ export const useFetcher=(next:ContentFetcher)=>{fetcher=next};
 
 export async function refreshCatalog(database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<Catalog>{
  const catalog=parseCatalog(await source.json('content/catalog.json'));
- await database.transaction('rw',database.catalog,database.meta,async()=>{
+ await database.transaction('rw',database.catalog,database.courses,database.lessons,database.meta,async()=>{
   await database.catalog.clear();
   await database.catalog.bulkAdd(catalog.lessons);
+  await adoptCourses(catalog,database);
   await database.meta.put({key:'catalogUpdatedAt',value:new Date().toISOString()});
  });
  return catalog;
+}
+
+/**
+ * Каталог — единственное место, где известен курс урока, установленного прежней версией.
+ * Шаг безвреден при повторе: он только дописывает недостающее и не трогает подписку, которую уже включили.
+ */
+async function adoptCourses(catalog:Catalog,database:LexiDatabase){
+ const now=new Date().toISOString();
+ const courseOf=new Map(catalog.lessons.map(entry=>[entry.id,entry.courseId]));
+ for(const lesson of await database.lessons.toArray()){
+  const courseId=courseOf.get(lesson.id);
+  if(courseId&&!lesson.courseId)await database.lessons.put({...lesson,courseId});
+ }
+ for(const item of catalog.courses){
+  const stored=await database.courses.get(item.id);
+  const installed=await database.lessons.where('courseId').equals(item.id).count();
+  const next:Course={
+   id:item.id,title:item.title,origin:stored?.origin??'content',
+   subscribed:stored?.subscribed||installed>0,
+   createdAt:stored?.createdAt??now,updatedAt:stored?.updatedAt??now,
+  };
+  if(item.source)next.source=item.source;
+  if(stored?.syncedAt)next.syncedAt=stored.syncedAt;
+  if(!stored||stored.title!==next.title||stored.source!==next.source||stored.subscribed!==next.subscribed)
+   await database.courses.put({...next,updatedAt:now});
+ }
 }
 
 export interface Conflict {wordId:string;greek:string;fields:(ShippedField|'deleted')[]}
@@ -109,11 +136,14 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
  const now=new Date().toISOString();
  return database.transaction('rw',[database.words,database.lessons,database.lessonWords,database.packages,database.media,database.states,database.syncStash,database.meta],async()=>{
   const installed=await database.packages.get(pack.id);
+  // Курс дописывается и на неизменной версии: у базы, пережившей переход на курсы, его ещё нет.
+  const known=await database.lessons.get(pack.id);
+  if(known&&!known.courseId&&pack.courseId)await database.lessons.put({...known,courseId:pack.courseId});
   if(installed&&installed.version===pack.version)return {status:'current',added:0,changed:0,conflicts:[]};
   const base=new Map((installed?.words??[]).map(word=>[word.id,word]));
   const result:InstallResult={status:installed?'updated':'installed',added:0,changed:0,conflicts:[]};
-  if(!await database.lessons.get(pack.id))
-   await database.lessons.add({id:pack.id,title:pack.lesson.title,targetDate:pack.lesson.targetDate,status:pack.lesson.status,createdAt:now,updatedAt:now});
+  if(!known)
+   await database.lessons.add({id:pack.id,courseId:pack.courseId||undefined,title:pack.lesson.title,targetDate:pack.lesson.targetDate,status:pack.lesson.status,createdAt:now,updatedAt:now});
   for(const incoming of pack.words){
    const local=await database.words.get(incoming.id);
    if(!local){
@@ -136,7 +166,7 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
   const removed=new Set(installed?.removed??[]);
   for(const link of pack.links) if(!removed.has(link.wordId))await database.lessonWords.put({lessonId:pack.id,wordId:link.wordId,position:link.position});
   await database.media.bulkPut(pack.media);
-  const record:InstalledPackage={lessonId:pack.id,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,media:pack.media,removed:[...removed]};
+  const record:InstalledPackage={lessonId:pack.id,courseId:pack.courseId||undefined,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,media:pack.media,removed:[...removed]};
   await database.packages.put(record);
   // Полученный из облака прогресс слов этого пакета ждал установки: теперь он становится обычным состоянием.
   await adoptStash(database,pack.id,pack.words.map(word=>word.id));

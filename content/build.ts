@@ -4,7 +4,7 @@ import {basename, extname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parse} from 'yaml';
 import {wordKey} from '../src/domain/import.ts';
-import {ContentError, SCHEMA_VERSION, SHIPPED_FIELDS, type Catalog, type CatalogEntry, type ContentPackage, type PackageMedia, type PackageWord} from '../src/content/schema.ts';
+import {ContentError, SCHEMA_VERSION, SHIPPED_FIELDS, type Catalog, type CatalogCourse, type CatalogEntry, type ContentPackage, type PackageMedia, type PackageWord} from '../src/content/schema.ts';
 import type {Example, Lesson, Segment} from '../src/domain/types.ts';
 
 /**
@@ -27,6 +27,7 @@ export interface WordSource {
  examples?:{greek:string;russian:string;target:string;source?:string}[];
 }
 export interface LessonSource {title:string;language?:string;status?:Lesson['status'];targetDate?:string|null;words:string[]}
+export interface CourseSource {id?:string;title:string;source?:string;lessons:string[]}
 
 const hash=(value:string|Uint8Array,length=12)=>createHash('sha256').update(value).digest('hex').slice(0,length);
 /** Ключи в фиксированном порядке: одинаковое содержимое даёт одинаковую ревизию. */
@@ -40,7 +41,7 @@ const text=(value:unknown,where:string,required=true):string|undefined=>{
  return (value as string).normalize('NFC');
 };
 
-export interface ContentRoot {words:Map<string,WordSource&{file:string}>;lessons:Map<string,LessonSource>;files:Map<string,Uint8Array>}
+export interface ContentRoot {words:Map<string,WordSource&{file:string}>;lessons:Map<string,LessonSource>;courses:Map<string,CourseSource&{file:string}>;files:Map<string,Uint8Array>}
 export function readSources(root:string):ContentRoot{
  const list=(dir:string)=>(existsSync(join(root,dir))?readdirSync(join(root,dir)):[]).filter(file=>/\.ya?ml$/.test(file)).sort();
  const load=<T,>(dir:string,file:string)=>parse(readFileSync(join(root,dir,file),'utf8')) as T;
@@ -53,9 +54,17 @@ export function readSources(root:string):ContentRoot{
   words.set(id,{...doc,file});
  }
  const lessons=new Map(list('lessons').map(file=>[basename(file,extname(file)),load<LessonSource>('lessons',file)]));
+ const courses=new Map<string,CourseSource&{file:string}>();
+ for(const file of list('courses')){
+  const doc=load<CourseSource>('courses',file);
+  const id=String(doc.id??basename(file,extname(file))).normalize('NFC');
+  const twin=courses.get(id);
+  if(twin)fail(`courses/${file}: идентификатор «${id}» уже занят файлом courses/${twin.file}`);
+  courses.set(id,{...doc,file});
+ }
  const files=new Map<string,Uint8Array>();
  for(const dir of ['art','audio']) if(existsSync(join(root,dir))) for(const file of readdirSync(join(root,dir)))files.set(`${dir}/${file}`,readFileSync(join(root,dir,file)));
- return {words,lessons,files};
+ return {words,lessons,courses,files};
 }
 
 export interface BuiltFile {path:string;body:string|Uint8Array;mimeType:string}
@@ -126,10 +135,28 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(src.image)media.set(word.imageAssetId!,mediaFor(word.imageAssetId!,src.image,'art',sources.files,word,`words/${src.file}`));
   if(src.audio)media.set(word.audioAssetId!,mediaFor(word.audioAssetId!,src.audio,'audio',sources.files,word,`words/${src.file}`));
  }
+ /** Урок принадлежит ровно одному курсу: без курса он потеряется в каталоге, в двух — попадёт в занятие дважды. */
+ const courseOf=new Map<string,string>(); const courses:CatalogCourse[]=[];
+ for(const [courseId,src] of sources.courses){
+  const where=`courses/${src.file}`;
+  const title=text(src.title,`${where}.title`)!;
+  if(!Array.isArray(src.lessons)||!src.lessons.length)fail(`${where}: нужен непустой список lessons`);
+  for(const lessonId of src.lessons){
+   if(!sources.lessons.has(lessonId))fail(`${where}: урока ${lessonId} нет в lessons/`);
+   const twin=courseOf.get(lessonId);
+   if(twin)fail(`${where}: урок ${lessonId} уже входит в курс ${twin}`);
+   courseOf.set(lessonId,courseId);
+  }
+  const course:CatalogCourse={id:courseId,title,lessonIds:[...src.lessons]};
+  const source=text(src.source,`${where}.source`,false); if(source)course.source=source;
+  courses.push(course);
+ }
+
  const used=new Set<string>();
  const packages:ContentPackage[]=[]; const entries:CatalogEntry[]=[]; const files:BuiltFile[]=[];
  for(const [id,src] of sources.lessons){
   const where=`lessons/${id}.yaml`;
+  const courseId=courseOf.get(id)??fail(`${where}: урок не входит ни в один курс`) as string;
   const title=text(src.title,`${where}.title`)!;
   if(!Array.isArray(src.words)||!src.words.length)fail(`${where}: нужен непустой список words`);
   if(new Set(src.words).size!==src.words.length)fail(`${where}: слово повторяется в списке`);
@@ -141,7 +168,7 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(targetDate&&!/^\d{4}-\d{2}-\d{2}$/.test(targetDate))fail(`${where}.targetDate: дата в формате ГГГГ-ММ-ДД`);
   const packMedia=packWords.flatMap(word=>[word.imageAssetId,word.audioAssetId]).filter((ref):ref is string=>!!ref).map(ref=>media.get(ref)!.item);
   const draft:ContentPackage={
-   schemaVersion:SCHEMA_VERSION,id,version:'',language:src.language??LANGUAGE,
+   schemaVersion:SCHEMA_VERSION,id,courseId,version:'',language:src.language??LANGUAGE,
    lesson:{title,status,targetDate},words:packWords,links:packWords.map((word,position)=>({wordId:word.id,position})),media:packMedia,
   };
   const version=hash(canonical({...draft,version:undefined}));
@@ -151,13 +178,13 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   packages.push(pack);
   files.push({path:url,body,mimeType:'application/json'});
   entries.push({
-   id,language:pack.language,title,wordCount:packWords.length,version,url,bytes:Buffer.byteLength(body),status,targetDate,
+   id,courseId,language:pack.language,title,wordCount:packWords.length,version,url,bytes:Buffer.byteLength(body),status,targetDate,
    media:{count:packMedia.length,bytes:packMedia.reduce((sum,item)=>sum+item.bytes,0)},
   });
  }
  for(const id of words.keys()) if(!used.has(id))fail(`words/${sources.words.get(id)!.file} не входит ни в один урок и не будет опубликовано`);
  for(const {item,body} of media.values())files.push({path:item.url,body,mimeType:item.mimeType});
- const catalog:Catalog={schemaVersion:SCHEMA_VERSION,generatedAt:new Date().toISOString(),lessons:entries};
+ const catalog:Catalog={schemaVersion:SCHEMA_VERSION,generatedAt:new Date().toISOString(),courses,lessons:entries};
  files.push({path:'content/catalog.json',body:JSON.stringify(catalog),mimeType:'application/json'});
  return {catalog,packages,files,words:[...words.values()],sources};
 }

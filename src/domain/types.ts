@@ -9,7 +9,9 @@ export interface Segment {text:string;ipa:string;explanation:string;start:number
  */
 export interface Word {id:string;greek:string;russian:string;ipa:string;note?:string;segments:Segment[];examples:Example[];imageAssetId?:string;audioAssetId?:string;verified:boolean;source?:string;createdAt:string;updatedAt:string;deletedAt?:string;revision?:string;edited?:boolean}
 /** `dateSource` заполняется только в выборке: в базе дата либо своя (задана вручную), либо пустая (по расписанию). */
-export interface Lesson {id:string;title:string;targetDate:string|null;status:'upcoming'|'completed';createdAt:string;updatedAt:string;dateSource?:'manual'|'schedule'}
+/** Курс: состав приходит из каталога, а подписка и время синхронизации принадлежат пользователю. */
+export interface Course {id:string;title:string;source?:string;origin:'content'|'local';subscribed:boolean;syncedAt?:string;createdAt:string;updatedAt:string}
+export interface Lesson {id:string;courseId?:string;title:string;targetDate:string|null;status:'upcoming'|'completed';createdAt:string;updatedAt:string;dateSource?:'manual'|'schedule'}
 /** Членство слова в уроке: уникальная пара и порядок внутри урока. Удаление связи не трогает слово и прогресс. */
 export interface LessonWord {lessonId:string;wordId:string;position:number}
 export interface Asset {id:string;kind:'image'|'audio';blob:Blob;mimeType:string;source:string;alt:string}
@@ -20,7 +22,7 @@ export type MediaRef=PackageMedia;
  * которые пользователь убрал сам, чтобы обновление их не восстановило. `version:'legacy'` — контент
  * установлен старой версией приложения, база слов неизвестна.
  */
-export interface InstalledPackage {lessonId:string;version:string;schemaVersion:number;installedAt:string;words:PackageWord[];media:PackageMedia[];removed:string[]}
+export interface InstalledPackage {lessonId:string;courseId?:string;version:string;schemaVersion:number;installedAt:string;words:PackageWord[];media:PackageMedia[];removed:string[]}
 export interface LearningState {wordId:string;card:Card;introducedAt:string;version:number}
 export interface ReviewEvent {id:string;sessionId:string;itemId:string;wordId:string;snapshot:{greek:string;russian:string};type:ExerciseType;mode:'scheduled'|'practice';rating:Grade;correct:boolean|null;answer:string;createdAt:string;localDate:string;responseTimeMs:number;before?:Card;after?:Card}
 /** `skipped` — упражнение пропущено без оценки знания (например, аудио недоступно): события нет, позиция сдвигается. */

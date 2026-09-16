@@ -6,13 +6,14 @@ import type {Example, Lesson, Segment} from '../domain/types';
  */
 export const SCHEMA_VERSION=1;
 
+export interface CatalogCourse {id:string;title:string;source?:string;lessonIds:string[]}
 export interface CatalogEntry {
- id:string; language:string; title:string; wordCount:number;
+ id:string; courseId:string; language:string; title:string; wordCount:number;
  version:string; url:string; bytes:number;
  status:Lesson['status']; targetDate:string|null;
  media:{count:number;bytes:number};
 }
-export interface Catalog {schemaVersion:typeof SCHEMA_VERSION;generatedAt:string;lessons:CatalogEntry[]}
+export interface Catalog {schemaVersion:typeof SCHEMA_VERSION;generatedAt:string;courses:CatalogCourse[];lessons:CatalogEntry[]}
 
 export interface PackageWord {
  id:string; greek:string; russian:string; ipa:string; note?:string;
@@ -27,7 +28,7 @@ export interface PackageMedia {
  required:boolean; alt:string; source:string;
 }
 export interface ContentPackage {
- schemaVersion:typeof SCHEMA_VERSION; id:string; version:string; language:string;
+ schemaVersion:typeof SCHEMA_VERSION; id:string; courseId:string; version:string; language:string;
  lesson:{title:string;status:Lesson['status'];targetDate:string|null};
  words:PackageWord[]; links:PackageLink[]; media:PackageMedia[];
 }
@@ -71,7 +72,7 @@ export function parseCatalog(input:unknown):Catalog{
   const item=obj(entry,path);
   const media=obj(item.media??{count:0,bytes:0},`${path}.media`);
   return {
-   id:str(item.id,`${path}.id`),language:str(item.language,`${path}.language`),title:str(item.title,`${path}.title`),
+   id:str(item.id,`${path}.id`),courseId:str(item.courseId??'',`${path}.courseId`),language:str(item.language,`${path}.language`),title:str(item.title,`${path}.title`),
    wordCount:num(item.wordCount,`${path}.wordCount`),version:str(item.version,`${path}.version`),
    url:relativeUrl(item.url,`${path}.url`),bytes:num(item.bytes,`${path}.bytes`),
    status:status(item.status,`${path}.status`),targetDate:nullableDay(item.targetDate,`${path}.targetDate`),
@@ -79,7 +80,18 @@ export function parseCatalog(input:unknown):Catalog{
   };
  });
  unique(lessons.map(l=>l.id),'каталог.lessons');
- return {schemaVersion:SCHEMA_VERSION,generatedAt:str(raw.generatedAt,'каталог.generatedAt'),lessons};
+ const courses=list(raw.courses??[],'каталог.courses').map((entry,index):CatalogCourse=>{
+  const path=`каталог.courses[${index}]`;
+  const item=obj(entry,path);
+  const course:CatalogCourse={
+   id:str(item.id,`${path}.id`),title:str(item.title,`${path}.title`),
+   lessonIds:list(item.lessonIds??[],`${path}.lessonIds`).map((value,i)=>str(value,`${path}.lessonIds[${i}]`)),
+  };
+  const source=opt(item.source,value=>str(value,`${path}.source`)); if(source)course.source=source;
+  return course;
+ });
+ unique(courses.map(course=>course.id),'каталог.courses');
+ return {schemaVersion:SCHEMA_VERSION,generatedAt:str(raw.generatedAt,'каталог.generatedAt'),courses,lessons};
 }
 
 function parseWord(input:unknown,path:string):PackageWord{
@@ -135,7 +147,7 @@ export function parsePackage(input:unknown):ContentPackage{
  const mediaIds=new Set(media.map(m=>m.id));
  for(const word of words) for(const ref of [word.imageAssetId,word.audioAssetId]) if(ref&&!mediaIds.has(ref))throw new ContentError(`пакет.words: слово ${word.id} ссылается на медиа ${ref}, которого нет в пакете`);
  return {
-  schemaVersion:SCHEMA_VERSION,id:str(raw.id,'пакет.id'),version:str(raw.version,'пакет.version'),language:str(raw.language,'пакет.language'),
+  schemaVersion:SCHEMA_VERSION,id:str(raw.id,'пакет.id'),courseId:str(raw.courseId??'','пакет.courseId'),version:str(raw.version,'пакет.version'),language:str(raw.language,'пакет.language'),
   lesson:{title:str(lessonRaw.title,'пакет.lesson.title'),status:status(lessonRaw.status,'пакет.lesson.status'),targetDate:nullableDay(lessonRaw.targetDate,'пакет.lesson.targetDate')},
   words,links:[...links].sort((a,b)=>a.position-b.position),media,
  };

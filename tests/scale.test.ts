@@ -121,7 +121,7 @@ describe('ограниченные выборки на большой базе',
   expect(reads.events).toBe(0);
  },60_000);
  it('каталог на 100 000 слов читается одним запросом и не создаёт ни слов, ни прогресса',async()=>{
-  const lessons:CatalogEntry[]=Array.from({length:3000},(_,i)=>({id:`cat-${pad(i)}`,language:'el',title:`Урок ${i}`,wordCount:34,version:`v${i}`,url:`content/packages/cat-${pad(i)}@v${i}.json`,bytes:40000,status:'upcoming',targetDate:null,media:{count:34,bytes:20000}}));
+  const lessons:CatalogEntry[]=Array.from({length:3000},(_,i)=>({id:`cat-${pad(i)}`,courseId:'big',language:'el',title:`Урок ${i}`,wordCount:34,version:`v${i}`,url:`content/packages/cat-${pad(i)}@v${i}.json`,bytes:40000,status:'upcoming',targetDate:null,media:{count:34,bytes:20000}}));
   const catalog=parseCatalog({schemaVersion:1,generatedAt:iso,lessons});
   expect(catalog.lessons.reduce((sum,l)=>sum+l.wordCount,0)).toBeGreaterThanOrEqual(100_000);
   const requests:string[]=[];
