@@ -6,7 +6,7 @@ export interface DayStat {date:string;answers:number;words:number}
 export interface SkillStat {type:ExerciseType;attempts:number;correct:number;rate:number|null}
 export interface Progress {days:DayStat[];skills:SkillStat[];due:{today:number;tomorrow:number;week:number};groups:{fresh:number;learning:number;review:number;solid:number}}
 
-const TYPES:ExerciseType[]=['recall','recognition','spelling','listening'];
+const TYPES:ExerciseType[]=['recall','recognition','assembly','spelling','listening'];
 /** Статистика считается по записанным событиям, а не по показам экрана. */
 export function progress(data:Snapshot,now:Date):Progress{
  const timezone=data.settings.timezone;
@@ -36,4 +36,4 @@ export function progress(data:Snapshot,now:Date):Progress{
   },
  };
 }
-export const SKILL_NAMES:Record<ExerciseType,string>={recall:'Вспомнить слово',recognition:'Выбрать перевод',spelling:'Написание',listening:'Аудирование'};
+export const SKILL_NAMES:Record<ExerciseType,string>={recall:'Вспомнить слово',recognition:'Выбрать перевод',assembly:'Сборка из слогов',spelling:'Написание',listening:'Аудирование'};

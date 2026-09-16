@@ -1,6 +1,6 @@
 import type {Page} from '@playwright/test';
 
-export interface DuePlan {wordId:string;tested:('recall'|'recognition'|'spelling')[];audio?:boolean}
+export interface DuePlan {wordId:string;tested:('recall'|'recognition'|'assembly'|'spelling')[];audio?:boolean}
 /** Готовим очередь прямо в IndexedDB: сроки, история навыков и аудиофайл для аудирования. */
 export async function seedQueue(page:Page,plan:DuePlan[]){
  await page.evaluate(async(plan)=>{
@@ -18,7 +18,7 @@ export async function seedQueue(page:Page,plan:DuePlan[]){
     card:{due,stability:2.5,difficulty:5,elapsed_days:2,scheduled_days:2,reps:3,lapses:0,state:2,learning_steps:0,last_review:new Date(Date.now()-4*86400000)}});
    entry.tested.forEach((type,index)=>{
     const at=new Date(Date.now()-(9-index)*86400000).toISOString();
-    events.put({id:`seed-${entry.wordId}-${type}`,sessionId:'seed',itemId:`seed-${entry.wordId}-${type}`,wordId:entry.wordId,
+    events.put({id:`seed-${entry.wordId}-${index}-${type}`,sessionId:'seed',itemId:`seed-${entry.wordId}-${index}-${type}`,wordId:entry.wordId,
      snapshot:{greek:'',russian:''},type,mode:'scheduled',rating:3,correct:true,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:1000});
    });
    if(entry.audio){

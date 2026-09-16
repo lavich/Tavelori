@@ -10,7 +10,7 @@ import {Progress} from '@/components/ui/progress';
 import {Skeleton} from '@/components/ui/skeleton';
 import {db} from '../../storage/db';
 import {ConflictError, endSession, submitAnswer} from '../../storage/ops';
-import {Introduction, Listening, Recall, Recognition, Spelling, type Answer} from './exercises';
+import {Assembly, Introduction, Listening, Recall, Recognition, Spelling, type Answer} from './exercises';
 import {activeSession} from './session-actions';
 import ui from '../../shared/ui.module.css';
 import s from './session.module.css';
@@ -102,6 +102,7 @@ export function SessionScreen(){
   ?<Introduction key={item.id} word={item.word} onReady={()=>{shown.current=Date.now();setIntroduced(item.id)}}/>
   :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next}/>
+  :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :item.type==='spelling'?<Spelling key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :<Recall key={item.id} item={item} onAnswer={answer} onNext={next}/>;
 

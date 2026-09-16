@@ -14,6 +14,9 @@
 .dock form{display:grid;gap:10px}
 .dock p{margin:0}
 
+.slots{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;min-height:56px;border:2px dashed var(--border);border-radius:14px;padding:4px 8px}
+.slotsHint{color:var(--muted-foreground);font-size:14px}
+.tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
 .prompt{color:var(--muted-foreground);font-size:15px}
 .grades{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .grade{min-height:56px;border-radius:14px;border:1px solid var(--border);background:var(--card);font-weight:600;cursor:pointer}

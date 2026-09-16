@@ -1,4 +1,5 @@
 import {createEmptyCard, fsrs, generatorParameters, State, type Card, type Grade} from 'ts-fsrs';
+import {tiles} from './syllables';
 import type {ExerciseType, LearningState, ReviewEvent, Session, SessionItem, Snapshot, Word} from './types';
 
 export const scheduler=fsrs(generatorParameters({enable_fuzz:false}));
@@ -63,13 +64,30 @@ export function makePlan(data:Snapshot,now:Date):DailyPlan{
  return {today,requiredPerDay,budget,introducedToday,newWords,reviews,deadlines,shortfall:requiredPerDay>data.settings.newWordsPerDay};
 }
 
-const ORDER:ExerciseType[]=['recall','recognition','spelling','listening'];
+const ORDER:ExerciseType[]=['recall','recognition','assembly','spelling','listening'];
 const succeeded=(event:ReviewEvent)=>event.correct===null?event.rating>1:event.correct;
+export interface SkillContext {hasAudio?:boolean;hasOptions?:boolean;canAssemble?:boolean}
+
+/** Написание открывается, когда после последней ошибки в нём набрано две успешные сборки. */
+export function spellingUnlocked(wordId:string,events:ReviewEvent[]):boolean{
+ const history=events.filter(e=>e.wordId===wordId).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+ let since=0;
+ for(const event of history){
+  if(event.type==='spelling'&&event.correct===false)since=0;
+  else if(event.type==='assembly'&&event.correct===true)since++;
+ }
+ return since>=2;
+}
 
 /** Эвристика выбора упражнения по последним ответам, а не оценка вероятности памяти. */
-export function chooseType(wordId:string,events:ReviewEvent[],hasAudio:boolean,hasOptions=true):ExerciseType{
+export function chooseType(wordId:string,events:ReviewEvent[],context:SkillContext={}):ExerciseType{
+ const {hasAudio=false,hasOptions=true,canAssemble=false}=context;
  const history=events.filter(e=>e.wordId===wordId).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
- const available=ORDER.filter(type=>(type!=='listening'||hasAudio)&&(type!=='recognition'||hasOptions));
+ const available=ORDER.filter(type=>
+  (type!=='listening'||hasAudio)
+  &&(type!=='recognition'||hasOptions)
+  &&(type!=='assembly'||canAssemble)
+  &&(type!=='spelling'||!canAssemble||spellingUnlocked(wordId,events)));
  const last=history[history.length-1], beforeLast=history[history.length-2];
  const repeated=last&&beforeLast&&last.type===beforeLast.type?last.type:null;
  const allowed=available.filter(type=>type!==repeated);
@@ -98,6 +116,15 @@ const shuffle=<T,>(items:T[],random:()=>number)=>{
  for(let i=copy.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[copy[i],copy[j]]=[copy[j],copy[i]]}
  return copy;
 };
+/** Плитки перемешиваем так, чтобы правильный порядок не выпал сразу готовым. */
+export function shuffleTiles(parts:string[],random:()=>number):string[]{
+ if(parts.length<2)return [...parts];
+ for(let attempt=0;attempt<8;attempt++){
+  const mixed=shuffle(parts,random);
+  if(mixed.join('')!==parts.join(''))return mixed;
+ }
+ return [...parts.slice(1),parts[0]];
+}
 export function optionsFor(word:Word,pool:Word[],type:ExerciseType,random:()=>number):string[]{
  const key=(w:Word)=>type==='recognition'?w.russian:w.greek;
  const unique=[...new Map(pool.filter(w=>w.id!==word.id&&key(w)!==key(word)).map(w=>[key(w),w])).values()];
@@ -125,8 +152,11 @@ export function makeSession({data,now,random=Math.random,mode='scheduled',wordId
  const id=`s-${now.getTime().toString(36)}-${Math.floor(random()*1e6).toString(36)}`;
  const items:SessionItem[]=chosen.map((entry,index)=>{
   const hasAudio=!!entry.word.audioAssetId||hasVoice; // системный греческий голос тоже даёт аудирование
-  const type:ExerciseType=entry.isNew?'recall':chooseType(entry.word.id,data.events,hasAudio,pool.length>=4);
-  const options=type==='recognition'||type==='listening'?optionsFor(entry.word,pool,type,random):[];
+  const parts=tiles(entry.word.greek);
+  const type:ExerciseType=entry.isNew?'recall':chooseType(entry.word.id,data.events,{hasAudio,hasOptions:pool.length>=4,canAssemble:parts.length>=2});
+  const options=type==='assembly'
+   ?shuffleTiles(parts,random)
+   :type==='recognition'||type==='listening'?optionsFor(entry.word,pool,type,random):[];
   const fallback:ExerciseType=(type==='recognition'||type==='listening')&&options.length===0?'recall':type;
   return {id:`${id}-${index}`,wordId:entry.word.id,word:entry.word,type:fallback,options:fallback===type?options:[],isNew:entry.isNew,mode,expectedVersion:states.get(entry.word.id)?.version??0};
  });

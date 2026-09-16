@@ -4,6 +4,7 @@ import {Volume2} from 'lucide-react';
 import type {SessionItem, Word} from '../../domain/types';
 import {checkAnswer} from '../../domain/import';
 import {diffChars} from '../../domain/spelling';
+import {tiles} from '../../domain/syllables';
 import {playWord, useAudioKind} from '../../shared/audio';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from '../words/WordCardView';
 import ui from '../../shared/ui.module.css';
@@ -147,7 +148,7 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,art}:Props&{pr
 
 export function Recognition(props:Props){
  const word=props.item.word;
- return <Choice {...props} prompt="Что означает слово?" art={false} correct={word.russian} options={props.item.options}
+ return <Choice {...props} prompt="Что значит это слово?" art={false} correct={word.russian} options={props.item.options}
   head={<><p className={wordCss.greek} style={{margin:'6px 0'}}>{word.greek}</p>{word.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}</>}/>;
 }
 
@@ -156,8 +157,73 @@ export function Listening(props:Props){
  const kind=useAudioKind(word);
  const played=useRef(false);
  useEffect(()=>{if(!played.current){played.current=true;playWord(word)}},[word.id]);
- return <Choice {...props} prompt="Что вы услышали?" art={false} correct={word.greek} options={props.item.options}
+ return <Choice {...props} prompt="Что прозвучало?" art={false} correct={word.greek} options={props.item.options}
   head={<Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={()=>playWord(word)}><Volume2 aria-hidden/></Button>}/>;
+}
+
+/** Ступень перед свободным написанием: слово собирается из перемешанных слогов. */
+export function Assembly({item,onAnswer,onNext}:Props){
+ const [placed,setPlaced]=useState<number[]>([]);
+ const [result,setResult]=useState<'correct'|'wrong'|null>(null);
+ const [saving,setSaving]=useState(false);
+ useEffect(()=>{setPlaced([]);setResult(null);setSaving(false)},[item.id]);
+ const revealed=useRevealed(!!result);
+ const word=item.word;
+ const correct=tiles(word.greek);
+ const pool=item.options;
+ const answer=placed.map(index=>pool[index]).join('');
+ const complete=placed.length===pool.length;
+
+ const check=async()=>{
+  if(!complete||result||saving)return;
+  const right=answer===correct.join('');
+  setSaving(true);
+  const saved=await onAnswer({correct:right,rating:right?3:1,text:answer});
+  setSaving(false);
+  if(saved)setResult(right?'correct':'wrong');
+ };
+ return (
+  <>
+   <div className={s.center}>
+    <p className={s.prompt} data-testid="prompt">Собери слово</p>
+    <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.russian}</p>
+    <WordArt word={word}/>
+    {result&&(
+     <div style={{width:'100%'}} ref={revealed}>
+      <div data-testid="feedback" className={cx(s.feedback, result==='correct'?s.ok:s.bad)} style={{marginTop:0}}>
+       <div>{result==='correct'?'Правильно!':'Пока не сходится — посмотри порядок слогов.'}</div>
+       <p className="m-0 mt-1.5 text-[19px]">{correct.join(' · ')}</p>
+      </div>
+      {word.examples[0]&&<div style={{textAlign:'left'}}><ExampleBox example={word.examples[0]}/></div>}
+     </div>
+    )}
+   </div>
+   <div className={s.dock}>
+    {!result&&<>
+    <div className={s.slots} aria-label="Собранное слово" data-testid="assembled">
+     {placed.length===0
+      ?<span className={s.slotsHint}>Нажимай слоги по порядку</span>
+      :placed.map((index,position)=>(
+        <Button key={`${index}-${position}`} variant="secondary" data-testid="placed" disabled={!!result||saving}
+         className="h-12 rounded-[12px] px-4 text-[19px]"
+         onClick={()=>setPlaced(placed.filter((_,i)=>i!==position))}>{pool[index]}</Button>
+       ))}
+    </div>
+    <div className={s.tiles}>
+     {pool.map((tile,index)=>(
+      <Button key={`${tile}-${index}`} variant="outline" data-testid="tile"
+       disabled={placed.includes(index)||!!result||saving}
+       className="h-12 rounded-[12px] px-4 text-[19px]"
+       onClick={()=>setPlaced([...placed,index])}>{tile}</Button>
+     ))}
+    </div>
+    </>}
+    {result
+     ?<Button size="xl" onClick={onNext}>Далее</Button>
+     :<Button size="xl" disabled={!complete||saving} onClick={check}>{saving?'Сохраняем…':'Проверить'}</Button>}
+   </div>
+  </>
+ );
 }
 
 export function Spelling({item,onAnswer,onNext}:Props){
@@ -179,7 +245,7 @@ export function Spelling({item,onAnswer,onNext}:Props){
  return (
   <>
    <div className={s.center}>
-    <p className={s.prompt} data-testid="prompt">Напишите по-гречески</p>
+    <p className={s.prompt} data-testid="prompt">Напиши по-гречески</p>
     <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.russian}</p>
     <WordArt word={word}/>
     {result&&(
@@ -204,7 +270,7 @@ export function Spelling({item,onAnswer,onNext}:Props){
     {!result?(
      <form onSubmit={submit}>
       <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
-       autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Ваш ответ по-гречески" lang="el"/>
+       autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Твой ответ по-гречески" lang="el"/>
       <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
      </form>
     ):<Button size="xl" onClick={onNext}>Далее</Button>}

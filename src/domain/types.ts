@@ -1,5 +1,5 @@
 import type {Card, Grade} from 'ts-fsrs';
-export type ExerciseType='recall'|'recognition'|'spelling'|'listening';
+export type ExerciseType='recall'|'recognition'|'assembly'|'spelling'|'listening';
 export interface Example {greek:string;russian:string;target:string;source?:string}
 export interface Segment {text:string;ipa:string;explanation:string;start:number}
 export interface Word {id:string;greek:string;russian:string;ipa:string;segments:Segment[];examples:Example[];imageAssetId?:string;audioAssetId?:string;sourceMastered:boolean;verified:boolean;source?:string;createdAt:string;updatedAt:string;deletedAt?:string}

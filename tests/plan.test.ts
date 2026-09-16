@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {createEmptyCard, Rating, State} from 'ts-fsrs';
-import {chooseType, daysBetween, localDay, makePlan, makeSession, nextState, optionsFor} from '../src/domain/learning';
+import {chooseType, daysBetween, localDay, makePlan, makeSession, nextState, optionsFor, shuffleTiles, spellingUnlocked} from '../src/domain/learning';
 import {diffChars} from '../src/domain/spelling';
 import {checkAnswer} from '../src/domain/import';
 import {progress} from '../src/domain/stats';
@@ -94,7 +94,7 @@ describe('дневной бюджет и состав занятия',()=>{
   expect(plan.reviews.map(review=>review.word.id)).toEqual([ids[2],ids[1],ids[0]]);
  });
  it('аудирование доступно и без своего файла, если есть системный греческий голос',()=>{
-  const history=(['recall','recognition','spelling'] as ExerciseType[]).map((type,index)=>({
+  const history=(['recall','recognition','assembly','spelling'] as ExerciseType[]).map((type,index)=>({
    id:`${type}`,sessionId:'s',itemId:`${type}`,wordId:ids[0],snapshot:{greek:'',russian:''},
    type,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',
    createdAt:`2026-09-1${index}T09:00:00Z`,localDate:`2026-09-1${index}`,responseTimeMs:900,
@@ -105,6 +105,12 @@ describe('дневной бюджет и состав занятия',()=>{
   const spoken=makeSession({data,now,random:()=>0.5,hasVoice:true}).items.find(item=>item.wordId===ids[0])!;
   expect(spoken.type).toBe('listening');
   expect(new Set(spoken.options).size).toBe(4);
+ });
+ it('плитки перемешиваются и не выпадают сразу в правильном порядке',()=>{
+  const parts=['το','σπί','τι'];
+  const mixed=shuffleTiles(parts,()=>0.5);
+  expect([...mixed].sort()).toEqual([...parts].sort());
+  expect(mixed.join('')).not.toBe(parts.join(''));
  });
  it('ручная тренировка набора берёт указанные слова в режиме practice',()=>{
   const data=base({words:pool,lessons:[lesson('l1',ids,'2026-09-18')]});
@@ -146,22 +152,46 @@ describe('выбор упражнения',()=>{
   type,mode:'scheduled',rating:correct?3:1,correct,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:1000,
  });
  it('сначала проверяет ещё не испытанные навыки в заданном порядке',()=>{
-  expect(chooseType('w0',[],false)).toBe('recall');
-  expect(chooseType('w0',[event('recall',true,'2026-09-10T09:00:00Z')],false)).toBe('recognition');
-  expect(chooseType('w0',[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')],false)).toBe('spelling');
+  expect(chooseType('w0',[],{})).toBe('recall');
+  expect(chooseType('w0',[event('recall',true,'2026-09-10T09:00:00Z')],{})).toBe('recognition');
+  expect(chooseType('w0',[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')],{})).toBe('spelling');
  });
  it('аудирование не предлагается без аудио, а варианты — без набора слов',()=>{
   const history=(['recall','recognition','spelling'] as ExerciseType[]).map((type,index)=>event(type,true,`2026-09-1${index}T09:00:00Z`));
-  expect(chooseType('w0',history,false)).not.toBe('listening');
-  expect(chooseType('w0',history,true)).toBe('listening');
-  expect(chooseType('w0',history,false,false)).not.toBe('recognition');
+  expect(chooseType('w0',history,{})).not.toBe('listening');
+  expect(chooseType('w0',history,{hasAudio:true})).toBe('listening');
+  expect(chooseType('w0',history,{hasOptions:false})).not.toBe('recognition');
+ });
+ it('сборка предлагается раньше написания, а написание ждёт двух чистых сборок',()=>{
+  const tested=[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')];
+  expect(chooseType('w0',tested,{canAssemble:true})).toBe('assembly');
+  const one=[...tested,event('assembly',true,'2026-09-12T09:00:00Z')];
+  expect(chooseType('w0',one,{canAssemble:true})).not.toBe('spelling');
+  const two=[...one,event('assembly',true,'2026-09-13T09:00:00Z')];
+  expect(spellingUnlocked('w0',two)).toBe(true);
+  expect(chooseType('w0',two,{canAssemble:true})).toBe('spelling');
+ });
+ it('ошибка в написании возвращает слово к сборке',()=>{
+  const history=[
+   event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z'),
+   event('assembly',true,'2026-09-12T09:00:00Z'),event('assembly',true,'2026-09-13T09:00:00Z'),
+   event('spelling',false,'2026-09-14T09:00:00Z'),
+  ];
+  expect(spellingUnlocked('w0',history)).toBe(false);
+  expect(chooseType('w0',history,{canAssemble:true})).not.toBe('spelling');
+  const recovered=[...history,event('assembly',true,'2026-09-15T09:00:00Z'),event('assembly',true,'2026-09-15T10:00:00Z')];
+  expect(spellingUnlocked('w0',recovered)).toBe(true);
+ });
+ it('без слогов написание не блокируется',()=>{
+  const tested=[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')];
+  expect(chooseType('w0',tested,{canAssemble:false})).toBe('spelling');
  });
  it('выбирает самый слабый навык по последним ответам',()=>{
   const history=[
    event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z'),
    event('spelling',false,'2026-09-12T09:00:00Z'),event('listening',true,'2026-09-13T09:00:00Z'),
   ];
-  expect(chooseType('w0',history,true)).toBe('spelling');
+  expect(chooseType('w0',history,{hasAudio:true})).toBe('spelling');
  });
  it('не повторяет один тип три раза подряд',()=>{
   const history=[
@@ -169,7 +199,7 @@ describe('выбор упражнения',()=>{
    event('recall',false,'2026-09-12T09:00:00Z'),event('spelling',true,'2026-09-13T09:00:00Z'),
    event('spelling',true,'2026-09-14T09:00:00Z'),
   ];
-  expect(chooseType('w0',history,true)).not.toBe('spelling');
+  expect(chooseType('w0',history,{hasAudio:true})).not.toBe('spelling');
  });
 });
 

@@ -30,12 +30,12 @@ test('исходные уроки, карточка слова и ручная �
  await expect(page.getByText('Новое слово')).toBeVisible();
 });
 
-test('занятие: знакомство, четыре упражнения, результат и продолжение после перезапуска',async({page})=>{
+test('занятие: знакомство, пять упражнений, результат и продолжение после перезапуска',async({page})=>{
  await seedQueue(page,[
   {wordId:'w11-01',tested:['recall']},
   {wordId:'w11-02',tested:['recall','recognition']},
-  {wordId:'w11-03',tested:['recall','recognition','spelling'],audio:true},
-  {wordId:'w11-04',tested:['recall']},
+  {wordId:'w11-03',tested:['recall','recognition','assembly','assembly'],audio:false},
+  {wordId:'w11-04',tested:['recall','recognition','assembly','assembly','spelling'],audio:true},
  ]);
  await page.getByRole('button',{name:/Начать занятие/}).click();
  await page.waitForURL('**/session');
@@ -60,13 +60,19 @@ test('занятие: знакомство, четыре упражнения, �
    }
    await page.getByRole('button',{name:/Вспомнил/}).first().click();
    await next.waitFor({state:'visible'});
-  }else if(prompt==='Что означает слово?'||prompt==='Что вы услышали?'){
-   seen.add(prompt==='Что означает слово?'?'recognition':'listening');
+  }else if(prompt==='Что значит это слово?'||prompt==='Что прозвучало?'){
+   seen.add(prompt==='Что значит это слово?'?'recognition':'listening');
    await page.getByTestId('option').and(page.locator(':not([disabled])')).first().click();
    await next.waitFor({state:'visible'});
-  }else if(prompt==='Напишите по-гречески'){
+  }else if(prompt==='Собери слово'){
+   seen.add('assembly');
+   for(const tile of await page.getByTestId('tile').all())await tile.click();
+   await page.getByRole('button',{name:'Проверить'}).click();
+   await expect(page.getByTestId('feedback')).toBeVisible();
+   await next.waitFor({state:'visible'});
+  }else if(prompt==='Напиши по-гречески'){
    seen.add('spelling');
-   await page.getByLabel('Ваш ответ по-гречески').fill('λάθος');
+   await page.getByLabel('Твой ответ по-гречески').fill('λάθος');
    await page.getByRole('button',{name:'Проверить'}).click();
    await expect(page.getByTestId('feedback')).toBeVisible();
    await expect(page.getByTestId('chars')).toBeVisible();
@@ -80,7 +86,7 @@ test('занятие: знакомство, четыре упражнения, �
    await page.waitForURL('**/session');
   }
  }
- expect([...seen].sort()).toEqual(['intro','listening','recall','recognition','spelling']);
+ expect([...seen].sort()).toEqual(['assembly','intro','listening','recall','recognition','spelling']);
  await expect(page.getByRole('heading',{name:'Занятие завершено'})).toBeVisible();
  await expect(page.getByText(/Объективная точность/)).toBeVisible();
  await expect(page.getByText(/Активное время/)).toBeVisible();

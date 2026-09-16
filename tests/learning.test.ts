@@ -12,4 +12,4 @@ it('shares words across dates without double counting',()=>{const plan=makePlan(
 it('handles multiple deadlines by cumulative demand',()=>{const plan=makePlan({...data,lessons:[{...lesson,wordIds:words.slice(0,10).map(w=>w.id),targetDate:'2026-09-17'},{...lesson,id:'l2',wordIds:words.slice(10).map(w=>w.id),targetDate:'2026-09-18'}]},now);expect(plan.requiredPerDay).toBe(10)});
 it('honors local calendar through DST and UTC midnight',()=>{expect(localDay(new Date('2026-09-15T22:30Z'),'Asia/Nicosia')).toBe('2026-09-16');expect(daysBetween('2026-10-24','2026-10-26')).toBe(2)});
 it('schedules a new word without losing FSRS fields',()=>{const state=nextState(undefined,'w0',Rating.Good,now);expect(state.card.due.getTime()).toBeGreaterThan(now.getTime());expect(state.card.reps).toBe(1);expect(state.version).toBe(1)});
-it('chooses recall for an untested word',()=>expect(chooseType('w0',[],false)).toBe('recall'));
+it('chooses recall for an untested word',()=>expect(chooseType('w0',[],{})).toBe('recall'));
