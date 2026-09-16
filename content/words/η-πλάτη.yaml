@@ -1,6 +1,16 @@
 id: w14-31
 greek: η πλάτη
 russian: спина
-verified: false
+ipa: "/i ˈplati/"
+verified: true
 mastered: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: η-πλάτη.svg
+reading:
+  - text: "τη"
+    ipa: "ti"
+    explanation: "конечное η звучит как чистое и"
+examples:
+  - greek: "Η πλάτη μου πονάει από τη δουλειά."
+    russian: "У меня болит спина от работы."
+    target: "πλάτη"

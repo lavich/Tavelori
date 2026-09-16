@@ -8,7 +8,7 @@ import {progress} from '../src/domain/stats';
 import {parseImport} from '../src/domain/import';
 import {defaultSettings, type Snapshot, type Word} from '../src/domain/types';
 import {recordFor, scenarios} from './plan-golden.test';
-import {installLessons} from './helpers/content';
+import {content, installLessons} from './helpers/content';
 
 let db:LexiDatabase;
 beforeEach(async()=>{
@@ -50,7 +50,7 @@ describe('эквивалентность планирования на базе 
   await installLessons(db,['lesson-1-1']);
   const plan=await dexieSource(db).lessons();
   expect(plan.map(l=>l.id)).toEqual(['lesson-1-1']);
-  expect(await db.catalog.count()).toBe(4);
+  expect(await db.catalog.count()).toBe(content.catalog.lessons.length);
   expect(await db.words.count()).toBe(33);
  });
 });

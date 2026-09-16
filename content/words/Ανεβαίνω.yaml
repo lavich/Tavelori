@@ -1,0 +1,19 @@
+id: w22-11
+greek: Ανεβαίνω
+russian: подниматься
+ipa: "/aneˈveno/"
+verified: true
+mastered: false
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: ανεβαίνω.svg
+reading:
+  - text: "β"
+    ipa: "v"
+    explanation: "β читается как в, а не как б"
+  - text: "αί"
+    ipa: "e"
+    explanation: "αι читается как один звук е"
+examples:
+  - greek: "Ανεβαίνω στο βουνό με τους φίλους μου."
+    russian: "Я поднимаюсь на гору с друзьями."
+    target: "Ανεβαίνω"

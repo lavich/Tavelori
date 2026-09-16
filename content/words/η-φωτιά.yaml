@@ -1,0 +1,19 @@
+id: w21-09
+greek: η φωτιά
+russian: огонь
+ipa: "/i foˈtʝa/"
+verified: true
+mastered: false
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: η-φωτιά.svg
+reading:
+  - text: "ω"
+    ipa: "o"
+    explanation: "ω читается точно так же, как ο"
+  - text: "τιά"
+    ipa: "tʝa"
+    explanation: "τ и ι перед гласной сливаются в один мягкий звук"
+examples:
+  - greek: "Η φωτιά καίει στο τζάκι."
+    russian: "Огонь горит в камине."
+    target: "φωτιά"

@@ -15,7 +15,8 @@ const rows=(title:string)=>section(title).split('\n').filter(line=>/^\| [^-]/.te
 
 const content=buildContent();
 const seedWords=content.words;
-const prepared=[...wordsOf(content,'lesson-1-1'),...wordsOf(content,'lesson-1-2')];
+/** Подготовленные карточки: у них проверена фонетика, поэтому к ним предъявляются полные требования. */
+const prepared=content.words.filter(word=>word.verified);
 const packageOf=(id:string)=>content.packages.find(p=>p.id===id)!;
 const fileOf=(path:string)=>content.files.find(file=>file.path===path)!;
 const lessonSource=(id:string)=>content.sources.lessons.get(id)!;
@@ -69,7 +70,7 @@ describe('наборы класса переносятся без потерь �
    expect(word.greek.trim(),word.id).toMatch(/[Ͱ-Ͽἀ-῿]/u);
    expect(word.russian.trim().length,word.greek).toBeGreaterThan(0);
    expect(tiles(word.greek).length,`${word.greek}: нечего собирать`).toBeGreaterThanOrEqual(2);
-   expect(word.id).toMatch(/^w1[1-4]-\d{2}$/);
+   expect(word.id).toMatch(/^w\d{2}-\d{2}$/);
   }
  });
 
@@ -94,7 +95,7 @@ describe('наборы класса переносятся без потерь �
 describe('каталог и пакеты',()=>{
  it('каталог содержит только метаданные, без слов и медиа',()=>{
   const catalog=parseCatalog(JSON.parse(fileOf('content/catalog.json').body as string));
-  expect(catalog.lessons.map(l=>[l.id,l.wordCount,l.media.count])).toEqual([['lesson-1-1',33,33],['lesson-1-2',30,30],['lesson-1-3',35,6],['lesson-1-4',35,0]]);
+  expect(catalog.lessons.map(l=>[l.id,l.wordCount,l.media.count])).toEqual([['lesson-1-1',33,33],['lesson-1-2',30,30],['lesson-1-3',35,8],['lesson-1-4',35,1],['lesson-2-1',36,36],['lesson-2-2',33,33]]);
   const text=fileOf('content/catalog.json').body as string;
   expect(text).not.toContain('σπίτι');
   expect(text).not.toContain('<svg');
@@ -161,8 +162,8 @@ describe('каталог и пакеты',()=>{
 });
 
 describe('карточка каждого подготовленного слова готова',()=>{
- it('у всех 63 слов есть IPA с ударением и распознанный ударный слог',()=>{
-  expect(prepared).toHaveLength(63);
+ it('у всех 128 слов есть IPA с ударением и распознанный ударный слог',()=>{
+  expect(prepared).toHaveLength(128);
   for(const word of prepared){
    expect(word.ipa,word.greek).toMatch(/^\/.+\/$/);
    const core=word.greek.replace(/^(ο|η|το|τα|οι) /,'');
@@ -207,6 +208,6 @@ describe('карточка каждого подготовленного сло�
   const cards=prepared.map(w=>`<figure><div class="a">${seedArt(w.id)}</div><figcaption>${w.greek} — ${w.russian}</figcaption></figure>`).join('');
   mkdirSync('docs',{recursive:true});
   writeFileSync('docs/art-sheet.html',`<!doctype html><meta charset="utf-8"><title>Иллюстрации Lexi</title><style>body{font:14px system-ui;background:#f7f7f5;margin:0;padding:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}figure{margin:0;background:#fff;border-radius:12px;overflow:hidden}.a svg{display:block;width:100%}figcaption{padding:6px 8px;color:#171717}</style>${cards}`);
-  expect(prepared).toHaveLength(63);
+  expect(prepared).toHaveLength(128);
  });
 });

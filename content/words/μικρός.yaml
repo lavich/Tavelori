@@ -1,6 +1,16 @@
 id: w13-21
 greek: μικρός
 russian: маленький
-verified: false
+ipa: "/miˈkros/"
+verified: true
 mastered: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: μικρός.svg
+reading:
+  - text: "ρ"
+    ipa: "r"
+    explanation: "ρ — короткий раскатистый р в один удар языка"
+examples:
+  - greek: "Ο κήπος μου είναι μικρός."
+    russian: "Мой сад маленький."
+    target: "μικρός"

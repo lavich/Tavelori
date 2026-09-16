@@ -1,0 +1,19 @@
+id: w21-13
+greek: το σύννεφο
+russian: облако
+ipa: "/to ˈsinefo/"
+verified: true
+mastered: false
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: το-σύννεφο.svg
+reading:
+  - text: "ύ"
+    ipa: "i"
+    explanation: "υ читается как и, а не как русское у"
+  - text: "νν"
+    ipa: "n"
+    explanation: "двойная νν читается как один звук н"
+examples:
+  - greek: "Το σύννεφο κρύβει τον ήλιο."
+    russian: "Облако закрывает солнце."
+    target: "σύννεφο"

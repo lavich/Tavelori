@@ -1,0 +1,19 @@
+id: w21-14
+greek: η βροχή
+russian: дождь
+ipa: "/i vroˈçi/"
+verified: true
+mastered: false
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: η-βροχή.svg
+reading:
+  - text: "β"
+    ipa: "v"
+    explanation: "β читается как в, а не как б"
+  - text: "χή"
+    ipa: "çi"
+    explanation: "χ перед η звучит мягко, как хь"
+examples:
+  - greek: "Η βροχή πέφτει όλη μέρα."
+    russian: "Дождь идёт весь день."
+    target: "βροχή"

@@ -150,7 +150,7 @@ describe('резервная копия',()=>{
   expect((await db.packages.toArray()).map(p=>[p.lessonId,p.version])).toEqual([['lesson-1-2','legacy']]);
   expect((await db.settings.get('settings'))!.schedule).toEqual({startDate:null,weekdays:[]});
   expect(await searchWordIds('καρ',db)).toEqual(['w-own']);
-  expect(await db.catalog.count()).toBe(4); // каталог не считается данными пользователя и остаётся
+  expect(await db.catalog.count()).toBe(content.catalog.lessons.length); // каталог не считается данными пользователя и остаётся
  });
  it('повреждённая копия, копия новее приложения и копия с битыми связями отклоняются без изменения данных',async()=>{
   await installLessons(db,['lesson-1-1']);

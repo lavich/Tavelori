@@ -34,7 +34,7 @@ describe('каталог',()=>{
   const fetcher=memoryFetcher();
   await refreshCatalog(db,fetcher);
   expect(fetcher.requests).toEqual(['content/catalog.json']);
-  expect(await db.catalog.count()).toBe(4);
+  expect(await db.catalog.count()).toBe(content.catalog.lessons.length);
   expect(await db.words.count()).toBe(0);
   expect(await db.packages.count()).toBe(0);
  });
@@ -43,13 +43,13 @@ describe('каталог',()=>{
   const broken=memoryFetcher(content,{'content/catalog.json':undefined});
   broken.json=async()=>{throw new ContentError('Нет сети','network')};
   await expect(refreshCatalog(db,broken)).rejects.toThrow('Нет сети');
-  expect(await db.catalog.count()).toBe(4);
+  expect(await db.catalog.count()).toBe(content.catalog.lessons.length);
   expect(await db.words.count()).toBe(30);
  });
  it('каталог неподдерживаемой схемы отклоняется без изменения кеша',async()=>{
   await refreshCatalog(db,memoryFetcher());
   await expect(refreshCatalog(db,memoryFetcher(content,{'content/catalog.json':{...content.catalog,schemaVersion:2}}))).rejects.toMatchObject({kind:'unsupported'});
-  expect(await db.catalog.count()).toBe(4);
+  expect(await db.catalog.count()).toBe(content.catalog.lessons.length);
  });
 });
 

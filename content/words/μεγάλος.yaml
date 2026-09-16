@@ -1,6 +1,16 @@
 id: w13-20
 greek: μεγάλος
 russian: большой
-verified: false
+ipa: "/meˈɣalos/"
+verified: true
 mastered: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+source: "Собственная подготовка Lexi: правила чтения стандартного новогреческого, ручная проверка ударений и примеров."
+image: μεγάλος.svg
+reading:
+  - text: "γά"
+    ipa: "ɣa"
+    explanation: "γ перед α — звонкий гортанный, как украинское «г»"
+examples:
+  - greek: "Ο σκύλος μου είναι μεγάλος."
+    russian: "Моя собака большая."
+    target: "μεγάλος"

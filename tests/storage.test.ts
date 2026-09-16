@@ -7,7 +7,7 @@ import {ConflictError, commitImport, createLesson, markIntroduced, prepareObject
 import {makePlan, makeSession} from '../src/domain/learning';
 import {defaultSettings, type Settings} from '../src/domain/types';
 import {parseImport} from '../src/domain/import';
-import {content, installLessons} from './helpers/content';
+import {content, installLessons, wordsOf} from './helpers/content';
 
 const now=new Date('2026-09-15T09:00:00Z');
 let db:LexiDatabase;
@@ -17,7 +17,8 @@ beforeEach(async()=>{
  await db.open();
 });
 const ALL=['lesson-1-1','lesson-1-2','lesson-1-3','lesson-1-4'];
-const seedWords=content.words;
+/** Слова установленных уроков: каталог шире, чем набор, который тесты разворачивают в базе. */
+const seedWords=[...new Map(ALL.flatMap(id=>wordsOf(id)).map(word=>[word.id,word])).values()];
 /** Замена старого seed: все четыре урока устанавливаются из пакетов в памяти. */
 const ensureSeed=(database=db)=>installLessons(database,ALL);
 const source=()=>dexieSource(db);
