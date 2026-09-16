@@ -1,5 +1,15 @@
 id: w13-02
 greek: ο αέρας
 russian: воздух
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/o ˈaeras/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: ο-αέρας.svg
+reading:
+  - text: "αέ"
+    ipa: "ae"
+    explanation: "α и έ здесь читаются раздельно, двумя слогами"
+examples:
+  - greek: "Ο αέρας εδώ είναι καθαρός."
+    russian: "Воздух здесь чистый."
+    target: "αέρας"

@@ -1,5 +1,15 @@
 id: w14-18
 greek: ο καφές
 russian: кофе
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/o kaˈfes/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: ο-καφές.svg
+reading:
+  - text: "φ"
+    ipa: "f"
+    explanation: "φ — один звук ф, писать два знака не нужно"
+examples:
+  - greek: "Ο καφές είναι πολύ δυνατός."
+    russian: "Кофе очень крепкий."
+    target: "καφές"

@@ -1,5 +1,16 @@
 id: w14-32
 greek: ο καρπός
 russian: запястье
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/o karˈpos/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: ο-καρπός.svg
+note: "Это же слово значит «плод, фрукт»."
+reading:
+  - text: "ρπ"
+    ipa: "rp"
+    explanation: "ρ и π идут подряд, без гласной между ними"
+examples:
+  - greek: "Ο καρπός μου πονάει από το γράψιμο."
+    russian: "У меня болит запястье от письма."
+    target: "καρπός"

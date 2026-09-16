@@ -1,5 +1,15 @@
 id: w14-12
 greek: η πόλη
 russian: город
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/i ˈpoli/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: η-πόλη.svg
+reading:
+  - text: "λη"
+    ipa: "li"
+    explanation: "конечное η звучит как чистое и"
+examples:
+  - greek: "Η πόλη μου είναι μικρή."
+    russian: "Мой город маленький."
+    target: "πόλη"

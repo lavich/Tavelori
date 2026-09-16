@@ -1,5 +1,18 @@
 id: w14-04
 greek: το παράθυρο
 russian: окно
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to paˈraθiro/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-παράθυρο.svg
+reading:
+  - text: "θ"
+    ipa: "θ"
+    explanation: "θ — глухое межзубное th, как в think"
+  - text: "υ"
+    ipa: "i"
+    explanation: "υ читается как и, а не как русское у"
+examples:
+  - greek: "Το παράθυρο βλέπει στον κήπο."
+    russian: "Окно выходит в сад."
+    target: "παράθυρο"

@@ -1,5 +1,21 @@
 id: w14-33
 greek: το δάχτυλο
 russian: палец
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to ˈðaxtilo/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-δάχτυλο.svg
+reading:
+  - text: "δ"
+    ipa: "ð"
+    explanation: "δ — мягкое межзубное th, как в this"
+  - text: "χτ"
+    ipa: "xt"
+    explanation: "χ перед τ — глухой х, как в «хор»"
+  - text: "υ"
+    ipa: "i"
+    explanation: "υ читается как и, а не как русское у"
+examples:
+  - greek: "Έκοψα το δάχτυλο στο μαχαίρι."
+    russian: "Я порезал палец ножом."
+    target: "δάχτυλο"

@@ -1,5 +1,18 @@
 id: w13-17
 greek: Δυνατός
 russian: сильный
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/ðinaˈtos/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: δυνατός.svg
+reading:
+  - text: "Δ"
+    ipa: "ð"
+    explanation: "δ — мягкое межзубное th, как в this"
+  - text: "υ"
+    ipa: "i"
+    explanation: "υ читается как и, а не как русское у"
+examples:
+  - greek: "Ο αδελφός μου είναι δυνατός."
+    russian: "Мой брат сильный."
+    target: "δυνατός"

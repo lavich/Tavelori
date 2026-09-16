@@ -79,14 +79,18 @@ describe('наборы класса переносятся без потерь �
   expect(year.note).toContain('τα χρόνια');
   expect(tiles(year.greek)).toEqual(['ο','χρό','νος']);
  });
- it('слова без подготовленного контента честно помечены непроверенными',()=>{
-  const plain=seedWords.filter(word=>!prepared.some(item=>item.id===word.id));
-  expect(plain.length).toBeGreaterThan(0);
-  for(const word of plain){
-   expect(word.verified,word.greek).toBe(false);
-   expect(word.ipa,word.greek).toBe('');
-   expect(word.examples,word.greek).toEqual([]);
-   expect(word.imageAssetId,word.greek).toBeUndefined();
+ /** Полумеры недопустимы: карточка либо готова к занятию целиком, либо честно помечена непроверенной. */
+ it('карточка подготовлена целиком или не претендует на подготовленность',()=>{
+  for(const word of seedWords){
+   if(word.verified){
+    expect(word.ipa,word.greek).toMatch(/^\/.+\/$/);
+    expect(word.examples.length,word.greek).toBeGreaterThan(0);
+    expect(word.imageAssetId,word.greek).toBe(`img-${word.id}`);
+   }else{
+    expect(word.ipa,word.greek).toBe('');
+    expect(word.examples,word.greek).toEqual([]);
+    expect(word.imageAssetId,word.greek).toBeUndefined();
+   }
   }
  });
 });
@@ -94,7 +98,7 @@ describe('наборы класса переносятся без потерь �
 describe('каталог и пакеты',()=>{
  it('каталог содержит только метаданные, без слов и медиа',()=>{
   const catalog=parseCatalog(JSON.parse(fileOf('content/catalog.json').body as string));
-  expect(catalog.lessons.map(l=>[l.id,l.wordCount,l.media.count])).toEqual([['lesson-1-1',33,33],['lesson-1-2',30,30],['lesson-1-3',35,8],['lesson-1-4',35,1],['lesson-2-1',36,36],['lesson-2-2',33,33]]);
+  expect(catalog.lessons.map(l=>[l.id,l.wordCount,l.media.count])).toEqual([['lesson-1-1',33,33],['lesson-1-2',30,30],['lesson-1-3',35,35],['lesson-1-4',35,35],['lesson-2-1',36,36],['lesson-2-2',33,33]]);
   const text=fileOf('content/catalog.json').body as string;
   expect(text).not.toContain('σπίτι');
   expect(text).not.toContain('<svg');
@@ -161,8 +165,8 @@ describe('каталог и пакеты',()=>{
 });
 
 describe('карточка каждого подготовленного слова готова',()=>{
- it('у всех 128 слов есть IPA с ударением и распознанный ударный слог',()=>{
-  expect(prepared).toHaveLength(128);
+ it('у всех 189 слов есть IPA с ударением и распознанный ударный слог',()=>{
+  expect(prepared).toHaveLength(189);
   for(const word of prepared){
    expect(word.ipa,word.greek).toMatch(/^\/.+\/$/);
    const core=word.greek.replace(/^(ο|η|το|τα|οι) /,'');
@@ -207,6 +211,6 @@ describe('карточка каждого подготовленного сло�
   const cards=prepared.map(w=>`<figure><div class="a">${seedArt(w.id)}</div><figcaption>${w.greek} — ${w.russian}</figcaption></figure>`).join('');
   mkdirSync('docs',{recursive:true});
   writeFileSync('docs/art-sheet.html',`<!doctype html><meta charset="utf-8"><title>Иллюстрации Lexi</title><style>body{font:14px system-ui;background:#f7f7f5;margin:0;padding:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}figure{margin:0;background:#fff;border-radius:12px;overflow:hidden}.a svg{display:block;width:100%}figcaption{padding:6px 8px;color:#171717}</style>${cards}`);
-  expect(prepared).toHaveLength(128);
+  expect(prepared).toHaveLength(189);
  });
 });

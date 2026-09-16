@@ -1,5 +1,18 @@
 id: w14-11
 greek: τα ρούχα
 russian: одежда
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/ta ˈruxa/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: τα-ρούχα.svg
+reading:
+  - text: "ού"
+    ipa: "u"
+    explanation: "ου — всегда один звук у"
+  - text: "χ"
+    ipa: "x"
+    explanation: "χ перед α, ο, υ и согласной — глухой х, как в «хор»"
+examples:
+  - greek: "Τα ρούχα μου είναι καθαρά."
+    russian: "Моя одежда чистая."
+    target: "ρούχα"

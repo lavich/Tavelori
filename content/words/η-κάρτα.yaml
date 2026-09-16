@@ -1,5 +1,15 @@
 id: w13-12
 greek: η κάρτα
 russian: карта
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/i ˈkarta/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: η-κάρτα.svg
+reading:
+  - text: "ρ"
+    ipa: "r"
+    explanation: "ρ — короткий раскатистый р в один удар языка"
+examples:
+  - greek: "Πληρώνω με κάρτα."
+    russian: "Я плачу картой."
+    target: "κάρτα"

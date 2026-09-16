@@ -1,5 +1,18 @@
 id: w14-13
 greek: το αυτοκίνητο
 russian: автомобиль
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to aftoˈcinito/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-αυτοκίνητο.svg
+reading:
+  - text: "αυ"
+    ipa: "af"
+    explanation: "αυ перед глухой согласной читается как аф"
+  - text: "κί"
+    ipa: "ci"
+    explanation: "κ перед ι смягчается, почти как кь"
+examples:
+  - greek: "Το αυτοκίνητο είναι στον δρόμο."
+    russian: "Автомобиль стоит на дороге."
+    target: "αυτοκίνητο"

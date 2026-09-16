@@ -1,5 +1,15 @@
 id: w14-03
 greek: ο δρόμος
 russian: дорога
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/o ˈðromos/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: ο-δρόμος.svg
+reading:
+  - text: "δ"
+    ipa: "ð"
+    explanation: "δ — мягкое межзубное th, как в this"
+examples:
+  - greek: "Ο δρόμος προς τη θάλασσα είναι μακρύς."
+    russian: "Дорога к морю длинная."
+    target: "δρόμος"

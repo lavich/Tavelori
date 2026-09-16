@@ -1,5 +1,18 @@
 id: w14-30
 greek: το κεφάλι
 russian: голова
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to keˈfali/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-κεφάλι.svg
+reading:
+  - text: "κε"
+    ipa: "ce"
+    explanation: "κ перед ε смягчается, почти как кь"
+  - text: "φ"
+    ipa: "f"
+    explanation: "φ — один звук ф, писать два знака не нужно"
+examples:
+  - greek: "Το κεφάλι μου πονάει."
+    russian: "У меня болит голова."
+    target: "κεφάλι"

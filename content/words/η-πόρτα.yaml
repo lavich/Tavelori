@@ -1,5 +1,15 @@
 id: w14-07
 greek: η πόρτα
 russian: дверь
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/i ˈporta/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: η-πόρτα.svg
+reading:
+  - text: "ρτ"
+    ipa: "rt"
+    explanation: "ρ и τ идут подряд, без гласной между ними"
+examples:
+  - greek: "Η πόρτα είναι ανοιχτή."
+    russian: "Дверь открыта."
+    target: "πόρτα"

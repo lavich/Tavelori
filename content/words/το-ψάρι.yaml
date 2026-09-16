@@ -1,5 +1,15 @@
 id: w13-03
 greek: το ψάρι
 russian: рыба
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to ˈpsari/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-ψάρι.svg
+reading:
+  - text: "ψ"
+    ipa: "ps"
+    explanation: "ψ — слитное пс, один знак на два звука"
+examples:
+  - greek: "Το ψάρι κολυμπάει στη θάλασσα."
+    russian: "Рыба плавает в море."
+    target: "ψάρι"

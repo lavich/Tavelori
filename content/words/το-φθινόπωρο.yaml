@@ -1,5 +1,18 @@
 id: w14-24
 greek: το φθινόπωρο
 russian: осень
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to fθiˈnoporo/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-φθινόπωρο.svg
+reading:
+  - text: "φθ"
+    ipa: "fθ"
+    explanation: "φθ — два глухих подряд: ф и межзубное th"
+  - text: "ω"
+    ipa: "o"
+    explanation: "ω читается точно так же, как ο"
+examples:
+  - greek: "Το φθινόπωρο βρέχει συχνά."
+    russian: "Осенью часто идёт дождь."
+    target: "φθινόπωρο"

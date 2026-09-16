@@ -1,5 +1,18 @@
 id: w13-19
 greek: έξυπνος
 russian: умный
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/ˈeksipnos/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: έξυπνος.svg
+reading:
+  - text: "ξ"
+    ipa: "ks"
+    explanation: "ξ — слитное кс, один знак на два звука"
+  - text: "υ"
+    ipa: "i"
+    explanation: "υ читается как и, а не как русское у"
+examples:
+  - greek: "Ο γιος μου είναι έξυπνος."
+    russian: "Мой сын умный."
+    target: "έξυπνος"

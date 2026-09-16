@@ -1,5 +1,18 @@
 id: w13-16
 greek: Αγαπητός
 russian: любимый
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/aɣapiˈtos/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: αγαπητός.svg
+reading:
+  - text: "γ"
+    ipa: "ɣ"
+    explanation: "γ перед α — звонкий гортанный, как украинское «г»"
+  - text: "η"
+    ipa: "i"
+    explanation: "η читается как и — в греческом несколько букв для звука и"
+examples:
+  - greek: "Είσαι αγαπητός φίλος."
+    russian: "Ты любимый друг."
+    target: "αγαπητός"

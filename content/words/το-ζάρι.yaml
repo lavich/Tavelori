@@ -1,5 +1,15 @@
 id: w13-10
 greek: το ζάρι
 russian: кубик
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to ˈzari/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-ζάρι.svg
+reading:
+  - text: "ζ"
+    ipa: "z"
+    explanation: "ζ — всегда звонкое з"
+examples:
+  - greek: "Το ζάρι έδειξε έξι."
+    russian: "Кубик показал шесть."
+    target: "ζάρι"

@@ -1,5 +1,18 @@
 id: w14-08
 greek: το χαμόγελο
 russian: улыбка
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to xaˈmoʝelo/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-χαμόγελο.svg
+reading:
+  - text: "χ"
+    ipa: "x"
+    explanation: "χ перед α, ο, υ и согласной — глухой х, как в «хор»"
+  - text: "γε"
+    ipa: "ʝe"
+    explanation: "γ перед ε звучит мягко, почти как й"
+examples:
+  - greek: "Έχεις ένα όμορφο χαμόγελο."
+    russian: "У тебя красивая улыбка."
+    target: "χαμόγελο"

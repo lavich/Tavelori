@@ -1,5 +1,15 @@
 id: w14-10
 greek: το όνομα
 russian: имя
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to ˈonoma/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-όνομα.svg
+reading:
+  - text: "μα"
+    ipa: "ma"
+    explanation: "конечное α не редуцируется и звучит чётко"
+examples:
+  - greek: "Γράψε το όνομα εδώ."
+    russian: "Напиши имя здесь."
+    target: "όνομα"

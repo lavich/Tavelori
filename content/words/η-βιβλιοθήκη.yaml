@@ -1,5 +1,21 @@
 id: w14-14
 greek: η βιβλιοθήκη
 russian: библиотека
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/i vivlioˈθici/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: η-βιβλιοθήκη.svg
+reading:
+  - text: "β"
+    ipa: "v"
+    explanation: "β читается как в, а не как б"
+  - text: "θή"
+    ipa: "θi"
+    explanation: "θ — глухое межзубное th, как в think"
+  - text: "κη"
+    ipa: "ci"
+    explanation: "κ перед η смягчается, почти как кь"
+examples:
+  - greek: "Η βιβλιοθήκη ανοίγει στις οκτώ."
+    russian: "Библиотека открывается в восемь."
+    target: "βιβλιοθήκη"

@@ -1,5 +1,15 @@
 id: w13-06
 greek: το γέλιο
 russian: смех
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to ˈʝelio/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-γέλιο.svg
+reading:
+  - text: "γέ"
+    ipa: "ʝe"
+    explanation: "γ перед ε звучит мягко, почти как й"
+examples:
+  - greek: "Το γέλιο του ακούγεται παντού."
+    russian: "Его смех слышно повсюду."
+    target: "γέλιο"

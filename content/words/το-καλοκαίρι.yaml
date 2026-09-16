@@ -1,5 +1,15 @@
 id: w14-22
 greek: το καλοκαίρι
 russian: лето
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to kaloˈceri/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-καλοκαίρι.svg
+reading:
+  - text: "καί"
+    ipa: "ce"
+    explanation: "κ перед αι смягчается, а само αι даёт е"
+examples:
+  - greek: "Το καλοκαίρι πάμε στη θάλασσα."
+    russian: "Летом мы ездим на море."
+    target: "καλοκαίρι"

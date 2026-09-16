@@ -1,5 +1,18 @@
 id: w14-09
 greek: η μουσική
 russian: музыка
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/i musiˈci/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: η-μουσική.svg
+reading:
+  - text: "ου"
+    ipa: "u"
+    explanation: "ου — всегда один звук у"
+  - text: "κή"
+    ipa: "ci"
+    explanation: "κ перед η смягчается, почти как кь"
+examples:
+  - greek: "Η μουσική είναι πολύ δυνατή."
+    russian: "Музыка очень громкая."
+    target: "μουσική"

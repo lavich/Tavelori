@@ -1,5 +1,18 @@
 id: w13-07
 greek: το κλειδί
 russian: ключ
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to kliˈði/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-κλειδί.svg
+reading:
+  - text: "ει"
+    ipa: "i"
+    explanation: "ει читается как один звук и"
+  - text: "δί"
+    ipa: "ði"
+    explanation: "δ — мягкое межзубное th, как в this"
+examples:
+  - greek: "Το κλειδί είναι στην τσέπη μου."
+    russian: "Ключ у меня в кармане."
+    target: "κλειδί"

@@ -1,5 +1,18 @@
 id: w13-24
 greek: χοντρός
 russian: полный
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/xoˈndros/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: χοντρός.svg
+reading:
+  - text: "χ"
+    ipa: "x"
+    explanation: "χ перед α, ο, υ и согласной — глухой х, как в «хор»"
+  - text: "ντ"
+    ipa: "nd"
+    explanation: "ντ внутри слова читается как нд"
+examples:
+  - greek: "Ο γάτος μας είναι χοντρός."
+    russian: "Наш кот толстый."
+    target: "χοντρός"

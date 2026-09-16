@@ -1,5 +1,15 @@
 id: w13-08
 greek: το μήλο
 russian: яблоко
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/to ˈmilo/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: το-μήλο.svg
+reading:
+  - text: "ή"
+    ipa: "i"
+    explanation: "η читается как и — в греческом несколько букв для звука и"
+examples:
+  - greek: "Τρώω ένα μήλο κάθε πρωί."
+    russian: "Я ем яблоко каждое утро."
+    target: "μήλο"

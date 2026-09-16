@@ -1,5 +1,15 @@
 id: w14-29
 greek: η ώρα
 russian: час
-verified: false
-source: Набор класса LEEKE A2 — 26-27, перенесён из Quizlet как есть.
+ipa: "/i ˈora/"
+verified: true
+source: "Набор класса LEEKE A2 — 26-27; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: η-ώρα.svg
+reading:
+  - text: "ώ"
+    ipa: "o"
+    explanation: "ω читается точно так же, как ο"
+examples:
+  - greek: "Η ώρα είναι τρεις."
+    russian: "Сейчас три часа."
+    target: "ώρα"
