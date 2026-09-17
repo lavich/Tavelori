@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {BrowserRouter} from 'react-router-dom';
 import {registerSW} from 'virtual:pwa-register';
 import {App} from './app/App';
+import {CrashScreen} from './app/CrashScreen';
 import {Recovery} from './app/Recovery';
 import {refreshCatalog, syncCourses} from './content/client';
 import {initPlatform, telegramBridge} from './platform/platform';
@@ -24,13 +25,20 @@ try{
  }
 }catch(error){console.warn('Service worker недоступен',error)}
 
+const root=createRoot(document.getElementById('root')!);
 // Настройка отчётов читается из открытой базы. Если база не открылась, настройку прочитать нельзя —
 // отчёт об этом отказе уходит по умолчанию; это единственный случай без проверки настройки.
-const opened=db.open().then(()=>{bindReportingToSettings()},error=>{reportError(error,{category:'storage'});setReportingEnabled(true);throw error});
+// Без базы приложение работать не может: вместо пустой страницы показывается понятное сообщение с перезапуском.
+const opened=db.open().then(()=>{bindReportingToSettings()},error=>{
+ const reportId=reportError(error,{category:'storage'});
+ setReportingEnabled(true);
+ root.render(<StrictMode><CrashScreen testId="storage-failed" title="Не удалось открыть данные" description="Хранилище браузера сейчас недоступно. Ваши слова и прогресс не потеряны: перезапуск обычно помогает. Если нет — проверьте свободное место или режим приватного просмотра." error={error} reportId={reportId}/></StrictMode>);
+ throw error;
+});
 const database=opened.then(()=>ensureDefaults()).then(()=>settleLessons(new Date())).catch(error=>console.error('Не удалось открыть локальную базу',error));
 // Подписанные курсы догружаются следом за каталогом: новый урок появляется сам, медиа остаётся по запросу.
 refreshCatalog().then(()=>syncCourses()).catch(()=>undefined);
 // Bridge Telegram загружается параллельно и не задерживает рендер; синхронизация подключается после базы и bridge.
 const platform=initPlatform();
 Promise.all([database,platform]).then(()=>connectSync(telegramBridge())).catch(error=>console.warn('Синхронизация не подключена',error));
-createRoot(document.getElementById('root')!).render(<StrictMode><BrowserRouter basename={import.meta.env.BASE_URL}><Recovery><App/></Recovery></BrowserRouter></StrictMode>);
+root.render(<StrictMode><BrowserRouter basename={import.meta.env.BASE_URL}><Recovery><App/></Recovery></BrowserRouter></StrictMode>);
