@@ -187,6 +187,6 @@ describe('резервная копия',()=>{
   links.rows.push({lessonId:'lesson-1-1',wordId:'нет-такого',position:99});
   await expect(restoreBackup(asLexi(good),db)).rejects.toThrow(/несуществующую запись/);
   expect(await db.words.count()).toBe(before);
-  expect(await db.lessonWords.count()).toBe(33);
+  expect(await db.lessonWords.count()).toBe(38);
  });
 });
