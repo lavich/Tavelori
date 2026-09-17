@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {BrowserRouter} from 'react-router-dom';
 import {registerSW} from 'virtual:pwa-register';
 import {App} from './app/App';
+import {Recovery} from './app/Recovery';
 import {refreshCatalog, syncCourses} from './content/client';
 import {initPlatform, telegramBridge} from './platform/platform';
 import {db, ensureDefaults} from './storage/db';
@@ -25,4 +26,4 @@ refreshCatalog().then(()=>syncCourses()).catch(()=>undefined);
 // Bridge Telegram загружается параллельно и не задерживает рендер; синхронизация подключается после базы и bridge.
 const platform=initPlatform();
 Promise.all([database,platform]).then(()=>connectSync(telegramBridge())).catch(error=>console.warn('Синхронизация не подключена',error));
-createRoot(document.getElementById('root')!).render(<StrictMode><BrowserRouter basename={import.meta.env.BASE_URL}><App/></BrowserRouter></StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode><BrowserRouter basename={import.meta.env.BASE_URL}><Recovery><App/></Recovery></BrowserRouter></StrictMode>);

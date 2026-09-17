@@ -1,5 +1,32 @@
 import type {Page} from '@playwright/test';
 
+/**
+ * Отказ хранилища, как у WebKit после сна WebView: чтение из IndexedDB бросает `UnknownError`, пока базу не откроют
+ * заново — `indexedDB.open` снимает подмену (в режиме `permanent` — нет). Число открытий считается в `window.__reopened`.
+ */
+export async function breakStorage(page:Page,permanent=false){
+ await page.evaluate(permanent=>{
+  const restore:(()=>void)[]=[];
+  const fail=()=>{throw new DOMException('Attempt to get a record from database without an in-progress transaction','UnknownError')};
+  const patch=(proto:object,names:string[])=>names.forEach(name=>{
+   const original=(proto as Record<string,unknown>)[name];
+   if(typeof original!=='function')return;
+   (proto as Record<string,unknown>)[name]=fail;
+   restore.push(()=>{(proto as Record<string,unknown>)[name]=original});
+  });
+  const READS=['get','getKey','getAll','getAllKeys','count','openCursor','openKeyCursor'];
+  patch(IDBObjectStore.prototype,READS);
+  patch(IDBIndex.prototype,READS);
+  const open=IDBFactory.prototype.open;
+  const marker=window as unknown as {__reopened?:number};
+  IDBFactory.prototype.open=function(this:IDBFactory,...args:[string,number?]){
+   marker.__reopened=(marker.__reopened??0)+1;
+   if(!permanent){restore.forEach(undo=>undo());IDBFactory.prototype.open=open}
+   return open.apply(this,args);
+  };
+ },permanent);
+}
+
 export interface DuePlan {wordId:string;tested:('recall'|'recognition'|'assembly'|'spelling')[];audio?:boolean}
 /** Готовим очередь прямо в IndexedDB: сроки, история навыков и аудиофайл для аудирования. */
 export async function seedQueue(page:Page,plan:DuePlan[],databaseName='lexi'){
