@@ -142,7 +142,7 @@ describe('каталог',()=>{
  });
  it('каталог неподдерживаемой схемы отклоняется без изменения кеша',async()=>{
   await refreshCatalog(db,memoryFetcher());
-  await expect(refreshCatalog(db,memoryFetcher(content,{'content/catalog.json':{...content.catalog,schemaVersion:2}}))).rejects.toMatchObject({kind:'unsupported'});
+  await expect(refreshCatalog(db,memoryFetcher(content,{'content/catalog.json':{...content.catalog,schemaVersion:1}}))).rejects.toMatchObject({kind:'unsupported'});
   expect(await db.catalog.count()).toBe(content.catalog.lessons.length);
  });
 });
@@ -156,17 +156,19 @@ describe('установка урока',()=>{
   expect(fetcher.requests).toEqual(['content/catalog.json',entry('lesson-1-2').url]);
   expect(await db.words.count()).toBe(30);
   expect((await lessonLinks('lesson-1-2',db)).map(l=>l.wordId)).toEqual(packageOf('lesson-1-2').links.map(l=>l.wordId));
-  expect(await db.lessons.get('lesson-1-2')).toMatchObject({title:'Урок 1.2',targetDate:'2026-09-18',status:'upcoming'});
+  expect(await db.lessons.get('lesson-1-2')).toMatchObject({title:'Урок 1.2',targetDate:null,status:'upcoming'});
   expect(await db.assets.count()).toBe(0); // медиа не скачиваются вместе с пакетом
   expect(await db.media.count()).toBe(30);
   const word=(await db.words.get('w12-16'))!;
   expect(word).toMatchObject({greek:'το σπίτι',revision:packageOf('lesson-1-2').words.find(w=>w.id==='w12-16')!.revision});
   expect(word.tokens).toContain('σπιτι');
  });
- it('пакеты 1.1 и 1.2 дают 68 слов и проведённый урок без даты',async()=>{
+ it('пакеты 1.1 и 1.2 дают 68 слов и предстоящие уроки без дат',async()=>{
   await installLessons(db,['lesson-1-1','lesson-1-2']);
   expect(await db.words.count()).toBe(68);
-  expect(await db.lessons.get('lesson-1-1')).toMatchObject({status:'completed',targetDate:null});
+  // Положение урока во времени не поставляется: оба урока предстоящие и без дат, дальше ими распоряжается пользователь.
+  expect(await db.lessons.get('lesson-1-1')).toMatchObject({status:'upcoming',targetDate:null});
+  expect(await db.lessons.get('lesson-1-2')).toMatchObject({status:'upcoming',targetDate:null});
   expect(await db.events.count()).toBe(0);
   expect(await db.states.count()).toBe(0);
  });

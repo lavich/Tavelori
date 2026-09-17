@@ -43,9 +43,11 @@ describe('исходные наборы 1.1 и 1.2 сохранены в нач�
   expect(wordsOf(content,'lesson-1-1').slice(33).map(w=>[w.greek,w.russian]))
    .toEqual([['Σωστό','верно'],['Λάθος','неверно'],['και','и'],['ένα','один'],['στο','в']]);
  });
- it('пакет 1.1 проведён без выдуманной даты, 1.2 назначен на 18 сентября',()=>{
-  expect(packageOf('lesson-1-1').lesson).toEqual({title:'Урок 1.1',status:'completed',targetDate:null});
-  expect(packageOf('lesson-1-2').lesson).toEqual({title:'Урок 1.2',status:'upcoming',targetDate:'2026-09-18'});
+ /** Пакет описывает урок, а не занятие: статус и дата принадлежат пользователю и в поставку не попадают. */
+ it('пакет несёт только название урока',()=>{
+  expect(packageOf('lesson-1-1').lesson).toEqual({title:'Урок 1.1'});
+  expect(packageOf('lesson-1-2').lesson).toEqual({title:'Урок 1.2'});
+  for(const [id,source] of content.sources.lessons) expect(Object.keys(source),id).toEqual(expect.not.arrayContaining(['status','targetDate']));
  });
 });
 
@@ -200,7 +202,8 @@ describe('каталог и пакеты',()=>{
   expect(()=>parsePackage({...pack,media:[{...pack.media[0],url:'https://evil.example/x.svg'}]})).toThrow(/относительной/);
   expect(()=>parsePackage({...pack,words:pack.words.map((w:{greek:string})=>({...w,greek:''}))})).toThrow(/нет написания/);
   expect(()=>parsePackage('строка')).toThrow(/ожидался объект/);
-  expect(()=>parseCatalog({schemaVersion:1,generatedAt:'x',lessons:[{id:'a'}]})).toThrow(/ожидалась строка/);
+  expect(()=>parseCatalog({schemaVersion:SCHEMA_VERSION,generatedAt:'x',lessons:[{id:'a'}]})).toThrow(/ожидалась строка/);
+  expect(()=>parseCatalog({schemaVersion:1,generatedAt:'x',lessons:[]})).toThrow(/версии схемы 1 не поддерживается/);
  });
 });
 
