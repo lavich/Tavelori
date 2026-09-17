@@ -38,6 +38,9 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      # Репозиторий packages.microsoft.com в образе runner периодически отдаёт 403 и валит apt-get update,
+      # который Playwright запускает при установке системных зависимостей. Chromium из него не берётся.
+      - run: sudo find /etc/apt/sources.list.d -name 'microsoft*' -delete
       - if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
       - if: steps.playwright-cache.outputs.cache-hit == 'true'
