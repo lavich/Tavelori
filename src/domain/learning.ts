@@ -1,6 +1,6 @@
 import {createEmptyCard, fsrs, generatorParameters, State, type Card, type Grade} from 'ts-fsrs';
 import {emptySkills, summarizeEvents, type SkillSummary} from './skills';
-import {tiles} from './syllables';
+import {assemblyOptions, splitWriting} from './syllables';
 import {LOCAL_COURSE, type Course, type ExerciseType, type LearningState, type Lesson, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from './types';
 
 export const scheduler=fsrs(generatorParameters({enable_fuzz:false}));
@@ -278,14 +278,21 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
 
 /** Варианты проверяем по уникальным ответам, а не только по размеру словаря. */
 export function objectiveExercise(word:Word,pool:Word[],skills:SkillSummary=emptySkills(),random:()=>number=Math.random,hasVoice=false):Pick<SessionItem,'type'|'options'>{
- const parts=tiles(word.greek);
+ const writing=splitWriting(word.greek);
+ const parts=writing.syllables;
  const recognition=optionsFor(word,pool,'recognition',random);
  const listening=optionsFor(word,pool,'listening',random);
  const type=chooseTypeFor(skills,{
   hasAudio:(!!word.audioAssetId||hasVoice)&&listening.length===4,
   hasOptions:recognition.length===4,canAssemble:parts.length>=2,
  });
- return {type,options:type==='assembly'?shuffleTiles(parts,random):type==='recognition'?recognition:type==='listening'?listening:[]};
+ if(type==='assembly'){
+  // Перемешивание полной старой последовательности сохраняет детерминированный поток random для остальных заданий.
+  const shuffled=shuffleTiles(writing.article?[writing.article,...parts]:parts,random);
+  const options=assemblyOptions(word.greek,shuffled);
+  return {type,options:options.join('')===parts.join('')?[...options.slice(1),options[0]]:options};
+ }
+ return {type,options:type==='recognition'?recognition:type==='listening'?listening:[]};
 }
 
 export function spaceSingleIntroduction(items:SessionItem[]):SessionItem[]{

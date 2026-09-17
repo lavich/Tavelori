@@ -1,6 +1,7 @@
 const VOWELS='αεηιουωάέήίόύώϊϋΐΰ';
 const ACCENTED='άέήίόύώΐΰ';
 const DIGRAPHS=['ου','ού','ει','εί','οι','οί','αι','αί','αυ','αύ','ευ','εύ','υι','ηυ'];
+const ARTICLES=new Set(['ο','η','το','οι','τα','τον','την','τους','τις']);
 /** Сочетания, с которых начинаются греческие слова: такие пары уходят к следующему слогу целиком. */
 const ONSETS=new Set([
  'βγ','βδ','βλ','βρ','γδ','γκ','γλ','γν','γρ','δρ','θλ','θν','θρ','κλ','κν','κρ','κτ','μν','μπ','ντ',
@@ -61,6 +62,47 @@ export function splitSyllables(word:string):string[]{
  return parts.filter(part=>part.length>0);
 }
 
-/** Плитки для упражнения: артикль отдельной плиткой, затем слоги слова. */
-export const tiles=(greek:string):string[]=>
- greek.normalize('NFC').trim().split(/\s+/).filter(Boolean).flatMap(splitSyllables);
+export interface SyllableWriting {
+ article:string|null;
+ /** Слоги каждого токена после артикля; границы нужны для восстановления пробелов. */
+ tokens:string[][];
+ syllables:string[];
+}
+
+/** Отделяет ведущий определённый артикль и делит остальные токены на слоги. */
+export function splitWriting(greek:string):SyllableWriting{
+ const parts=greek.normalize('NFC').trim().split(/\s+/).filter(Boolean);
+ const article=parts.length>1&&ARTICLES.has(lower(parts[0]))?parts.shift()!:null;
+ const tokens=parts.map(splitSyllables);
+ return {article,tokens,syllables:tokens.flat()};
+}
+
+/** Восстанавливает написание, сохраняя исходные границы токенов и пробел после артикля. */
+export function restoreWriting(greek:string,ordered:string[]):string{
+ const writing=splitWriting(greek);
+ let offset=0;
+ const tokens=writing.tokens.map(token=>{
+  const restored=ordered.slice(offset,offset+token.length).join('');
+  offset+=token.length;
+  return restored;
+ });
+ return [writing.article,...tokens].filter((part):part is string=>part!==null).join(' ').normalize('NFC').trim();
+}
+
+/** Плитки упражнения содержат только слоги самого слова, без артикля. */
+export const tiles=(greek:string):string[]=>splitWriting(greek).syllables;
+
+/** Старые сессии хранили артикль среди вариантов; при открытии убираем только эту плитку. */
+export function assemblyOptions(greek:string,options:string[]):string[]{
+ const {article}=splitWriting(greek);
+ if(!article)return options;
+ const articleIndex=options.findIndex(option=>option.normalize('NFC')===article);
+ return articleIndex<0?options:options.filter((_,index)=>index!==articleIndex);
+}
+
+/** Человекочитаемая запись правильного ответа: артикль · сло-ги. */
+export function formatSyllables(greek:string):string{
+ const writing=splitWriting(greek);
+ const word=writing.tokens.map(token=>token.join('-')).join(' ');
+ return writing.article?`${writing.article} · ${word}`:word;
+}

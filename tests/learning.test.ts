@@ -1,6 +1,6 @@
 import {expect,it} from 'vitest';
 import {createEmptyCard, Rating} from 'ts-fsrs';
-import {localDay,daysBetween,makePlan as planOf,nextState,chooseType,makeSession as sessionOf} from '../src/domain/learning';
+import {localDay,daysBetween,makePlan as planOf,nextState,chooseType,makeSession as sessionOf,objectiveExercise} from '../src/domain/learning';
 import {fromSnapshot} from '../src/domain/snapshot-source';
 import {defaultSettings,type Word,type Lesson,type Snapshot} from '../src/domain/types';
 const now=new Date('2026-09-15T09:00:00Z');
@@ -19,6 +19,16 @@ it('handles multiple deadlines by cumulative demand',async()=>{const plan=await 
 it('honors local calendar through DST and UTC midnight',()=>{expect(localDay(new Date('2026-09-15T22:30Z'),'Asia/Nicosia')).toBe('2026-09-16');expect(daysBetween('2026-10-24','2026-10-26')).toBe(2)});
 it('schedules a new word without losing FSRS fields',()=>{const state=nextState(undefined,'w0',Rating.Good,now);expect(state.card.due.getTime()).toBeGreaterThan(now.getTime());expect(state.card.reps).toBe(1);expect(state.version).toBe(1)});
 it('chooses recognition for an untested word',()=>expect(chooseType('w0',[],{})).toBe('recognition'));
+
+it('считает сборку по слогам без артикля и сохраняет только их',()=>{
+ const history=[{id:'r',sessionId:'s',itemId:'i',wordId:'w',snapshot:{greek:'',russian:''},type:'recognition' as const,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',createdAt:now.toISOString(),localDate:'2026-09-15',responseTimeMs:100}];
+ const skills={cleanAssemblies:0,lastTypes:['recognition' as const],types:{recognition:{recent:[true],lastAt:now.toISOString()}}};
+ const family={...words[0],id:'family',greek:'η οικογένεια'};
+ expect(objectiveExercise(family,[],skills,()=>0)).toEqual({type:'assembly',options:['κο','γέ','νεια','οι']});
+ const light={...words[0],id:'light',greek:'το φως'};
+ expect(objectiveExercise(light,[],skills,()=>0).type).toBe('spelling');
+ expect(history).toHaveLength(1); // форма события остаётся совместимой
+});
 
 it('never creates recall, including tiny dictionaries and duplicate translations',async()=>{
  for(const pool of [words.slice(0,1),words.slice(0,2),words.slice(0,5).map(w=>({...w,russian:'одно значение'}))]){

@@ -39,6 +39,20 @@ async function openAssembly(page:import('@playwright/test').Page){
  throw new Error('Сборка не выпала за отведённые шаги');
 }
 
+const updateWord=(page:import('@playwright/test').Page,greek:string,russian:string)=>page.evaluate(({greek,russian})=>new Promise<void>((resolve,reject)=>{
+ const request=indexedDB.open('lexi');
+ request.onsuccess=()=>{
+  const db=request.result;
+  const tx=db.transaction('words','readwrite');
+  const store=tx.objectStore('words');
+  const get=store.get('w12-16');
+  get.onsuccess=()=>store.put({...get.result,greek,russian});
+  tx.oncomplete=()=>{db.close();resolve()};
+  tx.onerror=()=>reject(tx.error);
+ };
+ request.onerror=()=>reject(request.error);
+}),{greek,russian});
+
 test.beforeEach(async({page})=>{
  await page.goto('/');
  await page.waitForSelector('text=Немного каждый день');
@@ -48,26 +62,33 @@ test.beforeEach(async({page})=>{
  await page.waitForSelector('text=Немного каждый день');
 });
 
-test('слово собирается из слогов: артикль отдельной плиткой, проверка по порядку',async({page})=>{
+test('артикль закреплён, а неверный порядок слогов даёт понятную обратную связь',async({page})=>{
  await openAssembly(page);
- expect((await page.getByTestId('tile').allInnerTexts()).sort()).toEqual(['σπί','τι','το'].sort());
+ await expect(page.getByTestId('article-hint')).toHaveText('Слово дано с артиклем');
+ await expect(page.getByTestId('fixed-article')).toContainText('το');
+ expect((await page.getByTestId('tile').allInnerTexts()).sort()).toEqual(['σπί','τι'].sort());
  await expect(page.getByRole('button',{name:'Проверить'})).toBeDisabled();
 
- await page.getByTestId('tile').filter({hasText:/^σπί$/}).click();
  await page.getByTestId('tile').filter({hasText:/^τι$/}).click();
- await page.getByTestId('tile').filter({hasText:/^το$/}).click();
+ await page.getByTestId('tile').filter({hasText:/^σπί$/}).click();
  await expect(page.getByRole('button',{name:'Проверить'})).toBeEnabled();
+ await page.getByTestId('placed').filter({hasText:/^σπί$/}).click();
+ await expect(page.getByRole('button',{name:'Проверить'})).toBeDisabled();
+ await page.getByTestId('tile').filter({hasText:/^σπί$/}).click();
  await page.getByRole('button',{name:'Проверить'}).click();
  await expect(page.getByTestId('feedback')).toContainText('Пока не сходится');
- await expect(page.getByTestId('feedback')).toContainText('το · σπί · τι');
+ await expect(page.getByTestId('feedback')).toContainText('το · σπί-τι');
  await expect(page.getByTestId('tile')).toHaveCount(0); // после ответа плитки убираются
 });
 
 test('верный порядок засчитывается и остаётся в истории',async({page})=>{
+ await updateWord(page,'η οικογένεια','семья');
+ await page.reload();
  await openAssembly(page);
- for(const tile of ['το','σπί','τι'])await page.getByTestId('tile').filter({hasText:new RegExp(`^${tile}$`)}).click();
+ for(const tile of ['οι','κο','γέ','νεια'])await page.getByTestId('tile').filter({hasText:new RegExp(`^${tile}$`)}).click();
  await page.getByRole('button',{name:'Проверить'}).click();
  await expect(page.getByTestId('feedback')).toContainText('Правильно!');
+ await expect(page.getByTestId('feedback')).toContainText('η · οι-κο-γέ-νεια');
  const events=await page.evaluate(()=>new Promise<{type:string;correct:boolean;answer:string}[]>(resolve=>{
   const request=indexedDB.open('lexi');
   request.onsuccess=()=>{
@@ -77,5 +98,43 @@ test('верный порядок засчитывается и остаётся
  }));
  const assembly=events.find(event=>event.type==='assembly')!;
  expect(assembly.correct).toBe(true);
- expect(assembly.answer).toBe('τοσπίτι');
+ expect(assembly.answer).toBe('η οικογένεια');
+});
+
+test('старая сессия с артиклем в вариантах доигрывается по новым правилам',async({page})=>{
+ await openAssembly(page);
+ await page.evaluate(()=>new Promise<void>((resolve,reject)=>{
+  const request=indexedDB.open('lexi');
+  request.onsuccess=()=>{
+   const db=request.result;
+   const tx=db.transaction('sessions','readwrite');
+   const store=tx.objectStore('sessions');
+   const all=store.getAll();
+   all.onsuccess=()=>{
+    const session=all.result.find((entry:{status:string})=>entry.status==='active');
+    const item=session.items[session.index] as {id:string;options:string[]};
+    store.put({...session,items:session.items.map((entry:{id:string;options:string[]})=>entry.id===item.id?{...entry,options:['το',...entry.options]}:entry)});
+   };
+   tx.oncomplete=()=>{db.close();resolve()};
+   tx.onerror=()=>reject(tx.error);
+  };
+  request.onerror=()=>reject(request.error);
+ }));
+ await page.reload();
+ await expect(page.getByTestId('fixed-article')).toContainText('το');
+ expect((await page.getByTestId('tile').allInnerTexts()).sort()).toEqual(['σπί','τι'].sort());
+ for(const tile of ['σπί','τι'])await page.getByTestId('tile').filter({hasText:new RegExp(`^${tile}$`)}).click();
+ await page.getByRole('button',{name:'Проверить'}).click();
+ await expect(page.getByTestId('feedback')).toContainText('Правильно!');
+});
+
+test('слово без артикля собирается без закреплённой плитки',async({page})=>{
+ await updateWord(page,'διαβάζω','читать');
+ await page.reload();
+ await openAssembly(page);
+ await expect(page.getByTestId('fixed-article')).toHaveCount(0);
+ await expect(page.getByTestId('article-hint')).toHaveCount(0);
+ for(const tile of ['δια','βά','ζω'])await page.getByTestId('tile').filter({hasText:new RegExp(`^${tile}$`)}).click();
+ await page.getByRole('button',{name:'Проверить'}).click();
+ await expect(page.getByTestId('feedback')).toContainText('δια-βά-ζω');
 });

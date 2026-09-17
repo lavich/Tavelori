@@ -127,7 +127,7 @@ export async function recordGolden(){
 describe('эталон планировщика',()=>{
  it('совпадает с зафиксированными сценариями',async()=>{
   const actual=await recordGolden();
-  if(!existsSync(FIXTURE)){writeFileSync(FIXTURE,JSON.stringify(actual,null,1));return}
+  if(!existsSync(FIXTURE)||process.env.UPDATE_GOLDEN==='1'){writeFileSync(FIXTURE,JSON.stringify(actual,null,1));return}
   expect(actual).toEqual(JSON.parse(readFileSync(FIXTURE,'utf8')));
  });
 });

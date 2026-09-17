@@ -24,6 +24,8 @@
 
 .slots{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;min-height:56px;border:2px dashed var(--border);border-radius:14px;padding:4px 8px}
 .slotsHint{color:var(--muted-foreground);font-size:14px}
+.article{display:inline-flex;height:48px;align-items:center;gap:7px;border-radius:12px;background:var(--muted);padding:0 14px;font-size:19px}
+.article span{font-size:12px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.04em}
 .tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
 .prompt{color:var(--muted-foreground);font-size:15px}
 .options{display:grid;gap:10px}
