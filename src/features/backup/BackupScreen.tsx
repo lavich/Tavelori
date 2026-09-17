@@ -6,6 +6,9 @@ import {Field, FieldLabel} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {BackBar} from '../../app/TopBar';
 import {SYNC_BOUNDARIES} from '../../app/TelegramNotices';
+
+/** Единственный канал, по которому что-то покидает устройство помимо синхронизации: описывается так же явно. */
+export const REPORT_BOUNDARIES='Отчёты об ошибках уходят в сервис учёта ошибок Sentry: тип ошибки и стек, версия приложения и сборки, среда запуска (веб или Telegram) с версией клиента, путь экрана без параметров и события сворачивания Mini App с размерами окна. В отчёт не попадают слова, переводы, примеры, ответы, прогресс, содержимое базы и снимков, идентификатор и имя пользователя Telegram, данные запуска и сообщения консоли; IP-адрес не сохраняется. Без сети отчёт ждёт на устройстве в отдельном хранилище и уходит при следующем запуске; в полную копию он не входит. Выключается в «Настройках» переключателем «Отправлять отчёты об ошибках» — сразу и насовсем, очередь при этом удаляется. Единственное исключение — отчёт о том, что не открылась сама база: настройку в этот момент прочитать нельзя, и он уходит по умолчанию.';
 import {megabytes} from '../../shared/offline';
 import {currentProfile} from '../../storage/profile';
 import {sync} from '../../sync';
@@ -60,6 +63,7 @@ export function BackupScreen(){
     <Card className="mb-3"><CardHeader><CardTitle>Полная копия</CardTitle></CardHeader><CardContent>
      <p className={cx(ui.small, ui.muted)}>Слова, наборы и их связи, скачанные картинки и аудио, версии установленных уроков и ваши правки, прогресс FSRS, ответы, сессии и настройки. Этот файл переносит всё{profile.kind==='telegram'?', в том числе между Telegram и обычным браузером':''}.</p>
      {profile.kind==='telegram'&&<p className={cx(ui.small, ui.muted)} data-testid="sync-boundaries">{SYNC_BOUNDARIES}</p>}
+     <p className={cx(ui.small, ui.muted)} data-testid="error-reports-boundaries">{REPORT_BOUNDARIES}</p>
      <Button size="xl" onClick={async()=>{setBusy(true);try{await send(await exportFull(),backupName())}finally{setBusy(false)}}} disabled={busy}>Сохранить полную копию</Button>
      {transfer&&<p className={ui.small} role="status" data-testid="transfer-status">{transfer}</p>}
     </CardContent></Card>
