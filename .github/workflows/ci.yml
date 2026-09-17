@@ -28,6 +28,7 @@ jobs:
       - run: npm test
       - run: npm run spec
       - run: npm run build
+      - run: npm run check:bundle
 
       # Браузер Playwright кешируется по версии пакета: полная установка нужна только при промахе,
       # системные зависимости ставятся всегда — образ runner их не хранит.
