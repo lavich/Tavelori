@@ -21,5 +21,5 @@ export default defineConfig({
  define:{__APP_VERSION__:JSON.stringify(appVersion),__APP_BUILD__:JSON.stringify(appBuild)},
  resolve:{alias:{'@':fileURLToPath(new URL('./src',import.meta.url))}},
  plugins:[react(),tailwindcss(),spaFallback(),VitePWA({registerType:'prompt',includeAssets:['icon.svg'],manifest:{name:'Lexi — греческий к каждому занятию',short_name:'Lexi',description:'Ваш личный тренажёр греческих слов',lang:'ru',theme_color:'#0d5eaf',background_color:'#f7f7f5',display:'standalone',start_url:base,scope:base,icons:[{src:`${base}icon.svg`,sizes:'any',type:'image/svg+xml',purpose:'any'}]},workbox:{clientsClaim:true,skipWaiting:false,globPatterns:['**/*.{js,css,html,svg,png,webp,json}'],globIgnores:['**/content/**'],navigateFallbackDenylist:[/\/content\//],maximumFileSizeToCacheInBytes:5*1024*1024,cleanupOutdatedCaches:true}})],
- test:{include:['tests/**/*.test.ts'],environment:'node'},
+ test:{include:['tests/**/*.test.{ts,tsx}'],environment:'node'},
 });
