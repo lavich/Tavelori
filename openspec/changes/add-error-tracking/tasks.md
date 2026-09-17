@@ -1,7 +1,7 @@
 ## 1. Сервис и реквизиты
 
-- [ ] 1.1 Создать проект браузерного JavaScript в Sentry на плане Developer, записать адрес приёма; проверить, что тестовое событие из консоли браузера появляется в проекте.
-- [ ] 1.2 Добавить в репозиторий переменную `VITE_SENTRY_DSN` и секреты `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`; проверить `gh variable list` и `gh secret list`.
+- [x] 1.1 Создать проект браузерного JavaScript в Sentry на плане Developer, записать адрес приёма; проверить, что тестовое событие из консоли браузера появляется в проекте.
+- [x] 1.2 Добавить в репозиторий переменную `VITE_SENTRY_DSN` и секреты `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`; проверить `gh variable list` и `gh secret list`.
 
 ## 2. Настройка и границы данных
 
