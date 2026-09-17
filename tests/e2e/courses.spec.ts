@@ -70,7 +70,8 @@ test('у курса своё расписание и свой предел; со
  await leeke.getByRole('button',{name:'Пн',exact:true}).click();
  await leeke.getByRole('button',{name:'Сохранить'}).click();
  await expect(leeke.getByText('Пн, первое занятие 21 сентября')).toBeVisible();
- await expect(leeke.getByRole('link',{name:/1\.3 · К понедельнику/})).toBeVisible();
+ await expect(leeke.getByRole('link',{name:/1\.1 · К понедельнику, 21 сентября/})).toBeVisible();
+ await expect(leeke.getByRole('link',{name:/1\.3 · 5 октября/})).toBeVisible(); // не ближайшее занятие — только дата
  await expect(mine.getByRole('link',{name:/Мой набор · Без даты/})).toBeVisible();
 
  // Предел тоже принадлежит курсу.

@@ -13,6 +13,21 @@ export interface CourseGroup {
 export const UNKNOWN_COURSE='unknown';
 
 /**
+ * Ближайшее занятие каждого курса: первый непроведённый урок, чей день не раньше сегодняшнего.
+ * Расписание у курсов своё, поэтому и ближайший урок у каждого свой; урок без даты им быть не может.
+ */
+export function nextLessonIds(lessons:LessonView[],today:string):Set<string>{
+ const soonest=new Map<string,LessonView>();
+ for(const lesson of lessons){
+  if(lesson.status==='completed'||!lesson.targetDate||lesson.targetDate<today)continue;
+  const key=lesson.courseId??UNKNOWN_COURSE;
+  const kept=soonest.get(key);
+  if(!kept||lesson.targetDate<kept.targetDate!||(lesson.targetDate===kept.targetDate&&lesson.createdAt<kept.createdAt))soonest.set(key,lesson);
+ }
+ return new Set([...soonest.values()].map(lesson=>lesson.id));
+}
+
+/**
  * Порядок групп: подписанные курсы поставки, затем доступные, затем уроки без известного курса
  * и локальные наборы последними. Пустая группа не показывается.
  */

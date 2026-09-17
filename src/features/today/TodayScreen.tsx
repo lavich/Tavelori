@@ -12,6 +12,7 @@ import {capitalize, dativeWeekday, dayMonth, DAYS, LESSONS, shortTitle, withCoun
 import {useActiveSession, useCatalog, useLessons, usePlan, useSettings} from '../../shared/store';
 import {startSession} from '../learning/session-actions';
 import {LessonRow} from '../lessons/LessonRow';
+import {nextLessonIds} from '../lessons/courses';
 import ui from '../../shared/ui.module.css';
 
 export function TodayScreen(){
@@ -28,6 +29,7 @@ export function TodayScreen(){
  const next=plan?.deadlines[0];
  const lesson=next&&installed?.find(item=>item.id===next.lessonId);
  const today=localDay(now,settings.timezone);
+ const nextIds=nextLessonIds(installed??[],today);
  const lessons=[...(installed??[])].sort((a,b)=>
   Number(!!b.targetDate)-Number(!!a.targetDate)||(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt));
  const available=(catalog?.entries??[]).filter(entry=>!catalog?.packages.some(pack=>pack.lessonId===entry.id)).length;
@@ -131,7 +133,7 @@ export function TodayScreen(){
     )}
     <ItemGroup className="gap-2.5">
      {lessons.map(item=>(
-      <LessonRow key={item.id} lesson={item} title={`${shortTitle(item.title)} · ${item.targetDate?`К ${dativeWeekday(item.targetDate)}`:item.status==='completed'?'Повторение':'Без даты'}`}/>
+      <LessonRow key={item.id} lesson={item} next={nextIds.has(item.id)}/>
      ))}
     </ItemGroup>
     <Button size="xl" variant="soft" className="mt-2.5" render={<Link to="/lessons?new=1"/>}><Plus data-icon="inline-start"/>Добавить занятие</Button>

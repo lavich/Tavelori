@@ -10,12 +10,12 @@ import {BrandBar} from '../../app/TopBar';
 import {localDay} from '../../domain/learning';
 import {lessonOrder} from '../../domain/schedule';
 import {useNow} from '../../shared/clock';
-import {capitalize, dativeWeekday, dayMonth, shortTitle, weekday, withCount, WORDS} from '../../shared/format';
+import {shortTitle, withCount, WORDS} from '../../shared/format';
 import {fileSize} from '../../shared/offline';
 import {useCatalog, useCourses, useLessons, useSettings} from '../../shared/store';
 import {installCourse} from '../../content/client';
 import {createLesson} from '../../storage/ops';
-import {groupByCourse} from './courses';
+import {groupByCourse, nextLessonIds} from './courses';
 import {CourseHeader} from './CourseHeader';
 import {LessonRow} from './LessonRow';
 import {ScheduleCard} from './ScheduleCard';
@@ -41,6 +41,7 @@ export function LessonsScreen(){
  const byDate=(a:{targetDate:string|null;createdAt:string},b:{targetDate:string|null;createdAt:string})=>
   Number(!!b.targetDate)-Number(!!a.targetDate)||(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt);
  const groups=groupByCourse(courses??[],[...installed].sort(byDate),catalog?.entries??[]);
+ const next=nextLessonIds(installed,today);
  return (
   <>
    <BrandBar/>
@@ -52,9 +53,7 @@ export function LessonsScreen(){
       {group.course&&<ScheduleCard course={group.course} today={today} first={[...group.lessons].sort(lessonOrder)[0]?.title}/>}
       <ItemGroup className="gap-2.5">
        {group.lessons.map(lesson=>(
-        <LessonRow key={lesson.id} lesson={lesson}
-         title={`${shortTitle(lesson.title)} · ${!lesson.targetDate?'Без даты':lesson.status==='completed'?`${capitalize(weekday(lesson.targetDate))}, ${dayMonth(lesson.targetDate)}`:`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`}`}
-         note={`${lesson.status==='completed'?'проведён':'предстоит'}${lesson.status!=='completed'&&lesson.dateSource==='manual'?' · дата вручную':''}`}/>
+        <LessonRow key={lesson.id} lesson={lesson} next={next.has(lesson.id)}/>
        ))}
        {group.available.map(entry=>(
         <Item key={entry.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${entry.id}`}/>}>
