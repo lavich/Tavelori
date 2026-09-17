@@ -76,6 +76,11 @@ export function TodayScreen(){
       <CardContent>
        <div className="text-[30px] leading-tight font-bold text-primary">{plan?.newWordIds.length??0}</div>
        <div className="text-sm text-muted-foreground">{plan?.budget?'новых сегодня':'новых на сегодня нет'}</div>
+       {(plan?.courses??[]).filter(item=>item.newWordIds.length).length>1&&(
+        <div className="mt-1 text-sm text-muted-foreground" data-testid="new-by-course">
+         {plan!.courses.filter(item=>item.newWordIds.length).map(item=>`${shortTitle(item.title)}: ${item.newWordIds.length}`).join(' · ')}
+        </div>
+       )}
       </CardContent>
      </Card>
      <Card size="sm">
@@ -97,16 +102,16 @@ export function TodayScreen(){
      </Alert>
     )}
 
-    {plan?.shortfall&&(
-     <Alert variant="warning" className="mb-3">
+    {(plan?.courses??[]).filter(item=>item.shortfall).map(item=>(
+     <Alert key={item.courseId} variant="warning" className="mb-3">
       <TriangleAlert/>
-      <AlertTitle>Дневного лимита не хватает</AlertTitle>
+      <AlertTitle>«{item.title}»: дневного предела не хватает</AlertTitle>
       <AlertDescription>
-       Чтобы успеть к сроку, нужно {withCount(plan.requiredPerDay,WORDS)} в день, а лимит — {settings.newWordsPerDay}.
-       Увеличьте лимит в настройках или перенесите дату.
+       Чтобы успеть к сроку, нужно {withCount(item.requiredPerDay,WORDS)} в день, а предел курса — {item.newWordsPerDay}.
+       Увеличьте предел в группе курса на экране «Уроки» или перенесите дату.
       </AlertDescription>
      </Alert>
-    )}
+    ))}
 
     <Button size="xl" onClick={begin} disabled={busy||!ready}>
      {unfinished?'Продолжить занятие':'Начать занятие'}<ArrowRight data-icon="inline-end"/>

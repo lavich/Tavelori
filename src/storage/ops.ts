@@ -3,8 +3,8 @@ import {db, ensureLocalCourse, indexWord, type LexiDatabase} from './db';
 import {optionPool} from './queries';
 import {localDay, nextState, objectiveExercise, OPTION_POOL, spaceSingleIntroduction} from '../domain/learning';
 import {normalize, wordKey, type ImportRow} from '../domain/import';
-import {scheduleLessons} from '../domain/schedule';
-import {fillSettings, type Asset, type Lesson, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from '../domain/types';
+import {scheduleCourses} from '../domain/schedule';
+import {fillSettings, type Asset, type Course, type Lesson, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from '../domain/types';
 import {syncEvents} from '../sync/events';
 
 /** Отметка «есть неопубликованные изменения» пишется в той же транзакции, что и само изменение. */
@@ -128,12 +128,12 @@ export async function createLesson(title:string,database:LexiDatabase=db):Promis
  * поэтому дальнейшие изменения расписания его не трогают. Повторный вызов ничего не пишет.
  */
 export async function settleLessons(now:Date,database:LexiDatabase=db):Promise<number>{
- return database.transaction('rw',database.lessons,database.settings,database.meta,async()=>{
+ return database.transaction('rw',database.lessons,database.courses,database.settings,database.meta,async()=>{
   const settings=fillSettings(await database.settings.get('settings'));
   const today=localDay(now,settings.timezone);
   const stored=await database.lessons.toArray();
   const raw=new Map(stored.map(lesson=>[lesson.id,lesson]));
-  const passed=scheduleLessons(stored,settings.schedule)
+  const passed=scheduleCourses(stored,await database.courses.toArray())
    .filter(lesson=>lesson.targetDate&&lesson.targetDate<today&&(raw.get(lesson.id)!.status!=='completed'||!raw.get(lesson.id)!.targetDate));
   for(const lesson of passed)await updateLesson(lesson.id,{targetDate:lesson.targetDate,status:'completed'},database);
   return passed.length;
@@ -175,8 +175,14 @@ export async function saveSettings(settings:Settings,database:LexiDatabase=db){
  announceChange();
 }
 /** Дата первого занятия может быть в прошлом: уроки, чьи дни уже прошли, закрепляются сразу, не дожидаясь запуска. */
-export async function saveSchedule(settings:Settings,now:Date,database:LexiDatabase=db):Promise<number>{
- await saveSettings(settings,database);
+/** Темп курса: расписание и дневной предел. Сохранение расписания сразу закрепляет прошедшие уроки курса. */
+export async function saveCourseTempo(courseId:string,tempo:Partial<Pick<Course,'schedule'|'newWordsPerDay'>>,now:Date,database:LexiDatabase=db):Promise<number>{
+ await database.transaction('rw',database.courses,database.meta,async()=>{
+  const course=await database.courses.get(courseId);
+  if(!course)throw new Error('Курс не найден');
+  await database.courses.put({...course,...tempo,updatedAt:stamp(new Date())});
+  await markChanged(database);
+ });
  return settleLessons(now,database);
 }
 

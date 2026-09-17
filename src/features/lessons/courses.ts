@@ -7,6 +7,8 @@ export interface CourseGroup {
  id:string; title:string; source?:string;
  origin:'content'|'local'|'unknown'; subscribed:boolean;
  lessons:LessonView[]; available:CatalogEntry[];
+ /** Курс целиком: у группы «без курса» его нет, настраивать там нечего. */
+ course?:Course;
 }
 export const UNKNOWN_COURSE='unknown';
 
@@ -21,7 +23,7 @@ export function groupByCourse(courses:Course[],lessons:LessonView[],entries:Cata
   const own=lessons.filter(lesson=>lesson.courseId===course.id);
   const group:CourseGroup={
    id:course.id,title:course.title,origin:course.origin,subscribed:course.subscribed,
-   lessons:own,available:entries.filter(entry=>entry.courseId===course.id&&!installed.has(entry.id)),
+   lessons:own,available:entries.filter(entry=>entry.courseId===course.id&&!installed.has(entry.id)),course,
   };
   if(course.source)group.source=course.source;
   return group;

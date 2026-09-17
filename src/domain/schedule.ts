@@ -1,5 +1,5 @@
 import {addDays} from './learning';
-import type {Lesson, Schedule} from './types';
+import {defaultSchedule, LOCAL_COURSE, type Course, type Lesson, type Schedule} from './types';
 
 const numberOf=(title:string)=>title.match(/\d+(?:\.\d+)*/)?.[0].split('.').map(Number);
 /** «1.9» < «1.10» < «2.1»; уроки без номера идут после, по дате создания, затем по id. */
@@ -37,5 +37,20 @@ export function scheduleLessons(lessons:Lesson[],schedule:Schedule):Lesson[]{
    cursor=nextLessonDay(cursor,weekdays,false);
   }
  }
+ return lessons.map(lesson=>dated.get(lesson.id)!);
+}
+
+/** Каждый курс раскладывает только свои уроки и по своему расписанию; порядок массива сохраняется. */
+export function scheduleCourses(lessons:Lesson[],courses:Course[]):Lesson[]{
+ const scheduleOf=new Map(courses.map(course=>[course.id,course.schedule]));
+ const groups=new Map<string,Lesson[]>();
+ for(const lesson of lessons){
+  const key=lesson.courseId??LOCAL_COURSE;
+  const group=groups.get(key);
+  if(group)group.push(lesson); else groups.set(key,[lesson]);
+ }
+ const dated=new Map<string,Lesson>();
+ for(const [courseId,group] of groups)
+  for(const lesson of scheduleLessons(group,scheduleOf.get(courseId)??defaultSchedule))dated.set(lesson.id,lesson);
  return lessons.map(lesson=>dated.get(lesson.id)!);
 }

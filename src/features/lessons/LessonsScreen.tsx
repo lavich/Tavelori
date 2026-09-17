@@ -8,7 +8,7 @@ import {Input} from '@/components/ui/input';
 import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
 import {localDay} from '../../domain/learning';
-import {lessonOrder, scheduleSet} from '../../domain/schedule';
+import {lessonOrder} from '../../domain/schedule';
 import {useNow} from '../../shared/clock';
 import {capitalize, dativeWeekday, dayMonth, shortTitle, weekday, withCount, WORDS} from '../../shared/format';
 import {fileSize} from '../../shared/offline';
@@ -45,10 +45,10 @@ export function LessonsScreen(){
    <BrandBar/>
    <main className={ui.screen}>
     <h1>Уроки</h1>
-    <ScheduleCard settings={settings} today={today} first={[...installed].sort(lessonOrder)[0]?.title}/>
     {groups.map(group=>(
      <section key={group.id} className="mt-3">
       <CourseHeader group={group} onLearn={()=>installCourse(group.id).catch(()=>undefined)}/>
+      {group.course&&<ScheduleCard course={group.course} today={today} first={[...group.lessons].sort(lessonOrder)[0]?.title}/>}
       <ItemGroup className="gap-2.5">
        {group.lessons.map(lesson=>(
         <Item key={lesson.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
@@ -83,7 +83,7 @@ export function LessonsScreen(){
           <FieldLabel htmlFor="title">Название</FieldLabel>
           <Input id="title" value={title} placeholder="Урок 1.3" aria-invalid={!!problem||undefined}
            onChange={event=>setTitle(event.target.value)}/>
-          <FieldDescription>{scheduleSet(settings.schedule)?'Дата назначится по расписанию — следующий свободный день после предыдущего урока.':'Дату можно задать на экране урока или через расписание.'}</FieldDescription>
+          <FieldDescription>Набор попадёт в «Мои слова»; дату назначит расписание этого курса или можно задать её на экране урока.</FieldDescription>
          </Field>
         </FieldGroup>
         {problem&&<p className={ui.error}>{problem}</p>}

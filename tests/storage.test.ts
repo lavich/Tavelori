@@ -3,7 +3,7 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import {Rating} from 'ts-fsrs';
 import {LexiDatabase} from '../src/storage/db';
 import {dexieSource, lessonLinks, loadLessons} from '../src/storage/queries';
-import {ConflictError, commitImport, createLesson, markIntroduced, prepareObjectiveSession, saveSchedule, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
+import {ConflictError, commitImport, createLesson, markIntroduced, prepareObjectiveSession, saveCourseTempo, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
 import {makePlan, makeSession} from '../src/domain/learning';
 import {defaultSettings, type Settings} from '../src/domain/types';
 import {parseImport} from '../src/domain/import';
@@ -168,12 +168,12 @@ describe('расписание занятий',()=>{
  it('дополняет запись настроек без расписания значением по умолчанию',async()=>{
   await ensureSeed(db);
   await db.settings.put(legacy);
-  expect((await source().settings()).schedule).toEqual({startDate:null,weekdays:[]});
-  expect(defaultSettings.schedule).toEqual({startDate:null,weekdays:[]});
+  expect((await source().settings()).sessionSize).toBe(20);
+  expect((await db.courses.get('leeke'))!.schedule).toEqual({startDate:null,weekdays:[]});
  });
  it('снимок даёт урокам 1.3 и 1.4 дни расписания после 1.2, а план считает сроки по ним',async()=>{
   await ensureSeed(db);
-  await saveSettings({...defaultSettings,schedule:monThu},db);
+  await db.courses.update('leeke',{schedule:monThu}); // как saveSettings раньше: без закрепления прошедших
   const byId=Object.fromEntries((await loadLessons(db)).map(l=>[l.id,l]));
   expect(byId['lesson-1-1']).toMatchObject({targetDate:'2026-09-14',dateSource:'schedule',status:'completed'});
   expect(byId['lesson-1-2']).toMatchObject({targetDate:'2026-09-18',dateSource:'manual'});
@@ -187,7 +187,7 @@ describe('расписание занятий',()=>{
 
 describe('операции над уроками при расписании',()=>{
  const monThu={startDate:'2026-09-14',weekdays:[1,4]};
- const prepare=async()=>{await ensureSeed(db);await saveSettings({...defaultSettings,schedule:monThu},db)};
+ const prepare=async()=>{await ensureSeed(db);await db.courses.update('leeke',{schedule:monThu})};
  const raw=(id:string)=>db.lessons.get(id).then(l=>l!);
  const shown=scheduled;
  it('правка названия урока по расписанию не записывает дату в базу',async()=>{
@@ -196,10 +196,13 @@ describe('операции над уроками при расписании',()
   expect(await raw('lesson-1-3')).toMatchObject({title:'Урок 1.3 (мебель)',targetDate:null});
   expect((await shown('lesson-1-3')).targetDate).toBe('2026-09-21');
  });
- it('новый набор создаётся без даты и получает день расписания',async()=>{
-  await prepare();
+ it('новый набор живёт по расписанию своего курса, а не соседнего',async()=>{
+  await prepare(); // расписание задано курсу leeke
   const created=await createLesson('Урок 2.1',db);
+  expect(created.courseId).toBe('my');
   expect(created.targetDate).toBeNull();
+  expect((await shown(created.id)).targetDate).toBeNull(); // чужое расписание набор не подхватывает
+  await db.courses.update('my',{schedule:{startDate:'2026-09-28',weekdays:[1,4]}});
   expect((await shown(created.id)).targetDate).toBe('2026-09-28');
  });
  it('закрепляет прошедший урок один раз и не трогает его при смене дней недели',async()=>{
@@ -212,7 +215,7 @@ describe('операции над уроками при расписании',()
   const before=await db.lessons.toArray();
   expect(await settleLessons(new Date('2026-09-22T06:00:00Z'),db)).toBe(0);
   expect(await db.lessons.toArray()).toEqual(before);
-  await saveSettings({...defaultSettings,schedule:{startDate:'2026-09-14',weekdays:[2,5]}},db);
+  await saveCourseTempo('leeke',{schedule:{startDate:'2026-09-14',weekdays:[2,5]}},new Date('2026-09-22T06:00:00Z'),db);
   expect(await shown('lesson-1-3')).toMatchObject({targetDate:'2026-09-21',status:'completed',dateSource:'manual'});
   expect((await shown('lesson-1-4')).targetDate).toBe('2026-09-22');
  });
@@ -227,12 +230,12 @@ describe('операции над уроками при расписании',()
  it('первое занятие в прошлом: сохранение расписания сразу закрепляет прошедшие уроки',async()=>{
   await ensureSeed(db);
   await updateLesson('lesson-1-2',{targetDate:null},db);
-  expect(await saveSchedule({...defaultSettings,schedule:{startDate:'2026-09-01',weekdays:[2,5]}},new Date('2026-09-16T06:00:00Z'),db)).toBe(4);
+  expect(await saveCourseTempo('leeke',{schedule:{startDate:'2026-09-01',weekdays:[2,5]}},new Date('2026-09-16T06:00:00Z'),db)).toBe(4);
   expect(await raw('lesson-1-1')).toMatchObject({targetDate:'2026-09-01',status:'completed'});
   expect(await raw('lesson-1-2')).toMatchObject({targetDate:'2026-09-04',status:'completed'});
   expect(await raw('lesson-1-3')).toMatchObject({targetDate:'2026-09-08',status:'completed'});
   expect(await raw('lesson-1-4')).toMatchObject({targetDate:'2026-09-11',status:'completed'});
-  expect((await source().settings()).schedule).toEqual({startDate:'2026-09-01',weekdays:[2,5]});
+  expect((await db.courses.get('leeke'))!.schedule).toEqual({startDate:'2026-09-01',weekdays:[2,5]});
  });
  it('день считается по зоне пользователя',async()=>{
   await prepare();

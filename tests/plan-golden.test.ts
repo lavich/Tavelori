@@ -3,7 +3,7 @@ import {describe, expect, it} from 'vitest';
 import {createEmptyCard, State} from 'ts-fsrs';
 import {makePlan, makeSession, type SessionSource} from '../src/domain/learning';
 import {fromSnapshot} from '../src/domain/snapshot-source';
-import {defaultSettings, type ExerciseType, type LearningState, type Lesson, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
+import {defaultSchedule, defaultSettings, type Course, type ExerciseType, type LearningState, type Lesson, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
 
 /**
  * Эталон планировщика: результаты зафиксированы на снимке до перехода на выборочные запросы.
@@ -62,7 +62,8 @@ export const scenarios:Record<string,Snapshot>={
     event('w22','recognition',false,'2026-09-13T09:00:00Z'),event('w22','recognition',false,'2026-09-14T09:00:00Z'),
     event('w24','recognition',true,'2026-09-08T09:00:00Z'),event('w24','assembly',true,'2026-09-09T09:00:00Z'),event('w24','spelling',true,'2026-09-10T09:00:00Z'),event('w24','listening',false,'2026-09-11T09:00:00Z'),
    ],
-   settings:{...defaultSettings,newWordsPerDay:10,sessionSize:12},
+   courses:[{id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newWordsPerDay:10,createdAt:iso,updatedAt:iso}],
+   settings:{...defaultSettings,sessionSize:12},
   });
  })(),
  budgetExhausted:(()=>{
@@ -76,9 +77,26 @@ export const scenarios:Record<string,Snapshot>={
  noDated:(()=>{
   const words=Array.from({length:12},(_,i)=>word(i));
   const ids=words.map(w=>w.id);
-  return base({words,lessons:[lesson('l1',ids.slice(4,8),null)],settings:{...defaultSettings,newWordsPerDay:5,sessionSize:6}});
+  return base({words,lessons:[lesson('l1',ids.slice(4,8),null)],courses:[{id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newWordsPerDay:5,createdAt:iso,updatedAt:iso}],settings:{...defaultSettings,sessionSize:6}});
  })(),
  smallDict:base({words:[word(0),word(1),word(2)],states:[learned('w0','2026-09-14T08:00:00Z')],settings:{...defaultSettings,sessionSize:4}}),
+ twoCourses:(()=>{
+  const words=Array.from({length:40},(_,i)=>word(i));
+  const ids=words.map(w=>w.id);
+  const course=(id:string,perDay:number,weekdays:number[]):Course=>
+   ({id,title:id,origin:'content',subscribed:true,schedule:{startDate:'2026-09-15',weekdays},newWordsPerDay:perDay,createdAt:iso,updatedAt:iso});
+  return base({
+   words,
+   courses:[course('near',6,[2,5]),course('far',3,[6])],
+   lessons:[
+    lesson('n1',ids.slice(0,12),'2026-09-16',{courseId:'near'}),
+    lesson('n2',ids.slice(12,20),null,{courseId:'near'}),
+    lesson('f1',ids.slice(20,32),'2026-09-26',{courseId:'far'}),
+   ],
+   states:[learned('w0','2026-09-14T08:00:00Z')],
+   settings:{...defaultSettings,sessionSize:10},
+  });
+ })(),
 };
 
 const stripSession=(session:Awaited<ReturnType<typeof makeSession>>)=>({
@@ -88,6 +106,7 @@ const stripSession=(session:Awaited<ReturnType<typeof makeSession>>)=>({
 const stripPlan=(plan:Awaited<ReturnType<typeof makePlan>>)=>({
  today:plan.today,requiredPerDay:plan.requiredPerDay,budget:plan.budget,introducedToday:plan.introducedToday,shortfall:plan.shortfall,
  newWords:plan.newWordIds,reviews:plan.reviews.map(r=>r.wordId),deadlines:plan.deadlines,backlog:plan.backlog,
+ courses:plan.courses.map(({courseId,newWordsPerDay,budget,introducedToday,newWordIds,requiredPerDay,shortfall})=>({courseId,newWordsPerDay,budget,introducedToday,newWordIds,requiredPerDay,shortfall})),
 });
 
 /** Результаты для одного источника; тот же набор проверок применяется к снимку и к базе. */

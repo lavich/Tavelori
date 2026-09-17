@@ -9,8 +9,10 @@ export interface Segment {text:string;ipa:string;explanation:string;start:number
  */
 export interface Word {id:string;greek:string;russian:string;ipa:string;note?:string;segments:Segment[];examples:Example[];imageAssetId?:string;audioAssetId?:string;verified:boolean;source?:string;createdAt:string;updatedAt:string;deletedAt?:string;revision?:string;edited?:boolean}
 /** `dateSource` заполняется только в выборке: в базе дата либо своя (задана вручную), либо пустая (по расписанию). */
+/** Курс своих наборов: он есть всегда, не обновляется из каталога и не исчезает вместе с ним. */
+export const LOCAL_COURSE='my';
 /** Курс: состав приходит из каталога, а подписка и время синхронизации принадлежат пользователю. */
-export interface Course {id:string;title:string;source?:string;origin:'content'|'local';subscribed:boolean;syncedAt?:string;createdAt:string;updatedAt:string}
+export interface Course {id:string;title:string;source?:string;language?:string;origin:'content'|'local';subscribed:boolean;schedule:Schedule;newWordsPerDay:number;syncedAt?:string;createdAt:string;updatedAt:string}
 export interface Lesson {id:string;courseId?:string;title:string;targetDate:string|null;status:'upcoming'|'completed';createdAt:string;updatedAt:string;dateSource?:'manual'|'schedule'}
 /** Членство слова в уроке: уникальная пара и порядок внутри урока. Удаление связи не трогает слово и прогресс. */
 export interface LessonWord {lessonId:string;wordId:string;position:number}
@@ -30,13 +32,15 @@ export interface SessionItem {id:string;wordId:string;word:Word;type:ExerciseTyp
 export interface Session {id:string;createdAt:string;planDate:string;items:SessionItem[];index:number;status:'active'|'done'|'ended';activeTimeMs:number;introducedWordIds?:string[];objectiveVersion?:1}
 /** Дни недели по ISO: 1 — понедельник, 7 — воскресенье. */
 export interface Schedule {startDate:string|null;weekdays:number[]}
-export interface Settings {id:'settings';timezone:string;newWordsPerDay:number;sessionSize:number;schedule:Schedule}
+export interface Settings {id:'settings';timezone:string;sessionSize:number}
 export const defaultSchedule:Schedule={startDate:null,weekdays:[]};
-export const defaultSettings:Settings={id:'settings',timezone:'Asia/Nicosia',newWordsPerDay:10,sessionSize:20,schedule:defaultSchedule};
+export const defaultSettings:Settings={id:'settings',timezone:'Asia/Nicosia',sessionSize:20};
+/** Предел новых слов нового курса: столько же, сколько раньше давало общее значение. */
+export const DEFAULT_NEW_WORDS_PER_DAY=10;
 /** Запись настроек старой версии или из старой копии читается без миграции. */
-export const fillSettings=(settings:Partial<Settings>|undefined):Settings=>({...defaultSettings,...settings,schedule:settings?.schedule??defaultSchedule});
+export const fillSettings=(settings:Partial<Settings>|undefined):Settings=>({...defaultSettings,...settings});
 /**
  * Полный снимок данных: используется только в тестах как источник для планировщика.
  * Экраны приложения читают ограниченные выборки, а не снимок.
  */
-export interface Snapshot {words:Word[];lessons:Lesson[];links:LessonWord[];states:LearningState[];events:ReviewEvent[];sessions:Session[];settings:Settings}
+export interface Snapshot {words:Word[];lessons:Lesson[];courses?:Course[];links:LessonWord[];states:LearningState[];events:ReviewEvent[];sessions:Session[];settings:Settings}

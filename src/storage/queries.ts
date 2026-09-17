@@ -4,16 +4,16 @@ import {db, isStandardWord, searchTokens, type LexiDatabase, type StoredWord} fr
 import {addDays, localDay, type SessionSource} from '../domain/learning';
 import {byTime, emptyStats, emptySkills, foldStats, succeeded, summarizeEvents, type DaySummary} from '../domain/skills';
 import {normalize, wordKey} from '../domain/import';
-import {scheduleLessons} from '../domain/schedule';
+import {scheduleCourses} from '../domain/schedule';
 import type {StatsSource} from '../domain/stats';
-import {fillSettings, type LearningState, type Lesson, type LessonWord, type Word} from '../domain/types';
+import {defaultSchedule, DEFAULT_NEW_WORDS_PER_DAY, fillSettings, LOCAL_COURSE, type LearningState, type Lesson, type LessonWord, type Word} from '../domain/types';
 
 const span=(first:string)=>[[first,Dexie.minKey],[first,Dexie.maxKey]] as const;
 export const PAGE_SIZE=50;
 
 export const loadSettings=async(database:LexiDatabase=db)=>fillSettings(await database.settings.get('settings'));
 /** Уроки с датами по расписанию: единственное место, где даты вычисляются для чтения. */
-export const loadLessons=async(database:LexiDatabase=db)=>scheduleLessons(await database.lessons.toArray(),(await loadSettings(database)).schedule);
+export const loadLessons=async(database:LexiDatabase=db)=>scheduleCourses(await database.lessons.toArray(),await database.courses.toArray());
 export const lessonLinks=(lessonId:string,database:LexiDatabase=db):Promise<LessonWord[]>=>
  database.lessonWords.where('[lessonId+position]').between(...span(lessonId)).toArray();
 export const lessonWordCount=(lessonId:string,database:LexiDatabase=db)=>database.lessonWords.where('[lessonId+position]').between(...span(lessonId)).count();
@@ -32,9 +32,26 @@ export function dexieSource(database:LexiDatabase=db):SessionSource&StatsSource{
   settings:()=>loadSettings(database),
   lessons:()=>loadLessons(database),
   lessonWordIds:async lessonId=>(await lessonLinks(lessonId,database)).map(link=>link.wordId),
-  introducedToday:async(today,timezone)=>{
+  courses:async()=>{
+   const rows=await database.courses.toArray();
+   // База без курсов (старый профиль до первого запуска приложения) планируется как один локальный курс.
+   return rows.length?rows:[{id:LOCAL_COURSE,title:'Мои слова',origin:'local' as const,subscribed:true,
+    schedule:defaultSchedule,newWordsPerDay:DEFAULT_NEW_WORDS_PER_DAY,createdAt:'',updatedAt:''}];
+  },
+  introducedTodayByCourse:async(today,timezone)=>{
    const rows=await database.states.where('introducedAt').between(`${addDays(today,-1)}T00:00:00.000Z`,`${addDays(today,2)}T00:00:00.000Z`).toArray();
-   return rows.filter(state=>localDay(new Date(state.introducedAt),timezone)===today).length;
+   const wordIds=rows.filter(state=>localDay(new Date(state.introducedAt),timezone)===today).map(state=>state.wordId);
+   const counts=new Map<string,number>();
+   if(!wordIds.length)return counts;
+   // Введённых за день немного — не больше суммы пределов, поэтому связи читаются точечно.
+   const links=await database.lessonWords.where('wordId').anyOf(wordIds).toArray();
+   const lessons=new Map((await database.lessons.bulkGet([...new Set(links.map(link=>link.lessonId))])).filter(Boolean).map(lesson=>[lesson!.id,lesson!.courseId??LOCAL_COURSE]));
+   for(const wordId of wordIds){
+    const owners=new Set(links.filter(link=>link.wordId===wordId).map(link=>lessons.get(link.lessonId)??LOCAL_COURSE));
+    if(!owners.size)owners.add(LOCAL_COURSE);
+    for(const courseId of owners)counts.set(courseId,(counts.get(courseId)??0)+1);
+   }
+   return counts;
   },
   statesOf:ids=>statesOf(ids,database),
   liveWordIds:ids=>liveWordIds(ids,database),

@@ -1,7 +1,7 @@
 import {createEmptyCard, fsrs, generatorParameters, State, type Card, type Grade} from 'ts-fsrs';
 import {emptySkills, summarizeEvents, type SkillSummary} from './skills';
 import {tiles} from './syllables';
-import type {ExerciseType, LearningState, Lesson, ReviewEvent, Session, SessionItem, Settings, Word} from './types';
+import {LOCAL_COURSE, type Course, type ExerciseType, type LearningState, type Lesson, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from './types';
 
 export const scheduler=fsrs(generatorParameters({enable_fuzz:false}));
 
@@ -33,10 +33,15 @@ export function zonedStart(day:string,timezone:string):Date{
 export interface DeadlinePlan {lessonId:string;title:string;targetDate:string;daysLeft:number;newLeft:number;requiredPerDay:number}
 /** Хвост прошедших занятий: слова, до которых очередь не дошла, пока урок был впереди. */
 export interface Backlog {wordIds:string[];lessons:number}
+/** План одного курса: свой предел, своя очередь и свой срок — курсы не делят их между собой. */
+export interface CoursePlan {
+ courseId:string; title:string; newWordsPerDay:number; budget:number; introducedToday:number;
+ newWordIds:string[]; requiredPerDay:number; shortfall:boolean; deadlines:DeadlinePlan[]; backlog:Backlog;
+}
 export interface DailyPlan {
  today:string; requiredPerDay:number; budget:number; introducedToday:number;
  newWordIds:string[]; reviews:{wordId:string;state:LearningState}[]; deadlines:DeadlinePlan[]; shortfall:boolean;
- backlog:Backlog;
+ backlog:Backlog; courses:CoursePlan[];
 }
 
 /**
@@ -46,8 +51,10 @@ export interface DailyPlan {
 export interface PlanSource {
  settings():Promise<Settings>;
  lessons():Promise<Lesson[]>;
+ courses():Promise<Course[]>;
  lessonWordIds(lessonId:string):Promise<string[]>;
- introducedToday(today:string,timezone:string):Promise<number>;
+ /** Введённые сегодня слова в разрезе курсов: слово из двух курсов считается каждому. */
+ introducedTodayByCourse(today:string,timezone:string):Promise<Map<string,number>>;
  statesOf(wordIds:string[]):Promise<Map<string,LearningState>>;
  liveWordIds(wordIds:string[]):Promise<Set<string>>;
  /** Удалённых слов мало: их множество дешевле, чем проверять существование тысяч срочных повторений. */
@@ -68,48 +75,72 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
  const settings=await source.settings();
  const timezone=settings.timezone;
  const today=localDay(now,timezone);
- const introducedToday=await source.introducedToday(today,timezone);
- const budget=Math.max(0,settings.newWordsPerDay-introducedToday);
- const lessons=await source.lessons();
+ const [lessons,courses,introduced]=await Promise.all([source.lessons(),source.courses(),source.introducedTodayByCourse(today,timezone)]);
+
  const order=(a:Lesson,b:Lesson)=>(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id);
- const past=lessons.filter(l=>l.status==='completed'||(l.targetDate&&daysBetween(today,l.targetDate)<0)).sort(order);
- const upcoming=lessons.filter(l=>l.targetDate&&l.status!=='completed'&&daysBetween(today,l.targetDate)>=0).sort(order);
+ const grouped=new Map<string,Lesson[]>();
+ for(const lesson of lessons){
+  const key=lesson.courseId??LOCAL_COURSE;
+  (grouped.get(key)??grouped.set(key,[]).get(key)!).push(lesson);
+ }
 
- const seen=new Set<string>(); const deadlines:DeadlinePlan[]=[]; const dated:string[]=[];
- const fresh=async(ids:string[])=>{
-  const unseen=ids.filter(id=>!seen.has(id));
-  const [live,states]=await Promise.all([source.liveWordIds(unseen),source.statesOf(unseen)]);
-  return unseen.filter(id=>live.has(id)&&!states.has(id));
- };
- // Слово прошедшего занятия просрочено уже сейчас, поэтому идёт раньше подготовки к будущим.
- const overdue:string[]=[]; const overdueLessons=new Set<string>();
- for(const lesson of past) for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){
-  seen.add(id); overdue.push(id); overdueLessons.add(lesson.id);
- }
- for(const lesson of upcoming){
-  for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){seen.add(id);dated.push(id)}
-  const daysLeft=Math.max(1,daysBetween(today,lesson.targetDate!));
-  deadlines.push({lessonId:lesson.id,title:lesson.title,targetDate:lesson.targetDate!,daysLeft:daysBetween(today,lesson.targetDate!),newLeft:seen.size,requiredPerDay:Math.ceil(seen.size/daysLeft)});
- }
- const requiredPerDay=deadlines.reduce((max,d)=>Math.max(max,d.requiredPerDay),0);
+ const plans:CoursePlan[]=[];
+ for(const course of courses){
+  const own=grouped.get(course.id)??[];
+  if(!own.length&&course.id!==LOCAL_COURSE)continue;
+  const introducedToday=introduced.get(course.id)??0;
+  const budget=Math.max(0,course.newWordsPerDay-introducedToday);
+  const past=own.filter(l=>l.status==='completed'||(l.targetDate&&daysBetween(today,l.targetDate)<0)).sort(order);
+  const upcoming=own.filter(l=>l.targetDate&&l.status!=='completed'&&daysBetween(today,l.targetDate)>=0).sort(order);
 
- // Хвост и датированные слова идут первыми; остальные подтягиваются порциями, только пока не заполнен дневной бюджет.
- const picked=[...overdue,...dated];
- if(picked.length<budget){
-  for(const lesson of lessons){
-   if(picked.length>=budget)break;
-   for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){seen.add(id);picked.push(id)}
+  const seen=new Set<string>(); const deadlines:DeadlinePlan[]=[]; const dated:string[]=[];
+  const fresh=async(ids:string[])=>{
+   const unseen=ids.filter(id=>!seen.has(id));
+   const [live,states]=await Promise.all([source.liveWordIds(unseen),source.statesOf(unseen)]);
+   return unseen.filter(id=>live.has(id)&&!states.has(id));
+  };
+  // Слово прошедшего занятия просрочено уже сейчас, поэтому идёт раньше подготовки к будущим.
+  const overdue:string[]=[]; const overdueLessons=new Set<string>();
+  for(const lesson of past) for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){
+   seen.add(id); overdue.push(id); overdueLessons.add(lesson.id);
   }
-  let cursor:string|null=null;
-  while(picked.length<budget){
-   const chunk=await source.scanLiveWordIds(cursor,SCAN);
-   if(!chunk.length)break;
-   const states=await source.statesOf(chunk.filter(id=>!seen.has(id)));
-   for(const id of chunk) if(!seen.has(id)&&!states.has(id)){seen.add(id);picked.push(id)}
-   cursor=chunk[chunk.length-1];
+  for(const lesson of upcoming){
+   for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){seen.add(id);dated.push(id)}
+   const daysLeft=Math.max(1,daysBetween(today,lesson.targetDate!));
+   deadlines.push({lessonId:lesson.id,title:lesson.title,targetDate:lesson.targetDate!,daysLeft:daysBetween(today,lesson.targetDate!),newLeft:seen.size,requiredPerDay:Math.ceil(seen.size/daysLeft)});
   }
+  const picked=[...overdue,...dated];
+  if(picked.length<budget){
+   for(const lesson of own){
+    if(picked.length>=budget)break;
+    for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){seen.add(id);picked.push(id)}
+   }
+   // Слово вне уроков принадлежит только своим наборам: чужому курсу его добирать нечем.
+   if(course.id===LOCAL_COURSE){
+    let cursor:string|null=null;
+    while(picked.length<budget){
+     const chunk=await source.scanLiveWordIds(cursor,SCAN);
+     if(!chunk.length)break;
+     const states=await source.statesOf(chunk.filter(id=>!seen.has(id)));
+     for(const id of chunk) if(!seen.has(id)&&!states.has(id)){seen.add(id);picked.push(id)}
+     cursor=chunk[chunk.length-1];
+    }
+   }
+  }
+  const requiredPerDay=deadlines.reduce((max,d)=>Math.max(max,d.requiredPerDay),0);
+  plans.push({
+   courseId:course.id,title:course.title,newWordsPerDay:course.newWordsPerDay,budget,introducedToday,
+   newWordIds:picked.slice(0,budget),requiredPerDay,shortfall:requiredPerDay>course.newWordsPerDay,
+   deadlines,backlog:{wordIds:overdue,lessons:overdueLessons.size},
+  });
  }
- const newWordIds=picked.slice(0,budget);
+
+ // Курсы идут по ближайшему сроку: слова к завтрашнему занятию попадают в сессию раньше.
+ const soonest=(plan:CoursePlan)=>plan.deadlines[0]?.targetDate??'\uffff';
+ plans.sort((a,b)=>soonest(a).localeCompare(soonest(b))||a.courseId.localeCompare(b.courseId));
+
+ const newWordIds=[...new Set(plans.flatMap(plan=>plan.newWordIds))];
+ const backlogIds=[...new Set(plans.flatMap(plan=>plan.backlog.wordIds))];
 
  const [due,deleted]=await Promise.all([source.dueStates(now),source.deletedWordIds()]);
  const rank=(state:LearningState)=>state.card.state===State.Relearning?0:state.card.state===State.Learning?1:2;
@@ -118,8 +149,17 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
   .sort((a,b)=>rank(a)-rank(b)||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.wordId.localeCompare(b.wordId))
   .map(s=>({wordId:s.wordId,state:s}));
 
- return {today,requiredPerDay,budget,introducedToday,newWordIds,reviews,deadlines,shortfall:requiredPerDay>settings.newWordsPerDay,
-  backlog:{wordIds:overdue,lessons:overdueLessons.size}};
+ return {
+  today,
+  requiredPerDay:plans.reduce((max,plan)=>Math.max(max,plan.requiredPerDay),0),
+  budget:plans.reduce((sum,plan)=>sum+plan.budget,0),
+  introducedToday:plans.reduce((sum,plan)=>sum+plan.introducedToday,0),
+  newWordIds,reviews,
+  deadlines:plans.flatMap(plan=>plan.deadlines).sort((a,b)=>a.targetDate.localeCompare(b.targetDate)),
+  shortfall:plans.some(plan=>plan.shortfall),
+  backlog:{wordIds:backlogIds,lessons:plans.reduce((sum,plan)=>sum+plan.backlog.lessons,0)},
+  courses:plans,
+ };
 }
 
 const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening'];

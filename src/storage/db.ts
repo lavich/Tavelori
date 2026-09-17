@@ -1,7 +1,7 @@
 import Dexie, {type Table, type Transaction} from 'dexie';
 import type {CatalogEntry} from '../content/schema';
 import {normalize, wordKey} from '../domain/import';
-import {defaultSettings, type Asset, type Course, type InstalledPackage, type LearningState, type Lesson, type LessonWord, type MediaRef, type ReviewEvent, type Session, type Settings, type Word} from '../domain/types';
+import {defaultSchedule, defaultSettings, DEFAULT_NEW_WORDS_PER_DAY, LOCAL_COURSE, type Asset, type Course, type InstalledPackage, type Schedule, type LearningState, type Lesson, type LessonWord, type MediaRef, type ReviewEvent, type Session, type Settings, type Word} from '../domain/types';
 import type {BaseSkillRow, BaseSummaryRow, StashRow, SyncVersionRow} from '../sync/types';
 import {currentProfile} from './profile';
 
@@ -65,17 +65,18 @@ export class LexiDatabase extends Dexie {
    lessons:'id,targetDate,status,courseId',
    catalog:'id,courseId',
   }).upgrade(tx=>migrateCourses(tx));
+  // Схема 5: темп принадлежит курсу — расписание и дневной предел переезжают из общих настроек.
+  this.version(5).upgrade(tx=>migrateCourseTempo(tx));
  }
 }
 /** База текущего профиля: обычный браузер — `lexi`, Telegram — отдельная база на бота и пользователя. */
 export const db=new LexiDatabase(currentProfile().databaseName);
-export const SCHEMA_VERSION=4;
+export const SCHEMA_VERSION=5;
 /** Таблицы пользовательских данных: входят в полную копию. Каталог — кеш, а не данные пользователя; альтернативные версии облака — тоже. */
 export const TABLES=['words','lessons','courses','lessonWords','assets','media','packages','states','events','sessions','settings','meta','baseSkills','baseSummary','syncStash'] as const;
 export const TABLES_V2=['words','lessons','lessonWords','assets','media','packages','states','events','sessions','settings','meta'] as const;
 export const LEGACY_TABLES=['words','lessons','assets','states','events','sessions','settings','meta'] as const;
-/** Курс своих наборов: он есть всегда, не обновляется из каталога и не исчезает вместе с ним. */
-export const LOCAL_COURSE='my';
+export {LOCAL_COURSE} from '../domain/types';
 export const SEED_LESSON=/^lesson-1-[1-4]$/, SEED_WORD=/^w1[1-4]-\d{2}$/;
 /** Стандартное слово поставлено пакетом (есть ревизия) либо исходным набором старой версии. */
 export const isStandardWord=(word:Pick<Word,'id'|'revision'>)=>word.revision!==undefined||SEED_WORD.test(word.id);
@@ -93,10 +94,28 @@ export async function migrateCourses(tx:Pick<Transaction,'table'>):Promise<void>
  const lessons=tx.table('lessons') as Table<Lesson,string>;
  const packages=tx.table('packages') as Table<InstalledPackage,string>;
  const now=new Date().toISOString();
- await courses.put({id:LOCAL_COURSE,title:'Мои слова',origin:'local',subscribed:true,createdAt:now,updatedAt:now});
+ await courses.put({id:LOCAL_COURSE,title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newWordsPerDay:DEFAULT_NEW_WORDS_PER_DAY,createdAt:now,updatedAt:now});
  for(const lesson of await lessons.toArray()){
   if(lesson.courseId||await packages.get(lesson.id))continue;
   await lessons.put({...lesson,courseId:LOCAL_COURSE});
+ }
+}
+
+/**
+ * Темп переезжает в курс. Общее расписание и предел копируются каждому курсу, поэтому
+ * сразу после перехода даты уроков и дневная норма остаются прежними, а дальше их можно развести.
+ */
+export async function migrateCourseTempo(tx:Pick<Transaction,'table'>):Promise<void>{
+ const settings=tx.table('settings') as Table<Record<string,unknown>,string>;
+ const courses=tx.table('courses') as Table<Course,string>;
+ const stored=await settings.get('settings');
+ const schedule=(stored?.schedule as Schedule|undefined)??defaultSchedule;
+ const perDay=(stored?.newWordsPerDay as number|undefined)??DEFAULT_NEW_WORDS_PER_DAY;
+ // До этой версии своего темпа у курса быть не могло, поэтому общие значения переносятся без оглядки.
+ for(const course of await courses.toArray())await courses.put({...course,schedule,newWordsPerDay:perDay});
+ if(stored){
+  const {schedule:_schedule,newWordsPerDay:_perDay,...rest}=stored;
+  await settings.put(rest);
  }
 }
 
@@ -138,7 +157,7 @@ export async function ensureDefaults(database:LexiDatabase=db):Promise<void>{
 export async function ensureLocalCourse(database:LexiDatabase=db):Promise<string>{
  if(!await database.courses.get(LOCAL_COURSE)){
   const now=new Date().toISOString();
-  await database.courses.put({id:LOCAL_COURSE,title:'Мои слова',origin:'local',subscribed:true,createdAt:now,updatedAt:now});
+  await database.courses.put({id:LOCAL_COURSE,title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newWordsPerDay:DEFAULT_NEW_WORDS_PER_DAY,createdAt:now,updatedAt:now});
  }
  return LOCAL_COURSE;
 }

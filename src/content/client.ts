@@ -1,7 +1,7 @@
 import {db, indexWord, type LexiDatabase} from '../storage/db';
 import {adoptStash} from '../sync/snapshot';
 import {ContentError, parseCatalog, parsePackage, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackageWord, type ShippedField} from './schema';
-import type {Asset, Course, InstalledPackage, Word} from '../domain/types';
+import {defaultSchedule, DEFAULT_NEW_WORDS_PER_DAY, type Asset, type Course, type InstalledPackage, type Word} from '../domain/types';
 
 export interface ContentFetcher {json(url:string):Promise<unknown>;blob(url:string):Promise<Blob>}
 
@@ -53,11 +53,13 @@ async function adoptCourses(catalog:Catalog,database:LexiDatabase){
   const next:Course={
    id:item.id,title:item.title,origin:stored?.origin??'content',
    subscribed:stored?.subscribed||installed>0,
+   schedule:stored?.schedule??defaultSchedule,newWordsPerDay:stored?.newWordsPerDay??DEFAULT_NEW_WORDS_PER_DAY,
    createdAt:stored?.createdAt??now,updatedAt:stored?.updatedAt??now,
   };
   if(item.source)next.source=item.source;
+  if(item.language)next.language=item.language;
   if(stored?.syncedAt)next.syncedAt=stored.syncedAt;
-  if(!stored||stored.title!==next.title||stored.source!==next.source||stored.subscribed!==next.subscribed)
+  if(!stored||stored.title!==next.title||stored.source!==next.source||stored.language!==next.language||stored.subscribed!==next.subscribed)
    await database.courses.put({...next,updatedAt:now});
  }
 }

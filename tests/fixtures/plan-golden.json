@@ -48,7 +48,27 @@
      "w37"
     ],
     "lessons": 1
-   }
+   },
+   "courses": [
+    {
+     "courseId": "my",
+     "newWordsPerDay": 10,
+     "budget": 8,
+     "introducedToday": 2,
+     "newWordIds": [
+      "w35",
+      "w36",
+      "w37",
+      "w2",
+      "w4",
+      "w6",
+      "w8",
+      "w9"
+     ],
+     "requiredPerDay": 6,
+     "shortfall": false
+    }
+   ]
   },
   "scheduled": {
    "planDate": "2026-09-15",
@@ -454,7 +474,18 @@
    "backlog": {
     "wordIds": [],
     "lessons": 0
-   }
+   },
+   "courses": [
+    {
+     "courseId": "my",
+     "newWordsPerDay": 10,
+     "budget": 0,
+     "introducedToday": 10,
+     "newWordIds": [],
+     "requiredPerDay": 7,
+     "shortfall": false
+    }
+   ]
   },
   "scheduled": {
    "planDate": "2026-09-15",
@@ -531,7 +562,24 @@
    "backlog": {
     "wordIds": [],
     "lessons": 0
-   }
+   },
+   "courses": [
+    {
+     "courseId": "my",
+     "newWordsPerDay": 5,
+     "budget": 5,
+     "introducedToday": 0,
+     "newWordIds": [
+      "w4",
+      "w5",
+      "w6",
+      "w7",
+      "w0"
+     ],
+     "requiredPerDay": 0,
+     "shortfall": false
+    }
+   ]
   },
   "scheduled": {
    "planDate": "2026-09-15",
@@ -749,7 +797,21 @@
    "backlog": {
     "wordIds": [],
     "lessons": 0
-   }
+   },
+   "courses": [
+    {
+     "courseId": "my",
+     "newWordsPerDay": 10,
+     "budget": 10,
+     "introducedToday": 0,
+     "newWordIds": [
+      "w1",
+      "w2"
+     ],
+     "requiredPerDay": 0,
+     "shortfall": false
+    }
+   ]
   },
   "scheduled": {
    "planDate": "2026-09-15",
@@ -876,6 +938,427 @@
       "ξη2",
       "το",
       "λέ"
+     ],
+     "isNew": true,
+     "mode": "practice",
+     "expectedVersion": 0
+    }
+   ]
+  }
+ },
+ "twoCourses": {
+  "plan": {
+   "today": "2026-09-15",
+   "requiredPerDay": 11,
+   "budget": 9,
+   "introducedToday": 0,
+   "shortfall": true,
+   "newWords": [
+    "w1",
+    "w2",
+    "w3",
+    "w4",
+    "w5",
+    "w6",
+    "w20",
+    "w21",
+    "w22"
+   ],
+   "reviews": [
+    "w0"
+   ],
+   "deadlines": [
+    {
+     "lessonId": "n1",
+     "title": "n1",
+     "targetDate": "2026-09-16",
+     "daysLeft": 1,
+     "newLeft": 11,
+     "requiredPerDay": 11
+    },
+    {
+     "lessonId": "n2",
+     "title": "n2",
+     "targetDate": "2026-09-18",
+     "daysLeft": 3,
+     "newLeft": 19,
+     "requiredPerDay": 7
+    },
+    {
+     "lessonId": "f1",
+     "title": "f1",
+     "targetDate": "2026-09-26",
+     "daysLeft": 11,
+     "newLeft": 12,
+     "requiredPerDay": 2
+    }
+   ],
+   "backlog": {
+    "wordIds": [],
+    "lessons": 0
+   },
+   "courses": [
+    {
+     "courseId": "near",
+     "newWordsPerDay": 6,
+     "budget": 6,
+     "introducedToday": 0,
+     "newWordIds": [
+      "w1",
+      "w2",
+      "w3",
+      "w4",
+      "w5",
+      "w6"
+     ],
+     "requiredPerDay": 11,
+     "shortfall": true
+    },
+    {
+     "courseId": "far",
+     "newWordsPerDay": 3,
+     "budget": 3,
+     "introducedToday": 0,
+     "newWordIds": [
+      "w20",
+      "w21",
+      "w22"
+     ],
+     "requiredPerDay": 2,
+     "shortfall": false
+    }
+   ]
+  },
+  "scheduled": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w20",
+     "type": "recognition",
+     "options": [
+      "слово24",
+      "слово20",
+      "слово8",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-1",
+     "wordId": "w6",
+     "type": "recognition",
+     "options": [
+      "слово25",
+      "слово6",
+      "слово34",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-2",
+     "wordId": "w22",
+     "type": "recognition",
+     "options": [
+      "слово22",
+      "слово34",
+      "слово20",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-3",
+     "wordId": "w2",
+     "type": "recognition",
+     "options": [
+      "слово26",
+      "слово30",
+      "слово2",
+      "слово6"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-4",
+     "wordId": "w3",
+     "type": "recognition",
+     "options": [
+      "слово8",
+      "слово30",
+      "слово3",
+      "слово29"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-5",
+     "wordId": "w4",
+     "type": "recognition",
+     "options": [
+      "слово4",
+      "слово14",
+      "слово28",
+      "слово6"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-6",
+     "wordId": "w5",
+     "type": "recognition",
+     "options": [
+      "слово2",
+      "слово33",
+      "слово5",
+      "слово37"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-7",
+     "wordId": "w21",
+     "type": "recognition",
+     "options": [
+      "слово21",
+      "слово24",
+      "слово27",
+      "слово36"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-8",
+     "wordId": "w0",
+     "type": "recognition",
+     "options": [
+      "слово0",
+      "слово14",
+      "слово25",
+      "слово27"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-9",
+     "wordId": "w1",
+     "type": "recognition",
+     "options": [
+      "слово1",
+      "слово19",
+      "слово6",
+      "слово13"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    }
+   ]
+  },
+  "spoken": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w20",
+     "type": "recognition",
+     "options": [
+      "слово24",
+      "слово20",
+      "слово8",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-1",
+     "wordId": "w6",
+     "type": "recognition",
+     "options": [
+      "слово25",
+      "слово6",
+      "слово34",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-2",
+     "wordId": "w22",
+     "type": "recognition",
+     "options": [
+      "слово22",
+      "слово34",
+      "слово20",
+      "слово2"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-3",
+     "wordId": "w2",
+     "type": "recognition",
+     "options": [
+      "слово26",
+      "слово30",
+      "слово2",
+      "слово6"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-4",
+     "wordId": "w3",
+     "type": "recognition",
+     "options": [
+      "слово8",
+      "слово30",
+      "слово3",
+      "слово29"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-5",
+     "wordId": "w4",
+     "type": "recognition",
+     "options": [
+      "слово4",
+      "слово14",
+      "слово28",
+      "слово6"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-6",
+     "wordId": "w5",
+     "type": "recognition",
+     "options": [
+      "слово2",
+      "слово33",
+      "слово5",
+      "слово37"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-7",
+     "wordId": "w21",
+     "type": "recognition",
+     "options": [
+      "слово21",
+      "слово24",
+      "слово27",
+      "слово36"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-8",
+     "wordId": "w0",
+     "type": "recognition",
+     "options": [
+      "слово0",
+      "слово14",
+      "слово25",
+      "слово27"
+     ],
+     "isNew": false,
+     "mode": "scheduled",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-9",
+     "wordId": "w1",
+     "type": "recognition",
+     "options": [
+      "слово1",
+      "слово19",
+      "слово6",
+      "слово13"
+     ],
+     "isNew": true,
+     "mode": "scheduled",
+     "expectedVersion": 0
+    }
+   ]
+  },
+  "practice": {
+   "planDate": "2026-09-15",
+   "items": [
+    {
+     "id": "S-0",
+     "wordId": "w0",
+     "type": "recognition",
+     "options": [
+      "слово38",
+      "слово0",
+      "слово39",
+      "слово36"
+     ],
+     "isNew": false,
+     "mode": "practice",
+     "expectedVersion": 1
+    },
+    {
+     "id": "S-1",
+     "wordId": "w1",
+     "type": "recognition",
+     "options": [
+      "слово39",
+      "слово1",
+      "слово6",
+      "слово7"
+     ],
+     "isNew": true,
+     "mode": "practice",
+     "expectedVersion": 0
+    },
+    {
+     "id": "S-2",
+     "wordId": "w2",
+     "type": "recognition",
+     "options": [
+      "слово28",
+      "слово8",
+      "слово3",
+      "слово2"
      ],
      "isNew": true,
      "mode": "practice",

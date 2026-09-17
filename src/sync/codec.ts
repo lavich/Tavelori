@@ -19,6 +19,7 @@ type WireDay=[string,number,string[]];
 interface Wire {
  f:number;c:number;
  s:CompactSnapshot['settings'];
+ cs?:CompactSnapshot['courses'];
  l:[string,string|null,'upcoming'|'completed',number][];
  p:string[];
  st:WireState[];
@@ -59,7 +60,7 @@ const decodeStats=(wire:Wire['x']):StatsSummary=>({
 
 export function encodeSnapshot(snapshot:CompactSnapshot):string{
  const wire:Wire={
-  f:snapshot.format,c:ms(snapshot.createdAt),s:snapshot.settings,
+  f:snapshot.format,c:ms(snapshot.createdAt),s:snapshot.settings,cs:snapshot.courses,
   l:snapshot.lessons.map(lesson=>[lesson.id,lesson.targetDate,lesson.status,ms(lesson.updatedAt)]),
   p:snapshot.packages,
   st:snapshot.states.map(encodeState),
@@ -76,6 +77,8 @@ export function decodeSnapshot(text:string):CompactSnapshot{
  if(!Array.isArray(wire.st)||!Array.isArray(wire.sk)||!wire.s||!wire.x||!Array.isArray(wire.l)||!Array.isArray(wire.p))throw new SnapshotFormatError('Структура снимка не соответствует формату');
  return {
   format:SNAPSHOT_FORMAT,createdAt:iso(wire.c??0),settings:wire.s,
+  // Снимок прежнего формата курсов не знает: пустой список означает «не трогать локальные».
+  courses:wire.cs??[],
   lessons:wire.l.map(([id,targetDate,status,updatedAt])=>({id,targetDate,status,updatedAt:iso(updatedAt)})),
   packages:wire.p,
   states:wire.st.map(decodeState),

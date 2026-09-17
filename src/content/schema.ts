@@ -6,7 +6,7 @@ import type {Example, Lesson, Segment} from '../domain/types';
  */
 export const SCHEMA_VERSION=1;
 
-export interface CatalogCourse {id:string;title:string;source?:string;lessonIds:string[]}
+export interface CatalogCourse {id:string;title:string;language:string;source?:string;lessonIds:string[]}
 export interface CatalogEntry {
  id:string; courseId:string; language:string; title:string; wordCount:number;
  version:string; url:string; bytes:number;
@@ -84,7 +84,7 @@ export function parseCatalog(input:unknown):Catalog{
   const path=`каталог.courses[${index}]`;
   const item=obj(entry,path);
   const course:CatalogCourse={
-   id:str(item.id,`${path}.id`),title:str(item.title,`${path}.title`),
+   id:str(item.id,`${path}.id`),title:str(item.title,`${path}.title`),language:str(item.language??'',`${path}.language`),
    lessonIds:list(item.lessonIds??[],`${path}.lessonIds`).map((value,i)=>str(value,`${path}.lessonIds[${i}]`)),
   };
   const source=opt(item.source,value=>str(value,`${path}.source`)); if(source)course.source=source;

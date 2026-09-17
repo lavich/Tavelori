@@ -50,7 +50,8 @@ beforeAll(async()=>{
  }
  await db.lessons.bulkAdd(Array.from({length:LESSONS},(_,i)=>({id:`lesson-${pad(i)}`,title:`Урок ${i}`,targetDate:i<3?`2026-09-${17+i}`:null,status:'upcoming' as const,createdAt:iso,updatedAt:iso})));
  await db.lessonWords.bulkAdd(Array.from({length:LESSONS*35},(_,i)=>({lessonId:`lesson-${pad(Math.floor(i/35))}`,wordId:`w${pad(i*3)}`,position:i%35})));
- await db.settings.put({...defaultSettings,newWordsPerDay:10,sessionSize:20});
+ await db.settings.put({...defaultSettings,sessionSize:20});
+ await db.courses.put({id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:{startDate:null,weekdays:[]},newWordsPerDay:10,createdAt:iso,updatedAt:iso});
 },180_000);
 afterAll(()=>db.close());
 

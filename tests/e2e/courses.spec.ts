@@ -50,3 +50,39 @@ test('свой набор попадает в «Мои слова» отдель
  await expect(page.getByRole('heading',{name:'Мои слова'})).toBeVisible();
  await expect(page.getByRole('link',{name:/Мой набор/})).toBeVisible();
 });
+
+test('у курса своё расписание и свой предел; соседний курс их не подхватывает',async({page})=>{
+ await page.goto('/');
+ await ready(page);
+ await page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
+ await page.getByRole('button',{name:'Учить курс'}).click();
+ await expect(page.getByRole('button',{name:'Учить курс'})).toHaveCount(0);
+
+ // Свой набор живёт в «Мои слова» и по расписанию LEEKE дат не получает.
+ await page.getByRole('button',{name:'Добавить занятие'}).click();
+ await page.getByLabel('Название').fill('Мой набор');
+ await page.getByRole('button',{name:'Создать'}).click();
+ const leeke=page.locator('section').filter({has:page.getByRole('heading',{name:'LEEKE A2'})});
+ const mine=page.locator('section').filter({has:page.getByRole('heading',{name:'Мои слова'})});
+
+ await leeke.getByRole('button',{name:'Задать расписание'}).click();
+ await leeke.getByLabel('Первое занятие').fill('2026-09-21');
+ await leeke.getByRole('button',{name:'Пн',exact:true}).click();
+ await leeke.getByRole('button',{name:'Сохранить'}).click();
+ await expect(leeke.getByText('Пн, первое занятие 21 сентября')).toBeVisible();
+ await expect(leeke.getByRole('link',{name:/1\.3 · К понедельнику/})).toBeVisible();
+ await expect(mine.getByRole('link',{name:/Мой набор · Без даты/})).toBeVisible();
+
+ // Предел тоже принадлежит курсу.
+ await leeke.getByLabel('Новых слов в день').fill('3');
+ await leeke.getByLabel('Новых слов в день').blur();
+ await expect.poll(()=>page.evaluate(async()=>{
+  const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open('lexi');request.onsuccess=()=>resolve(request.result)});
+  const rows=await new Promise<{id:string;newWordsPerDay:number}[]>(resolve=>{
+   const all=database.transaction('courses').objectStore('courses').getAll();
+   all.onsuccess=()=>resolve(all.result as {id:string;newWordsPerDay:number}[]);
+  });
+  database.close();
+  return Object.fromEntries(rows.map(row=>[row.id,row.newWordsPerDay]));
+ })).toEqual({leeke:3,my:10});
+});

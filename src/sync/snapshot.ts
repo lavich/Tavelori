@@ -48,7 +48,8 @@ export async function buildSnapshot(database:LexiDatabase,now:Date):Promise<Comp
  const stats=fresh.reduce((summary,event)=>foldStats(summary,event,KEEP_DAYS),base?.stats??emptyStats());
  return {
   format:SNAPSHOT_FORMAT,createdAt:now.toISOString(),
-  settings:{timezone:settings.timezone,newWordsPerDay:settings.newWordsPerDay,sessionSize:settings.sessionSize,schedule:settings.schedule},
+  settings:{timezone:settings.timezone,sessionSize:settings.sessionSize},
+  courses:(await database.courses.toArray()).map(course=>({id:course.id,subscribed:course.subscribed,newWordsPerDay:course.newWordsPerDay,schedule:course.schedule})).sort((a,b)=>a.id.localeCompare(b.id)),
   lessons,packages:[...packages].sort(),
   states:states.sort((a,b)=>a.wordId.localeCompare(b.wordId)),
   skills:[...skills].map(([wordId,summary])=>({wordId,skills:summary})).sort((a,b)=>a.wordId.localeCompare(b.wordId)),
@@ -61,7 +62,7 @@ export async function commitBase(database:LexiDatabase,snapshot:CompactSnapshot,
  await database.baseSkills.bulkPut(snapshot.skills);
  await database.baseSummary.put({id:'base',asOf,versionId,stats:snapshot.stats});
 }
-export const SNAPSHOT_TABLES=['baseSkills','baseSummary','states','words','events','settings','lessons','packages','syncStash','meta'] as const;
+export const SNAPSHOT_TABLES=['baseSkills','baseSummary','states','words','events','settings','courses','lessons','packages','syncStash','meta'] as const;
 /** Сборка и фиксация базы одной транзакцией: ответ, записанный после, гарантированно попадёт в следующую версию. */
 export async function buildAndCommit(database:LexiDatabase,now:Date,versionId:string):Promise<CompactSnapshot>{
  return database.transaction('rw',SNAPSHOT_TABLES.map(name=>database.table(name)),async()=>{
@@ -83,6 +84,11 @@ export async function applySnapshot(database:LexiDatabase,snapshot:CompactSnapsh
  await database.transaction('rw',SNAPSHOT_TABLES.map(name=>database.table(name)),async()=>{
   const current=await loadSettings(database);
   await database.settings.put(fillSettings({...current,...snapshot.settings}));
+  // Темп курса переносится, а курс, которого здесь ещё нет, будет заведён каталогом с этими же значениями.
+  for(const incoming of snapshot.courses){
+   const stored=await database.courses.get(incoming.id);
+   if(stored)await database.courses.put({...stored,subscribed:incoming.subscribed,newWordsPerDay:incoming.newWordsPerDay,schedule:incoming.schedule});
+  }
   const pending:PendingLessons={};
   for(const lesson of snapshot.lessons){
    if(await database.lessons.get(lesson.id))await database.lessons.update(lesson.id,{targetDate:lesson.targetDate,status:lesson.status,updatedAt:lesson.updatedAt});

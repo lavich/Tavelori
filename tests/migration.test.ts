@@ -54,7 +54,7 @@ describe('миграция схемы без сети',()=>{
   await seedLegacy();
   const db=new LexiDatabase(NAME);
   await db.open();
-  expect(db.verno).toBe(4);
+  expect(db.verno).toBe(5);
   const l12=wordsOf('lesson-1-2');
   expect((await lessonLinks('lesson-1-2',db)).map(link=>link.wordId)).toEqual(l12.map(w=>w.id));
   expect((await lessonLinks('lesson-own',db)).map(link=>[link.wordId,link.position])).toEqual([['w-own',0],['w12-16',1]]);
@@ -72,7 +72,7 @@ describe('миграция схемы без сети',()=>{
   expect((await db.words.get('w-own'))!.edited).toBeUndefined();
   expect(await db.assets.count()).toBe(1);
   expect(await db.meta.get('seed')).toBeUndefined();
-  expect((await db.settings.get('settings'))!.newWordsPerDay).toBe(7);
+  expect((await db.courses.get('my'))!.newWordsPerDay).toBe(7); // лимит переехал в курс
   // Индексы построены для уже установленных слов.
   expect(await searchWordIds('σπι',db)).toEqual(['w12-16']);
   expect(await searchWordIds('стул',db)).toEqual(['w-own']);
@@ -82,11 +82,24 @@ describe('миграция схемы без сети',()=>{
   await seedLegacy();
   const db=new LexiDatabase(NAME);
   await db.open();
-  expect(db.verno).toBe(4);
+  expect(db.verno).toBe(5);
   expect(await db.courses.get('my')).toMatchObject({id:'my',origin:'local',subscribed:true});
   expect((await db.lessons.get('lesson-own'))!.courseId).toBe('my'); // создан пользователем — пакета нет
   expect((await db.lessons.get('lesson-1-2'))!.courseId).toBeUndefined(); // пакет прежней сборки курса не знает
   expect(await db.courses.count()).toBe(1); // курсы из поставки появятся с каталогом
+  db.close();
+ });
+ it('переносит общее расписание и лимит в каждый курс и убирает их из настроек',async()=>{
+  await seedLegacy();
+  const db=new LexiDatabase(NAME);
+  await db.open();
+  expect(db.verno).toBe(5);
+  const settings=(await db.settings.get('settings'))! as unknown as Record<string,unknown>;
+  expect(settings.newWordsPerDay).toBeUndefined();
+  expect(settings.schedule).toBeUndefined();
+  expect(settings.sessionSize).toBe(12); // общее остаётся общим
+  const own=await db.courses.get('my');
+  expect(own).toMatchObject({newWordsPerDay:7,schedule:{startDate:null,weekdays:[]}});
   db.close();
  });
  it('после миграции первое обновление пакета заменяет нетронутые слова и сохраняет правки, удаления и порядок',async()=>{
@@ -159,7 +172,7 @@ describe('резервная копия',()=>{
   expect(await db.words.count()).toBe(2);
   expect((await lessonLinks('lesson-1-2',db)).map(link=>link.wordId)).toEqual(['w12-16','w-own']);
   expect((await db.packages.toArray()).map(p=>[p.lessonId,p.version])).toEqual([['lesson-1-2','legacy']]);
-  expect((await db.settings.get('settings'))!.schedule).toEqual({startDate:null,weekdays:[]});
+  expect((await db.courses.get('my'))!.schedule).toEqual({startDate:null,weekdays:[]});
   expect(await searchWordIds('καρ',db)).toEqual(['w-own']);
   expect(await db.catalog.count()).toBe(content.catalog.lessons.length); // каталог не считается данными пользователя и остаётся
  });
@@ -167,7 +180,7 @@ describe('резервная копия',()=>{
   await installLessons(db,['lesson-1-1']);
   const before=await db.words.count();
   expect(await inspectBackup(new Blob(['{не json']))).toMatchObject({ok:false});
-  expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:5,tables:[],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/более новой версией/)});
+  expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:6,tables:[],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/более новой версией/)});
   expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:2,tables:[{name:'words',rowCount:0}],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/обязательных таблиц/)});
   const good=JSON.parse(await (await exportFull(db)).text());
   const links=good.data.data.find((t:{tableName:string})=>t.tableName==='lessonWords');

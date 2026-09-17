@@ -147,7 +147,10 @@ export function buildContent(root=defaultRoot()):BuiltContent{
    if(twin)fail(`${where}: урок ${lessonId} уже входит в курс ${twin}`);
    courseOf.set(lessonId,courseId);
   }
-  const course:CatalogCourse={id:courseId,title,lessonIds:[...src.lessons]};
+  // Курс учат целиком, поэтому смешанные языки внутри него — ошибка, а не особенность набора.
+  const languages=new Set(src.lessons.map(lessonId=>sources.lessons.get(lessonId)!.language??LANGUAGE));
+  if(languages.size>1)fail(`${where}: уроки курса на разных языках — ${[...languages].sort().join(', ')}`);
+  const course:CatalogCourse={id:courseId,title,language:[...languages][0]??LANGUAGE,lessonIds:[...src.lessons]};
   const source=text(src.source,`${where}.source`,false); if(source)course.source=source;
   courses.push(course);
  }

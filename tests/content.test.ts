@@ -112,6 +112,12 @@ describe('уроки принадлежат курсам',()=>{
   expect(()=>brokenCopy(root=>writeFileSync(join(root,'courses','leeke.yaml'),leeke+'  - lesson-9-9\n')))
    .toThrow(/courses\/leeke.yaml: урока lesson-9-9 нет/);
  });
+ it('курс несёт язык и требует один язык на все свои уроки',()=>{
+  expect(content.catalog.courses.find(course=>course.id==='leeke')!.language).toBe('el');
+  const lesson=readFileSync('content/lessons/lesson-2-2.yaml','utf8');
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'lessons','lesson-2-2.yaml'),lesson.replace('language: el','language: en'))))
+   .toThrow(/courses\/leeke.yaml: уроки курса на разных языках/);
+ });
  it('каталог и пакет прежней версии без курса читаются как раньше',()=>{
   const catalog=JSON.parse(fileOf('content/catalog.json').body as string);
   const {courses:_,...flat}=catalog;

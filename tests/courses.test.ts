@@ -5,7 +5,7 @@ import type {Course} from '../src/domain/types';
 import type {LessonView} from '../src/storage/queries';
 
 const iso='2026-09-16T09:00:00.000Z';
-const course=(id:string,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:false,createdAt:iso,updatedAt:iso,...over});
+const course=(id:string,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:false,schedule:{startDate:null,weekdays:[]},newWordsPerDay:10,createdAt:iso,updatedAt:iso,...over});
 const lesson=(id:string,courseId:string|undefined,wordCount=10):LessonView=>({id,courseId,title:id,targetDate:null,status:'upcoming',createdAt:iso,updatedAt:iso,wordCount});
 const entry=(id:string,courseId:string):CatalogEntry=>({id,courseId,language:'el',title:id,wordCount:5,version:'v1',url:`content/packages/${id}@v1.json`,bytes:100,status:'upcoming',targetDate:null,media:{count:0,bytes:0}});
 

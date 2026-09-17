@@ -75,11 +75,22 @@ export const tg=(page:Page)=>({
 });
 
 /** Дневной лимит новых слов = 0: занятие состоит только из повторений, без экрана знакомства. */
+/** Только повторения: предел новых слов принадлежит курсу, поэтому обнуляется у каждого курса профиля. */
 export async function onlyReviews(page:Page){
- await page.goto('/more/settings');
- await page.locator('#daily').fill('0');
- await page.getByRole('button',{name:'Сохранить'}).click();
- await page.getByText(/^Сохранено\./).waitFor();
+ await page.evaluate(async()=>{
+  for(const info of await indexedDB.databases()){
+   if(!info.name?.startsWith('lexi'))continue;
+   const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open(info.name!);request.onsuccess=()=>resolve(request.result)});
+   if(database.objectStoreNames.contains('courses')){
+    const tx=database.transaction('courses','readwrite');
+    const store=tx.objectStore('courses');
+    const all=store.getAll();
+    all.onsuccess=()=>{for(const course of all.result as {newWordsPerDay:number}[])store.put({...course,newWordsPerDay:0})};
+    await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
+   }
+   database.close();
+  }
+ });
  await page.goto('/');
  await page.waitForSelector('text=Немного каждый день');
 }

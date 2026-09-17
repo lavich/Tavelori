@@ -26,6 +26,7 @@ async function load(data:Snapshot){
  await db.transaction('rw',db.tables,async()=>{
   await db.words.bulkAdd(data.words.map(indexWord));
   await db.lessons.bulkAdd(data.lessons);
+  if(data.courses)await db.courses.bulkAdd(data.courses);
   await db.lessonWords.bulkAdd(data.links);
   await db.states.bulkAdd(data.states);
   await db.events.bulkAdd(data.events);

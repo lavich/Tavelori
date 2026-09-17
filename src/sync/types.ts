@@ -11,7 +11,9 @@ export type Clock=Record<string,number>;
 export type SerializedCard=Omit<Card,'due'|'last_review'>&{due:string;last_review?:string};
 export interface CompactState {wordId:string;card:SerializedCard;introducedAt:string;version:number}
 export interface CompactLesson {id:string;targetDate:string|null;status:'upcoming'|'completed';updatedAt:string}
-export interface CompactSettings {timezone:string;newWordsPerDay:number;sessionSize:number;schedule:Schedule}
+export interface CompactSettings {timezone:string;sessionSize:number}
+/** Темп курса переносится между устройствами: без него второе устройство считало бы дни иначе. */
+export interface CompactCourse {id:string;subscribed:boolean;newWordsPerDay:number;schedule:Schedule}
 /**
  * Компактный снимок стандартного прогресса: состояния FSRS и навыков стандартных слов, настройки,
  * даты/статусы стандартных уроков, требуемые пакеты и сводки статистики. Полная история, сессии,
@@ -21,6 +23,7 @@ export interface CompactSnapshot {
  format:typeof SNAPSHOT_FORMAT;
  createdAt:string;
  settings:CompactSettings;
+ courses:CompactCourse[];
  lessons:CompactLesson[];
  packages:string[];
  states:CompactState[];

@@ -8,8 +8,8 @@ import type {TelegramCloudStorage} from '../src/platform/telegram-types';
 
 const snapshot=(size=0):CompactSnapshot=>({
  format:SNAPSHOT_FORMAT,createdAt:'2026-09-16T10:00:00.000Z',
- settings:{timezone:defaultSettings.timezone,newWordsPerDay:10,sessionSize:20,schedule:{startDate:null,weekdays:[]}},
- lessons:[],packages:['lesson-1-1'],
+ settings:{timezone:defaultSettings.timezone,sessionSize:20},
+ courses:[],lessons:[],packages:['lesson-1-1'],
  states:Array.from({length:size},(_,index)=>({wordId:`w11-${String(index).padStart(2,'0')}`,card:{due:'2026-09-17T00:00:00.000Z',stability:2.123456789012,difficulty:5.987654321098,elapsed_days:1,scheduled_days:1,reps:1,lapses:0,state:2,learning_steps:0},introducedAt:'2026-09-15T00:00:00.000Z',version:1})),
  skills:[],stats:{days:[],recentByType:{},answers:0,answeredWordIds:[]},
 });

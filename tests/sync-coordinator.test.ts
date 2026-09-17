@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {LexiDatabase} from '../src/storage/db';
 import {dexieSource} from '../src/storage/queries';
-import {saveSettings, submitAnswer, updateLesson} from '../src/storage/ops';
+import {saveCourseTempo, saveSettings, submitAnswer, updateLesson} from '../src/storage/ops';
 import {makePlan, makeSession} from '../src/domain/learning';
 import {progress} from '../src/domain/stats';
 import {kvAdapter} from '../src/sync/adapter';
@@ -51,7 +51,8 @@ describe('перенос компактного прогресса между у
  it('второе устройство получает сроки FSRS, навыки, настройки, даты уроков, бюджет и статистику без двойного учёта',async()=>{
   const phone=await device('phone',{lessons:['lesson-1-1']});
   const tablet=await device('tablet',{lessons:['lesson-1-1']});
-  await saveSettings({id:'settings',timezone:'Europe/Athens',newWordsPerDay:7,sessionSize:6,schedule:{startDate:'2026-09-14',weekdays:[1,3]}},phone.db);
+  await saveSettings({id:'settings',timezone:'Europe/Athens',sessionSize:6},phone.db);
+  await saveCourseTempo('leeke',{newWordsPerDay:7,schedule:{startDate:'2026-09-14',weekdays:[1,3]}},new Date('2026-09-16T09:00:00Z'),phone.db);
   await updateLesson('lesson-1-1',{targetDate:'2026-10-01'},phone.db);
   const studied=await study(phone,[true,false,true,true,false]);
   await study(phone,[true,true,false]);
@@ -62,7 +63,9 @@ describe('перенос компактного прогресса между у
   expect(status.lastConfirmedAt).toBe(now().toISOString());
   expect(await statesOf(tablet)).toEqual(await statesOf(phone));
   expect(await skillsOf(tablet,studied)).toEqual(await skillsOf(phone,studied));
-  expect(await tablet.db.settings.get('settings')).toMatchObject({timezone:'Europe/Athens',newWordsPerDay:7,sessionSize:6,schedule:{startDate:'2026-09-14',weekdays:[1,3]}});
+  expect(await tablet.db.settings.get('settings')).toMatchObject({timezone:'Europe/Athens',sessionSize:6});
+  // Темп принадлежит курсу и переносится вместе с ним, иначе второе устройство считало бы дни иначе.
+  expect(await tablet.db.courses.get('leeke')).toMatchObject({newWordsPerDay:7,schedule:{startDate:'2026-09-14',weekdays:[1,3]}});
   expect((await tablet.db.lessons.get('lesson-1-1'))?.targetDate).toBe('2026-10-01');
   const [planPhone,planTablet]=await Promise.all([plan(phone),plan(tablet)]);
   expect(planTablet).toEqual(planPhone);

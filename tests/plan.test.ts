@@ -5,7 +5,7 @@ import {fromSnapshot} from '../src/domain/snapshot-source';
 import {diffChars} from '../src/domain/spelling';
 import {checkAnswer} from '../src/domain/import';
 import {progress} from '../src/domain/stats';
-import {defaultSettings, type ExerciseType, type LearningState, type Lesson, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
+import {defaultSchedule, defaultSettings, type Course, type ExerciseType, type LearningState, type Lesson, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
 
 const now=new Date('2026-09-15T09:00:00Z');
 const iso=now.toISOString();
@@ -13,6 +13,7 @@ const word=(id:string,index:number):Word=>({id,greek:`λέξη${index}`,russian:
 const words=(count:number,prefix='w')=>Array.from({length:count},(_,index)=>word(`${prefix}${index}`,index));
 type LessonSpec=Lesson&{wordIds:string[]};
 const lesson=(id:string,wordIds:string[],targetDate:string|null,over:Partial<Lesson>={}):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso,...over});
+const course=(id:string,newWordsPerDay:number,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:true,schedule:defaultSchedule,newWordsPerDay,createdAt:iso,updatedAt:iso,...over});
 /** Снимок для тестов: состав уроков задаётся массивами и раскладывается в связи с порядком. */
 const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):Snapshot=>({
  words:[],states:[],events:[],sessions:[],settings:defaultSettings,...over,
@@ -24,6 +25,52 @@ const sessionOf=(input:Omit<Parameters<typeof makeSession>[0],'source'>&{data:Sn
 const learned=(id:string,due:string,state=State.Review):LearningState=>({
  wordId:id,introducedAt:'2026-09-01T09:00:00Z',version:1,
  card:{...createEmptyCard(new Date('2026-09-01')),due:new Date(due),state,scheduled_days:3,reps:2},
+});
+
+describe('темп принадлежит курсу',()=>{
+ const pool=words(60);
+ const ids=(from:number,to:number)=>pool.slice(from,to).map(w=>w.id);
+ it('каждый курс берёт свой предел, а слова ближнего срока идут первыми',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('near',10),course('far',5)],
+   lessons:[
+    lesson('l-near',ids(0,20),'2026-09-16',{courseId:'near'}),
+    lesson('l-far',ids(20,40),'2026-09-22',{courseId:'far'}),
+   ],
+  });
+  const plan=await planOf(data);
+  expect(plan.courses.map(item=>[item.courseId,item.budget,item.newWordIds.length])).toEqual([['near',10,10],['far',5,5]]);
+  expect(plan.newWordIds.slice(0,10)).toEqual(ids(0,10)); // курс с ближайшим занятием идёт раньше
+  expect(plan.newWordIds).toHaveLength(15);
+  expect(plan.budget).toBe(15);
+ });
+ it('слово из двух курсов вводится один раз и тратит бюджет обоих',async()=>{
+  const shared=ids(0,3);
+  const data=base({
+   words:pool,
+   courses:[course('a',4),course('b',4)],
+   lessons:[lesson('la',[...shared,...ids(10,14)],'2026-09-18',{courseId:'a'}),lesson('lb',[...shared,...ids(20,24)],'2026-09-19',{courseId:'b'})],
+   states:shared.map(id=>learned(id,'2026-09-30T09:00:00Z')),
+  });
+  // Общие слова уже введены: сегодняшний бюджет обоих курсов уменьшен на три.
+  const plan=await planOf(data,new Date('2026-09-15T09:00:00Z'));
+  expect(plan.courses.map(item=>[item.courseId,item.introducedToday])).toEqual([['a',0],['b',0]]);
+  const same=base({words:pool,courses:[course('a',4),course('b',4)],
+   lessons:[lesson('la',[...shared,...ids(10,14)],'2026-09-18',{courseId:'a'}),lesson('lb',[...shared,...ids(20,24)],'2026-09-19',{courseId:'b'})],
+   states:shared.map(id=>({...learned(id,'2026-09-30T09:00:00Z'),introducedAt:'2026-09-15T08:00:00Z'}))});
+  const today=await planOf(same,new Date('2026-09-15T09:00:00Z'));
+  expect(today.courses.map(item=>[item.courseId,item.introducedToday,item.budget])).toEqual([['a',3,1],['b',3,1]]);
+ });
+ it('нехватка предела считается по курсу и называет его',async()=>{
+  const data=base({words:pool,courses:[course('slow',5),course('calm',10)],
+   lessons:[lesson('l-slow',ids(0,20),'2026-09-17',{courseId:'slow'}),lesson('l-calm',ids(20,25),'2026-09-30',{courseId:'calm'})]});
+  const plan=await planOf(data);
+  const slow=plan.courses.find(item=>item.courseId==='slow')!;
+  expect([slow.requiredPerDay,slow.shortfall]).toEqual([10,true]);
+  expect(plan.courses.find(item=>item.courseId==='calm')!.shortfall).toBe(false);
+  expect(plan.shortfall).toBe(true); // сводно: хотя бы один курс не успевает
+ });
 });
 
 describe('подготовка к нескольким занятиям',()=>{

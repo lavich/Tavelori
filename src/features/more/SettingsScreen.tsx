@@ -21,17 +21,15 @@ export function SettingsScreen(){
  const platform=usePlatform();
  const [haptics,setHaptics]=useHapticsSetting();
  useEffect(()=>{
-  setDaily(String(settings.newWordsPerDay));
   setSize(String(settings.sessionSize));
   setZone(settings.timezone);
  },[settings]);
  const submit=async(event:React.FormEvent)=>{
   event.preventDefault();
-  const perDay=Number(daily), sessionSize=Number(size);
-  if(!Number.isInteger(perDay)||perDay<0||perDay>100)return setProblem('Дневной лимит — целое число от 0 до 100.');
+  const sessionSize=Number(size);
   if(!Number.isInteger(sessionSize)||sessionSize<2||sessionSize>100)return setProblem('Размер занятия — целое число от 2 до 100.');
   setProblem('');
-  await saveSettings({...settings,newWordsPerDay:perDay,sessionSize,timezone:zone});
+  await saveSettings({...settings,sessionSize,timezone:zone});
   setSaved(true);
  };
  return (

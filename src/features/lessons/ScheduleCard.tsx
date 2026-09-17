@@ -4,9 +4,9 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/compo
 import {Field, FieldDescription, FieldLabel} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {scheduleSet} from '../../domain/schedule';
-import {defaultSchedule, type Settings} from '../../domain/types';
+import {defaultSchedule, type Course} from '../../domain/types';
 import {dayMonth} from '../../shared/format';
-import {saveSchedule, saveSettings} from '../../storage/ops';
+import {saveCourseTempo} from '../../storage/ops';
 import ui from '../../shared/ui.module.css';
 
 const SHORT=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -16,8 +16,8 @@ export const listDays=(days:number[])=>{
  return names.length>1?`${names.slice(0,-1).join(', ')} и ${names[names.length-1]}`:names[0]??'';
 };
 
-export function ScheduleCard({settings,today,first}:{settings:Settings;today:string;first?:string}){
- const {schedule}=settings;
+export function ScheduleCard({course,today,first}:{course:Course;today:string;first?:string}){
+ const {schedule}=course;
  const active=scheduleSet(schedule);
  const [editing,setEditing]=useState(false);
  const [start,setStart]=useState('');
@@ -29,14 +29,14 @@ export function ScheduleCard({settings,today,first}:{settings:Settings;today:str
   event.preventDefault();
   if(!days.length)return setProblem('Выберите хотя бы один день недели.');
   if(!start)return setProblem('Укажите дату первого занятия.');
-  await saveSchedule({...settings,schedule:{startDate:start,weekdays:[...days].sort((a,b)=>a-b)}},new Date());
+  await saveCourseTempo(course.id,{schedule:{startDate:start,weekdays:[...days].sort((a,b)=>a-b)}},new Date());
   setEditing(false);
  };
- const remove=async()=>{await saveSettings({...settings,schedule:defaultSchedule});setEditing(false)};
+ const remove=async()=>{await saveCourseTempo(course.id,{schedule:defaultSchedule},new Date());setEditing(false)};
  return (
   <Card className="mb-3">
    <CardHeader>
-    <CardTitle className="text-lg">Расписание</CardTitle>
+    <CardTitle className="text-lg">Расписание и темп</CardTitle>
     {!editing&&<CardDescription>{active?`${listDays(schedule.weekdays)}, первое занятие ${dayMonth(schedule.startDate!)}`:'Не задано — даты уроков назначаются вручную'}</CardDescription>}
    </CardHeader>
    <CardContent>
@@ -62,7 +62,21 @@ export function ScheduleCard({settings,today,first}:{settings:Settings;today:str
       </div>
       {active&&<Button size="md" variant="destructive" type="button" className="mt-2.5" onClick={remove}>Убрать расписание</Button>}
      </form>
-    ):<Button size="md" variant="soft" onClick={open}>{active?'Изменить расписание':'Задать расписание'}</Button>}
+    ):(
+     <>
+      <Button size="md" variant="soft" onClick={open}>{active?'Изменить расписание':'Задать расписание'}</Button>
+      <Field className="mt-3">
+       <FieldLabel htmlFor={`per-day-${course.id}`}>Новых слов в день</FieldLabel>
+       <Input id={`per-day-${course.id}`} type="number" inputMode="numeric" min={0} max={100} defaultValue={course.newWordsPerDay}
+        onBlur={event=>{
+         const value=Number(event.target.value);
+         if(Number.isInteger(value)&&value>=0&&value<=100&&value!==course.newWordsPerDay)void saveCourseTempo(course.id,{newWordsPerDay:value},new Date());
+         else event.target.value=String(course.newWordsPerDay);
+        }}/>
+       <FieldDescription>Предел этого курса. У других курсов он свой.</FieldDescription>
+      </Field>
+     </>
+    )}
    </CardContent>
   </Card>
  );

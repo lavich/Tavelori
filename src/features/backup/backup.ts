@@ -1,6 +1,6 @@
 import Dexie from 'dexie';
 import {exportDB, importInto} from 'dexie-export-import';
-import {LexiDatabase, db, LEGACY_TABLES, migrateLegacy, SCHEMA_VERSION, SYNC_META_PREFIX, TABLES, TABLES_V2} from '../../storage/db';
+import {LexiDatabase, db, LEGACY_TABLES, migrateCourses, migrateCourseTempo, migrateLegacy, SCHEMA_VERSION, SYNC_META_PREFIX, TABLES, TABLES_V2} from '../../storage/db';
 import {isLexiDatabaseName} from '../../storage/profile';
 import {fillSettings, type LessonWord, type Settings} from '../../domain/types';
 import {syncEvents} from '../../sync/events';
@@ -112,6 +112,8 @@ export async function restoreBackup(file:Blob,database:LexiDatabase=db):Promise<
  try{
   await importInto(staging,file,{acceptNameDiff:true,acceptVersionDiff:true,clearTablesBeforeImport:true,overwriteValues:true});
   await staging.transaction('rw',TABLES.map(name=>staging.table(name)),()=>migrateLegacy(staging));
+  // Копия прежнего формата курсов не знает: восстановленный профиль получает их тем же переходом, что и миграция базы.
+  await staging.transaction('rw',TABLES.map(name=>staging.table(name)),async()=>{await migrateCourses(staging);await migrateCourseTempo(staging)});
   const payload=await Promise.all(TABLES.map(async name=>[name,await staging.table(name).toArray()] as const));
   const rows=<T,>(name:typeof TABLES[number])=>payload.find(([table])=>table===name)![1] as T[];
   if(!rows('words').length)throw new Error('В копии нет ни одного слова — восстановление отменено.');
