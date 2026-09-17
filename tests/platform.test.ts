@@ -230,3 +230,26 @@ describe('загрузка bridge',()=>{
   expect(await loadTelegramBridge(20,silent)).toBeNull();
  });
 });
+
+describe('крошки жизненного цикла для отчётов о сбоях',()=>{
+ it('activated, deactivated и viewportChanged пишут имя события и размеры, но не initData и не пользователя',async()=>{
+  const {pendingCrumbs,resetReporting}=await import('../src/reporting/reporting');
+  resetReporting({dsn:'https://key@o1.ingest.sentry.io/1',loader:()=>Promise.reject(new Error('не в тесте'))});
+  const {app,fire}=fakeApp({initData:'user=%7B%22id%22%3A42%2C%22first_name%22%3A%22%D0%90%D0%BD%D0%BD%D0%B0%22%7D&hash=abc',initDataUnsafe:{user:{id:42,first_name:'Анна',username:'anna'}}} as never);
+  const adapter=telegramAdapter(app);
+  fire('deactivated');
+  (app as {viewportStableHeight:number}).viewportStableHeight=0;
+  fire('viewportChanged',{isStateStable:false}); // неустойчивое состояние крошки не даёт
+  fire('viewportChanged',{isStateStable:true});
+  (app as {viewportStableHeight:number}).viewportStableHeight=640;
+  fire('activated');
+  const crumbs=pendingCrumbs();
+  expect(crumbs.map(crumb=>crumb.message)).toEqual(['deactivated','viewportChanged','activated']);
+  expect(crumbs[1].data).toEqual({height:700,stableHeight:0,expanded:false,fullscreen:false});
+  expect(crumbs[2].data).toMatchObject({stableHeight:640});
+  const text=JSON.stringify(crumbs);
+  for(const secret of ['initData','42','Анна','anna','hash','user'])expect(text).not.toContain(secret);
+  adapter.dispose();
+  resetReporting();
+ });
+});

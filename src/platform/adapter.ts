@@ -1,3 +1,4 @@
+import {lifecycle} from '../reporting/reporting';
 import type {TelegramThemeParams, TelegramWebApp} from './telegram-types';
 
 /**
@@ -75,14 +76,17 @@ export function telegramAdapter(app:TelegramWebApp):PlatformAdapter{
  const onBack=()=>activeBack()?.handler();
  const onMain=()=>{if(primary&&!primary.disabled&&!primary.loading)primary.onClick()};
  const onTheme=()=>themeListeners.forEach(listener=>listener());
+ // Крошки жизненного цикла для отчётов о сбоях: имя события и размеры области просмотра, ничего из данных запуска.
+ const sizes=()=>({height:Number.isFinite(app.viewportHeight)?app.viewportHeight:null,stableHeight:Number.isFinite(app.viewportStableHeight)?app.viewportStableHeight:null,expanded:!!app.isExpanded,fullscreen:!!app.isFullscreen});
  const onViewport=(...args:unknown[])=>{
   const state=args[0] as {isStateStable?:boolean}|undefined;
   // Док занятия следует за устойчивой высотой, а не за каждым кадром анимации клавиатуры.
   if(state&&state.isStateStable===false)return;
+  lifecycle('viewportChanged',sizes());
   viewportListeners.forEach(listener=>listener());
  };
- const onActivated=()=>activeListeners.forEach(listener=>listener(true));
- const onDeactivated=()=>activeListeners.forEach(listener=>listener(false));
+ const onActivated=()=>{lifecycle('activated',sizes());activeListeners.forEach(listener=>listener(true))};
+ const onDeactivated=()=>{lifecycle('deactivated',sizes());activeListeners.forEach(listener=>listener(false))};
  if(capabilities.back)attempt(()=>backButton!.onClick(onBack));
  if(capabilities.primaryAction)attempt(()=>mainButton!.onClick(onMain));
  attempt(()=>app.onEvent('themeChanged',onTheme));

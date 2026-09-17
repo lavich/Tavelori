@@ -2,6 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useSyncExternalStore} from 'rea
 import {telegramAdapter, webAdapter, type HapticKind, type PlatformAdapter, type PrimaryAction} from './adapter';
 import {loadTelegramBridge} from './bridge';
 import {launchContext} from './launch';
+import {lifecycle} from '../reporting/reporting';
 import type {TelegramWebApp} from './telegram-types';
 
 /**
@@ -92,8 +93,9 @@ export function useEnvironment(){
   const telegram=current.kind==='telegram';
   const visual=telegram?window.visualViewport:null;
   visual?.addEventListener('resize',applyEnvironment);
-  if(telegram)document.addEventListener('visibilitychange',applyEnvironment);
-  return()=>{offTheme();offViewport();offActive();visual?.removeEventListener('resize',applyEnvironment);if(telegram)document.removeEventListener('visibilitychange',applyEnvironment)};
+  const onVisibility=()=>{lifecycle('visibilitychange',{visible:document.visibilityState!=='hidden',stableHeight:current.viewport().stableHeight,innerHeight:window.innerHeight});applyEnvironment()};
+  if(telegram)document.addEventListener('visibilitychange',onVisibility);
+  return()=>{offTheme();offViewport();offActive();visual?.removeEventListener('resize',applyEnvironment);if(telegram)document.removeEventListener('visibilitychange',onVisibility)};
  },[current]);
 }
 

@@ -6,21 +6,28 @@ import {App} from './app/App';
 import {Recovery} from './app/Recovery';
 import {refreshCatalog, syncCourses} from './content/client';
 import {initPlatform, telegramBridge} from './platform/platform';
+import {installEarlyHandlers, reportError, setReportingEnabled} from './reporting/reporting';
+import {bindReportingToSettings} from './reporting/settings';
 import {db, ensureDefaults} from './storage/db';
 import {settleLessons} from './storage/ops';
 import {connectSync} from './sync';
 import './styles.css';
 
+// Ранние обработчики ошибок ставятся до всего остального: отказы запуска копятся до загрузки SDK отчётов.
+installEarlyHandlers();
 export const updateReady={value:false,apply:()=>{}};
 // WebView без service worker не должен обрушить запуск: регистрация обёрнута, обновления просто недоступны.
 try{
  if('serviceWorker' in navigator){
-  const update=registerSW({onNeedRefresh(){updateReady.value=true;window.dispatchEvent(new CustomEvent('lexi:update'))},onRegisterError(error){console.warn('Service worker недоступен',error)}});
+  const update=registerSW({onNeedRefresh(){updateReady.value=true;window.dispatchEvent(new CustomEvent('lexi:update'))},onRegisterError(error){console.warn('Service worker недоступен',error);reportError(error,{category:'service-worker'})}});
   updateReady.apply=()=>update(true);
  }
 }catch(error){console.warn('Service worker недоступен',error)}
 
-const database=db.open().then(()=>ensureDefaults()).then(()=>settleLessons(new Date())).catch(error=>console.error('Не удалось открыть локальную базу',error));
+// Настройка отчётов читается из открытой базы. Если база не открылась, настройку прочитать нельзя —
+// отчёт об этом отказе уходит по умолчанию; это единственный случай без проверки настройки.
+const opened=db.open().then(()=>{bindReportingToSettings()},error=>{reportError(error,{category:'storage'});setReportingEnabled(true);throw error});
+const database=opened.then(()=>ensureDefaults()).then(()=>settleLessons(new Date())).catch(error=>console.error('Не удалось открыть локальную базу',error));
 // Подписанные курсы догружаются следом за каталогом: новый урок появляется сам, медиа остаётся по запросу.
 refreshCatalog().then(()=>syncCourses()).catch(()=>undefined);
 // Bridge Telegram загружается параллельно и не задерживает рендер; синхронизация подключается после базы и bridge.
