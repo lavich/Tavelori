@@ -1,4 +1,5 @@
 import {db, indexWord, type LexiDatabase} from '../storage/db';
+import {reportError} from '../reporting/reporting';
 import {adoptStash} from '../sync/snapshot';
 import {ContentError, parseCatalog, parsePackage, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackageWord, type ShippedField} from './schema';
 import {defaultSchedule, DEFAULT_NEW_WORDS_PER_DAY, type Asset, type Course, type InstalledPackage, type Word} from '../domain/types';
@@ -127,9 +128,11 @@ export function installLesson(lessonId:string,database:LexiDatabase=db,source:Co
  if(running)return running;
  const task=(async()=>{
   setPhase(lessonId,{phase:'loading'});
+  let version:string|undefined;
   try{
    const entry=await database.catalog.get(lessonId);
    if(!entry)throw new ContentError('Этого урока нет в каталоге.');
+   version=entry.version;
    const installed=await database.packages.get(lessonId);
    if(installed&&installed.version===entry.version)return {status:'current',added:0,changed:0,conflicts:[]} as InstallResult;
    const pack=parsePackage(await source.json(entry.url));
@@ -141,6 +144,8 @@ export function installLesson(lessonId:string,database:LexiDatabase=db,source:Co
   }catch(error){
    const wrapped=toContentError(error);
    setPhase(lessonId,{phase:'error',message:wrapped.message,kind:wrapped.kind});
+   // Отсутствие сети — штатный случай офлайна; отчёт уходит об отклонённом или не сохранившемся пакете, без его содержимого.
+   if(wrapped.kind!=='network')reportError(wrapped,{category:'content',extra:{kind:wrapped.kind,packageId:lessonId,packageVersion:version}});
    throw wrapped;
   }finally{inflight.delete(lessonId)}
  })();

@@ -2,6 +2,7 @@ import {useSyncExternalStore} from 'react';
 import {installLesson} from '../content/client';
 import {launchContext} from '../platform/launch';
 import type {TelegramWebApp} from '../platform/telegram-types';
+import {reportError} from '../reporting/reporting';
 import {db} from '../storage/db';
 import {currentProfile} from '../storage/profile';
 import {kvAdapter} from './adapter';
@@ -19,6 +20,8 @@ export const sync=new SyncCoordinator({
  lock:webLock(`lexi-sync-${db.name}`),
 });
 sync.onMissingPackages=ids=>{for(const id of ids)installLesson(id).catch(()=>undefined)};
+// Отключённый транспорт и клиент без CloudStorage — штатные состояния, не сбои.
+sync.onFailure=(error,kind)=>{if(kind!=='disabled'&&kind!=='unavailable')reportError(error,{category:'sync',extra:{kind}})};
 
 export function connectSync(app:TelegramWebApp|null){
  const profile=currentProfile();

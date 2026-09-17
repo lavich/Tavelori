@@ -114,6 +114,7 @@ export class SyncCoordinator {
   const kind:SyncErrorKind|'unknown'=error instanceof SyncError?error.kind:'unknown';
   const message=error instanceof Error?error.message:'Синхронизация не удалась';
   this.update({phase:'error',error:{kind,message}});
+  this.onFailure?.(error,kind);
   if(kind!=='disabled'&&kind!=='format'){
    this.cancelRetry=this.options.schedule(()=>{void this.exchange()},this.retryMs);
    this.retryMs=Math.min(this.retryMs*2,10*60*1000);
@@ -235,6 +236,8 @@ export class SyncCoordinator {
  }
  /** Экран подписывается, чтобы догрузить стандартные пакеты, нужные полученному прогрессу. */
  onMissingPackages:((lessonIds:string[])=>void)|null=null;
+ /** Приложение подписывается, чтобы отправить отчёт о сбое синхронизации; координатор сам о сервисе отчётов не знает. */
+ onFailure:((error:unknown,kind:SyncErrorKind|'unknown')=>void)|null=null;
 
  /**
  * Разрешение конфликта целой версией. Отвергнутые ветви сохраняются локально до явного удаления,

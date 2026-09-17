@@ -49,3 +49,49 @@ describe('границы данных в сообщениях ошибок',()=>
   }
  });
 });
+
+describe('явные отчёты о критических отказах',()=>{
+ it('отклонённый пакет урока даёт отчёт категории «контент» с идентификатором и версией, но без содержимого; отсутствие сети отчёта не даёт',async()=>{
+  const {pendingReports,resetReporting}=await import('../src/reporting/reporting');
+  const {installLesson,refreshCatalog}=await import('../src/content/client');
+  const {content,memoryFetcher,packageOf}=await import('./helpers/content');
+  resetReporting({dsn:'https://key@o1.ingest.sentry.io/1',loader:()=>Promise.reject(new Error('не в тесте'))});
+  const db=new LexiDatabase('lexi-report-content');
+  await db.delete();await db.open();
+  const entry=content.catalog.lessons.find(lesson=>lesson.id==='lesson-1-1')!;
+  const pack=packageOf('lesson-1-1');
+  const broken=memoryFetcher(content,{[entry.url]:{...pack,words:pack.words.slice(1)}});
+  await refreshCatalog(db,broken);
+  await expect(installLesson('lesson-1-1',db,broken)).rejects.toBeInstanceOf(Error);
+  const reports=pendingReports();
+  expect(reports).toHaveLength(1);
+  expect(reports[0]).toMatchObject({category:'content',extra:{kind:'schema',packageId:'lesson-1-1',packageVersion:entry.version}});
+  const text=JSON.stringify(reports[0].extra);
+  for(const word of pack.words.slice(0,3))expect(text).not.toContain(word.greek);
+  // Нет сети: пакет не загружен — это офлайн, а не сбой.
+  const {ContentError}=await import('../src/content/schema');
+  await refreshCatalog(db,memoryFetcher());
+  const offline={json:async()=>{throw new ContentError('Нет сети','network')},blob:memoryFetcher().blob};
+  await expect(installLesson('lesson-1-2',db,offline)).rejects.toMatchObject({kind:'network'});
+  expect(pendingReports()).toHaveLength(1);
+  resetReporting();
+  db.close();
+ });
+ it('координатор синхронизации сообщает об ошибке с её видом через onFailure',async()=>{
+  const {SyncCoordinator}=await import('../src/sync/coordinator');
+  const {kvAdapter}=await import('../src/sync/adapter');
+  const {memoryTransport,SyncError}=await import('../src/sync/transport');
+  const {installLessons}=await import('./helpers/content');
+  const db=new LexiDatabase('lexi-report-sync');
+  await db.delete();await db.open();await installLessons(db,['lesson-1-1']);
+  const broken=memoryTransport({intercept:op=>{if(op==='getKeys')throw new SyncError('transport','CloudStorage timeout')}});
+  const failures:{error:unknown;kind:string}[]=[];
+  const sync=new SyncCoordinator({database:db,adapter:kvAdapter(broken),schedule:()=>()=>undefined,retryBaseMs:1000});
+  sync.onFailure=(error,kind)=>failures.push({error,kind});
+  expect((await sync.exchange()).phase).toBe('error');
+  expect(failures).toHaveLength(1);
+  expect(failures[0].kind).toBe('transport');
+  expect(failures[0].error).toBeInstanceOf(Error);
+  db.close();
+ });
+});
