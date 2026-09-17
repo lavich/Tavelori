@@ -2,6 +2,7 @@ import {cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} fro
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
+import {colorsOf, foreignColors, PALETTE, paletteColors, parseLegacy} from '../content/art';
 import {buildContent, revisionOf, wordsOf} from '../content/build';
 import {ContentError, parseCatalog, parsePackage, SCHEMA_VERSION} from '../src/content/schema';
 import {wordKey} from '../src/domain/import';
@@ -240,10 +241,90 @@ describe('карточка каждого подготовленного сло�
    expect(word.imageAssetId).toBe(`img-${word.id}`);
   }
  });
- it('собирает лист для визуальной проверки',()=>{
-  const cards=prepared.map(w=>`<figure><div class="a">${seedArt(w.id)}</div><figcaption>${w.greek} — ${w.russian}</figcaption></figure>`).join('');
+ /** Лист — рабочий инструмент миграции: легенда палитры сверху, файлы вне палитры выделены рамкой с перечнем чужих цветов. */
+ it('собирает лист для визуальной проверки с легендой палитры и подсветкой файлов вне палитры',()=>{
+  const legend=[...Object.entries(PALETTE.backgrounds),...Object.entries(PALETTE.colors)].map(([name,hex])=>`<span class="c"><i style="background:${hex}"></i>${name} ${hex}</span>`).join('');
+  const cards=prepared.map(w=>{
+   const art=seedArt(w.id), foreign=foreignColors(art);
+   return `<figure${foreign.length?' class="legacy"':''}><div class="a">${art}</div><figcaption>${w.greek} — ${w.russian}${foreign.length?`<small>${foreign.join(' ')}</small>`:''}</figcaption></figure>`;
+  }).join('');
   mkdirSync('docs',{recursive:true});
-  writeFileSync('docs/art-sheet.html',`<!doctype html><meta charset="utf-8"><title>Иллюстрации Lexi</title><style>body{font:14px system-ui;background:#f7f7f5;margin:0;padding:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}figure{margin:0;background:#fff;border-radius:12px;overflow:hidden}.a svg{display:block;width:100%}figcaption{padding:6px 8px;color:#171717}</style>${cards}`);
+  writeFileSync('docs/art-sheet.html',`<!doctype html><meta charset="utf-8"><title>Иллюстрации Lexi</title><style>body{font:14px system-ui;background:#f7f7f5;margin:0;padding:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}header{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px}.c i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:4px;border:1px solid #0002}figure{margin:0;background:#fff;border-radius:12px;overflow:hidden}figure.legacy{outline:2px solid #ef4444}.a svg{display:block;width:100%}figcaption{padding:6px 8px;color:#171717}figcaption small{display:block;color:#ef4444;font-family:monospace}</style><header>${legend}</header>${cards}`);
   expect(prepared).toHaveLength(189);
+ });
+});
+
+/** Стандарт иллюстраций (docs/art-standard.md): палитра — данные, проверки — в публикации, старые файлы — в legacy.txt. */
+describe('иллюстрации подчиняются стандарту',()=>{
+ const legacyText=readFileSync('content/art/legacy.txt','utf8');
+ const legacy=parseLegacy(legacyText);
+ const house=readFileSync('content/words/το-σπίτι.yaml','utf8');
+ const svg=(inner:string,attrs='viewBox="0 0 320 220"')=>`<svg xmlns="http://www.w3.org/2000/svg" ${attrs}><rect width="320" height="220" fill="#e7eefb"/>${inner}</svg>`;
+ /** Копия, в которой το-σπίτι.svg перерисован заново и больше не числится унаследованным. */
+ const redrawn=(art:string)=>brokenCopy(root=>{
+  writeFileSync(join(root,'art','το-σπίτι.svg'),art);
+  writeFileSync(join(root,'art','legacy.txt'),legacyText.replace('το-σπίτι.svg\n',''));
+ });
+ it('палитра — единственный источник: документ перечисляет те же цвета',()=>{
+  const doc=readFileSync('docs/art-standard.md','utf8');
+  const section=doc.split('\n## Палитра')[1].split('\n## ')[0];
+  expect(new Set(section.match(/#[0-9a-f]{6}/g))).toEqual(paletteColors());
+  expect(paletteColors().size).toBeGreaterThanOrEqual(12);
+  expect(paletteColors().size).toBeLessThanOrEqual(20);
+  for(const hex of paletteColors())expect(hex).toMatch(/^#[0-9a-f]{6}$/);
+ });
+ it('цвета читаются из атрибутов и style, запись нормализуется',()=>{
+  expect(colorsOf('<path fill="#FFF" stroke=\'#2563EB\' style="stop-color: #e7eefb; fill:none"/><stop stop-color="currentColor"/>'))
+   .toEqual(new Set(['#ffffff','#2563eb','#e7eefb','none','currentcolor']));
+  expect(foreignColors('<path fill="none" stroke="#2563eb" opacity="0.5" style="fill:#abcdef"/>')).toEqual(['#abcdef']);
+  expect(foreignColors('<path fill="#2563eb80"/>')).toEqual(['#2563eb80']);
+ });
+ it('текущий контент: 189 иллюстраций, 187 из них вне палитры и все в legacy.txt',()=>{
+  expect(content.art).toEqual({files:189,legacy:187});
+  for(const word of prepared){
+   const file=content.sources.words.get(word.id)!.image!;
+   expect(legacy.has(file),file).toBe(foreignColors(seedArt(word.id)).length>0);
+  }
+  // Список только сокращается: новую картинку в него не добавить, не подняв этот потолок в ревью.
+  expect(legacy.size).toBeLessThanOrEqual(187);
+ });
+ it('новая картинка в палитре публикуется, служебные значения и прозрачность допустимы',()=>{
+  const built=redrawn(svg('<path d="M10 10h20" fill="none" stroke="currentColor"/><circle cx="160" cy="110" r="40" fill="#2563EB" opacity="0.5"/><rect x="1" y="1" width="9" height="9" style="fill:#fbbf24;stroke:#1f2937"/>'));
+  expect(built.art).toEqual({files:189,legacy:186});
+ });
+ it('отклоняет размер, холст, текст, заголовок, скрипт, стиль, анимацию, растр и внешние ссылки',()=>{
+  expect(()=>redrawn(svg(`<path d="M${'0 '.repeat(1500)}"/>`))).toThrow(/потолок иллюстрации — 3072 байта/);
+  expect(()=>redrawn(svg('<circle r="9"/>','viewBox="0 0 320 240"'))).toThrow(/холст viewBox="0 0 320 240", стандарт — viewBox="0 0 320 220"/);
+  expect(()=>redrawn(svg('<circle r="9"/>','width="320"'))).toThrow(/холст viewBox=""/);
+  expect(()=>redrawn(svg('<text>дом</text>'))).toThrow(/выдаёт ответ/);
+  expect(()=>redrawn(svg('<title>дом</title>'))).toThrow(/заголовок или описание/);
+  expect(()=>redrawn(svg('<script>alert(1)</script>'))).toThrow(/скрипт/);
+  expect(()=>redrawn(svg('<circle r="9" onclick="x()"/>'))).toThrow(/обработчик события/);
+  expect(()=>redrawn(svg('<style>@keyframes a{}</style>'))).toThrow(/стили/);
+  expect(()=>redrawn(svg('<circle r="9"><animate attributeName="r" to="20"/></circle>'))).toThrow(/анимация/);
+  expect(()=>redrawn(svg('<image href="#x"/>'))).toThrow(/растровое/);
+  expect(()=>redrawn(svg('<use href="https://evil.example/x.svg#a"/>'))).toThrow(/ссылка не на элемент этого файла/);
+  expect(()=>redrawn(svg('<rect fill="url(https://evil.example/p.png)"/>'))).toThrow(/url\(\) не на элемент/);
+  expect(()=>redrawn(svg('<rect fill="url(data:image/png;base64,AAAA)"/>'))).toThrow(/встроенные данные/);
+  // Ссылки внутри файла разрешены
+  expect(redrawn(svg('<defs><linearGradient id="g"><stop stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><rect width="9" height="9" fill="url(#g)"/><use href="#g"/>')).art.legacy).toBe(186);
+ });
+ it('цвет вне палитры: новая картинка отклоняется, унаследованная публикуется, список только сокращается',()=>{
+  expect(()=>redrawn(svg('<circle r="9" fill="#fde68a" stroke="#ABCDEF"/>'))).toThrow(/art\/το-σπίτι.svg: цвета вне палитры #abcdef, #fde68a/);
+  // Тот же файл в legacy.txt — публикуется и учтён в отчёте
+  expect(brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<circle r="9" fill="#fde68a"/>'))).art).toEqual({files:189,legacy:187});
+  // Унаследованный файл, который уже в палитре, просят убрать из списка
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<circle r="9" fill="#2563eb"/>')))).toThrow(/уже в палитре — уберите его из art\/legacy.txt/);
+  // Имя без файла — мусор в списке
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','legacy.txt'),legacyText+'нет.svg\n'))).toThrow(/файла art\/нет.svg нет — уберите имя из списка/);
+  // Остальные проверки действуют и для унаследованных файлов
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<text>дом</text>')))).toThrow(/выдаёт ответ/);
+  // Новое слово со своей картинкой вне палитры не спрятать: его нет в списке
+  expect(()=>brokenCopy(root=>{
+   writeFileSync(join(root,'art','το-δοκίμιο.svg'),svg('<circle r="9" fill="#123456"/>'));
+   writeFileSync(join(root,'words','το-δοκίμιο.yaml'),'greek: το δοκίμιο\nrussian: очерк\nimage: το-δοκίμιο.svg\n');
+   writeFileSync(join(root,'lessons','lesson-1-4.yaml'),readFileSync('content/lessons/lesson-1-4.yaml','utf8')+'  - το-δοκίμιο\n');
+  })).toThrow(/art\/το-δοκίμιο.svg: цвета вне палитры #123456/);
+  expect(house).toContain('image: το-σπίτι.svg');
  });
 });
