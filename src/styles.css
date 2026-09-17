@@ -102,6 +102,7 @@
  --almost-bg:#3a2a05; --almost-fg:#fde68a;
  --same-bg:#166534; --wrong-bg:#7f1d1d;
  --shadow:rgba(0,0,0,.6);
+ --track:color-mix(in srgb,var(--foreground) 12%,transparent);
  --success:var(--color-emerald-400); --success-foreground:var(--color-emerald-100);
  --warning:var(--color-yellow-400); --warning-foreground:var(--color-yellow-100);
  --info:var(--color-violet-400); --info-foreground:var(--color-violet-100);

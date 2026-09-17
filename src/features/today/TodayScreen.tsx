@@ -1,16 +1,17 @@
 import {useState} from 'react';
-import {ArrowRight, BookOpen, CalendarDays, ChevronRight, FileText, History, Plus, RefreshCw, TriangleAlert} from 'lucide-react';
+import {ArrowRight, BookOpen, CalendarDays, History, Plus, RefreshCw, TriangleAlert} from 'lucide-react';
 import {Link, useNavigate} from 'react-router-dom';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
-import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
+import {ItemGroup} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
 import {localDay} from '../../domain/learning';
 import {useNow} from '../../shared/clock';
 import {capitalize, dativeWeekday, dayMonth, DAYS, LESSONS, shortTitle, withCount, WORDS} from '../../shared/format';
 import {useActiveSession, useCatalog, useLessons, usePlan, useSettings} from '../../shared/store';
 import {startSession} from '../learning/session-actions';
+import {LessonRow} from '../lessons/LessonRow';
 import ui from '../../shared/ui.module.css';
 
 export function TodayScreen(){
@@ -130,14 +131,7 @@ export function TodayScreen(){
     )}
     <ItemGroup className="gap-2.5">
      {lessons.map(item=>(
-      <Item key={item.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card" render={<Link to={`/lessons/${item.id}`}/>}>
-       <ItemMedia variant="icon"><FileText/></ItemMedia>
-       <ItemContent>
-        <ItemTitle className="text-base">{shortTitle(item.title)} · {item.targetDate?`К ${dativeWeekday(item.targetDate)}`:item.status==='completed'?'Повторение':'Без даты'}</ItemTitle>
-        <ItemDescription>{withCount(item.wordCount,WORDS)}{item.newCount?` · ${item.newCount} новых`:''}</ItemDescription>
-       </ItemContent>
-       <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
-      </Item>
+      <LessonRow key={item.id} lesson={item} title={`${shortTitle(item.title)} · ${item.targetDate?`К ${dativeWeekday(item.targetDate)}`:item.status==='completed'?'Повторение':'Без даты'}`}/>
      ))}
     </ItemGroup>
     <Button size="xl" variant="soft" className="mt-2.5" render={<Link to="/lessons?new=1"/>}><Plus data-icon="inline-start"/>Добавить занятие</Button>

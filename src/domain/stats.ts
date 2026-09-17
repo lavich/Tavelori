@@ -55,4 +55,16 @@ export async function progress(source:StatsSource,now:Date):Promise<Progress>{
   groups,totals:await source.totals(),
  };
 }
+export interface LessonProgress {solid:number;review:number;fresh:number}
+/** Три группы слов урока для строки списка: устойчивые — Review с интервалом от 21 дня, в повторении — любое другое состояние, новые — без состояния. */
+export function lessonProgress(ids:Iterable<string>,states:Map<string,LearningState>):LessonProgress{
+ const groups:LessonProgress={solid:0,review:0,fresh:0};
+ for(const id of ids){
+  const state=states.get(id);
+  if(!state)groups.fresh++;
+  else if(state.card.state===State.Review&&state.card.scheduled_days>=21)groups.solid++;
+  else groups.review++;
+ }
+ return groups;
+}
 export const SKILL_NAMES:Record<ExerciseType,string>={recall:'Вспомнить слово',recognition:'Выбрать перевод',assembly:'Сборка из слогов',spelling:'Написание',listening:'Аудирование'};

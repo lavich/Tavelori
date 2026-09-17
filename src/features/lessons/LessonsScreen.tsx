@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {ChevronRight, CloudDownload, FileText, Plus} from 'lucide-react';
+import {ChevronRight, CloudDownload, Plus} from 'lucide-react';
 import {Link, useSearchParams} from 'react-router-dom';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
@@ -17,12 +17,13 @@ import {installCourse} from '../../content/client';
 import {createLesson} from '../../storage/ops';
 import {groupByCourse} from './courses';
 import {CourseHeader} from './CourseHeader';
+import {LessonRow} from './LessonRow';
 import {ScheduleCard} from './ScheduleCard';
 import ui from '../../shared/ui.module.css';
 
 export function LessonsScreen(){
  const {settings}=useSettings();
- const installed=useLessons()??[];
+ const installed=useLessons(true)??[];
  const catalog=useCatalog();
  const courses=useCourses();
  const today=localDay(useNow(),settings.timezone);
@@ -51,14 +52,9 @@ export function LessonsScreen(){
       {group.course&&<ScheduleCard course={group.course} today={today} first={[...group.lessons].sort(lessonOrder)[0]?.title}/>}
       <ItemGroup className="gap-2.5">
        {group.lessons.map(lesson=>(
-        <Item key={lesson.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
-         <ItemMedia variant="icon"><FileText/></ItemMedia>
-         <ItemContent>
-          <ItemTitle className="text-base">{shortTitle(lesson.title)} · {!lesson.targetDate?'Без даты':lesson.status==='completed'?`${capitalize(weekday(lesson.targetDate))}, ${dayMonth(lesson.targetDate)}`:`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`}</ItemTitle>
-          <ItemDescription>{withCount(lesson.wordCount,WORDS)} · {lesson.status==='completed'?'проведён':'предстоит'}{lesson.status!=='completed'&&lesson.dateSource==='manual'?' · дата вручную':''}</ItemDescription>
-         </ItemContent>
-         <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
-        </Item>
+        <LessonRow key={lesson.id} lesson={lesson}
+         title={`${shortTitle(lesson.title)} · ${!lesson.targetDate?'Без даты':lesson.status==='completed'?`${capitalize(weekday(lesson.targetDate))}, ${dayMonth(lesson.targetDate)}`:`К ${dativeWeekday(lesson.targetDate)}, ${dayMonth(lesson.targetDate)}`}`}
+         note={`${lesson.status==='completed'?'проведён':'предстоит'}${lesson.status!=='completed'&&lesson.dateSource==='manual'?' · дата вручную':''}`}/>
        ))}
        {group.available.map(entry=>(
         <Item key={entry.id} variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${entry.id}`}/>}>
