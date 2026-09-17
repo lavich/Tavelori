@@ -1,9 +1,6 @@
 import type {Page} from '@playwright/test';
 
-/**
- * Отказ хранилища, как у WebKit после сна WebView: чтение из IndexedDB бросает `UnknownError`, пока базу не откроют
- * заново — `indexedDB.open` снимает подмену (в режиме `permanent` — нет). Число открытий считается в `window.__reopened`.
- */
+/** Отказ хранилища как у WebKit после сна: чтение IndexedDB бросает `UnknownError` до следующего `indexedDB.open` (или навсегда). */
 export async function breakStorage(page:Page,permanent=false){
  await page.evaluate(permanent=>{
   const restore:(()=>void)[]=[];

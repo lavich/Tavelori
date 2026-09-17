@@ -30,7 +30,7 @@ export interface PlatformAdapter {
  viewport():PlatformViewport;
  onThemeChange(listener:()=>void):()=>void;
  onViewportChange(listener:()=>void):()=>void;
- /** Активен ли Mini App: Bot API 8.0 присылает `deactivated` при сворачивании и `activated` при возврате; без поддержки — всегда активен. */
+ /** Активность Mini App (Bot API 8.0: `activated`/`deactivated`); без поддержки — всегда активен. */
  active():boolean;
  onActiveChange(listener:(active:boolean)=>void):()=>void;
  ready():void;
@@ -90,7 +90,6 @@ export function telegramAdapter(app:TelegramWebApp):PlatformAdapter{
  attempt(()=>app.onEvent('safeAreaChanged',onViewport));
  attempt(()=>app.onEvent('contentSafeAreaChanged',onViewport));
  attempt(()=>app.onEvent('fullscreenChanged',onViewport));
- // Клиент без Bot API 8.0 этих событий не знает: официальный bridge молча их регистрирует, исключение перехватывается.
  attempt(()=>app.onEvent('activated',onActivated));
  attempt(()=>app.onEvent('deactivated',onDeactivated));
  const inset=(value:{top:number;bottom:number}|undefined)=>({top:value?.top??0,bottom:value?.bottom??0});

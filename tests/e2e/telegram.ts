@@ -5,7 +5,7 @@ import type {Page} from '@playwright/test';
  * и CloudStorage в памяти страницы. Вызовы записываются в `window.__tg.calls`, облако лежит в `window.__tg.cloud`.
  */
 export interface TelegramEmulation {platform?:'ios'|'android';version?:string;scheme?:'light'|'dark';theme?:Record<string,string>;stableHeight?:number;userId?:number;cloud?:Record<string,string>;bot?:string;failAudio?:boolean;noCloud?:boolean;fullscreen?:boolean;safeTop?:number;contentTop?:number}
-/** Клиент без Bot API 8.0 не знает событий активности; эмулятор отвергает их подписку, чтобы проверить устойчивость запуска. */
+/** Клиент без Bot API 8.0 отвергает подписку на события активности. */
 const LIFECYCLE_EVENTS=['activated','deactivated'];
 export const LIGHT={bg_color:'#ffffff',text_color:'#000000',hint_color:'#999999',link_color:'#2481cc',button_color:'#2481cc',button_text_color:'#ffffff',secondary_bg_color:'#f1f1f1',section_bg_color:'#ffffff'};
 export const DARK={bg_color:'#17212b',text_color:'#f5f5f5',hint_color:'#708499',link_color:'#6ab3f3',button_color:'#5288c1',button_text_color:'#ffffff',secondary_bg_color:'#232e3c',section_bg_color:'#17212b'};
@@ -48,10 +48,9 @@ export const bridgeScript=(options:TelegramEmulation)=>{
   setTheme(scheme,params){app.colorScheme=scheme;app.themeParams=params;fire('themeChanged')},
   setViewport(height,stable){app.viewportHeight=height;app.viewportStableHeight=height;fire('viewportChanged',{isStateStable:stable!==false})},
   back(){fire('back')},main(){fire('main')},
-  // Сворачивание (Bot API 8.0): клиент отдаёт нулевой viewport и deactivated; возврат присылает только activated — размеры и тему приложение перечитывает само.
+  // Сворачивание отдаёт нулевой viewport; возврат присылает только activated.
   deactivate(){app.isActive=false;app.viewportHeight=0;app.viewportStableHeight=0;fire('viewportChanged',{isStateStable:true});fire('deactivated')},
   activate(height){app.isActive=true;app.viewportHeight=height;app.viewportStableHeight=height;fire('activated')},
-  // Клиент без событий активности: сворачивание видно только по видимости документа.
   setHidden(hidden){Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>hidden?'hidden':'visible'});Object.defineProperty(document,'hidden',{configurable:true,get:()=>hidden});document.dispatchEvent(new Event('visibilitychange'))},
   setFullscreen(on,safeTop,contentTop){app.isFullscreen=on;app.isExpanded=true;app.safeAreaInset={top:safeTop,bottom:0,left:0,right:0};app.contentSafeAreaInset={top:contentTop,bottom:0,left:0,right:0};fire('safeAreaChanged');fire('contentSafeAreaChanged');fire('fullscreenChanged')},
  };
@@ -86,7 +85,7 @@ export const tg=(page:Page)=>({
  deactivate:()=>page.evaluate(()=>(window as unknown as {__tg:{deactivate:()=>void}}).__tg.deactivate()),
  activate:(height:number)=>page.evaluate(h=>(window as unknown as {__tg:{activate:(h:number)=>void}}).__tg.activate(h),height),
  setHidden:(hidden:boolean)=>page.evaluate(h=>(window as unknown as {__tg:{setHidden:(h:boolean)=>void}}).__tg.setHidden(h),hidden),
- /** Смена темы без события themeChanged: так выглядит тема, сменившаяся пока Mini App спал. */
+ /** Тема сменилась, пока Mini App спал: без события themeChanged. */
  silentTheme:(scheme:'light'|'dark',params:Record<string,string>)=>page.evaluate(([scheme,params])=>{const app=(window as unknown as {__tg:{app:{colorScheme:string;themeParams:unknown}}}).__tg.app;app.colorScheme=scheme;app.themeParams=params},[scheme,params] as const),
 });
 
