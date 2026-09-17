@@ -1,16 +1,17 @@
-import type {Example, Lesson, Segment} from '../domain/types';
+import type {Example, Segment} from '../domain/types';
 
 /**
  * Контракт поставляемого контента. Каталог — только метаданные; пакет — урок целиком.
  * Пакеты неизменяемы: версия входит в URL, поэтому старые адреса продолжают работать.
+ * Положение урока во времени — статус занятия и дата — контентом не поставляется: оно
+ * принадлежит пользователю и живёт только в его базе. Версия 2 — это их удаление.
  */
-export const SCHEMA_VERSION=1;
+export const SCHEMA_VERSION=2;
 
 export interface CatalogCourse {id:string;title:string;language:string;source?:string;lessonIds:string[]}
 export interface CatalogEntry {
  id:string; courseId:string; language:string; title:string; wordCount:number;
  version:string; url:string; bytes:number;
- status:Lesson['status']; targetDate:string|null;
  media:{count:number;bytes:number};
 }
 export interface Catalog {schemaVersion:typeof SCHEMA_VERSION;generatedAt:string;courses:CatalogCourse[];lessons:CatalogEntry[]}
@@ -29,7 +30,7 @@ export interface PackageMedia {
 }
 export interface ContentPackage {
  schemaVersion:typeof SCHEMA_VERSION; id:string; courseId:string; version:string; language:string;
- lesson:{title:string;status:Lesson['status'];targetDate:string|null};
+ lesson:{title:string};
  words:PackageWord[]; links:PackageLink[]; media:PackageMedia[];
 }
 
@@ -46,13 +47,6 @@ const bool=(value:unknown,path:string):boolean=>{if(typeof value!=='boolean')thr
 const opt=<T,>(value:unknown,read:(v:unknown)=>T):T|undefined=>value===undefined||value===null?undefined:read(value);
 const list=(value:unknown,path:string):unknown[]=>{if(!Array.isArray(value))throw new ContentError(`${path}: ожидался список`);return value};
 const obj=(value:unknown,path:string):Record<string,unknown>=>{if(!isRecord(value))throw new ContentError(`${path}: ожидался объект`);return value};
-const status=(value:unknown,path:string):Lesson['status']=>{if(value!=='upcoming'&&value!=='completed')throw new ContentError(`${path}: неизвестный статус урока`);return value};
-const nullableDay=(value:unknown,path:string):string|null=>{
- if(value===null)return null;
- const day=str(value,path);
- if(!/^\d{4}-\d{2}-\d{2}$/.test(day))throw new ContentError(`${path}: дата должна быть в формате ГГГГ-ММ-ДД`);
- return day;
-};
 const relativeUrl=(value:unknown,path:string):string=>{
  const url=str(value,path);
  if(!url||url.startsWith('/')||url.includes('..')||/^[a-z]+:/i.test(url))throw new ContentError(`${path}: ссылка должна быть относительной`);
@@ -75,7 +69,6 @@ export function parseCatalog(input:unknown):Catalog{
    id:str(item.id,`${path}.id`),courseId:str(item.courseId??'',`${path}.courseId`),language:str(item.language,`${path}.language`),title:str(item.title,`${path}.title`),
    wordCount:num(item.wordCount,`${path}.wordCount`),version:str(item.version,`${path}.version`),
    url:relativeUrl(item.url,`${path}.url`),bytes:num(item.bytes,`${path}.bytes`),
-   status:status(item.status,`${path}.status`),targetDate:nullableDay(item.targetDate,`${path}.targetDate`),
    media:{count:num(media.count,`${path}.media.count`),bytes:num(media.bytes,`${path}.media.bytes`)},
   };
  });
@@ -148,7 +141,7 @@ export function parsePackage(input:unknown):ContentPackage{
  for(const word of words) for(const ref of [word.imageAssetId,word.audioAssetId]) if(ref&&!mediaIds.has(ref))throw new ContentError(`пакет.words: слово ${word.id} ссылается на медиа ${ref}, которого нет в пакете`);
  return {
   schemaVersion:SCHEMA_VERSION,id:str(raw.id,'пакет.id'),courseId:str(raw.courseId??'','пакет.courseId'),version:str(raw.version,'пакет.version'),language:str(raw.language,'пакет.language'),
-  lesson:{title:str(lessonRaw.title,'пакет.lesson.title'),status:status(lessonRaw.status,'пакет.lesson.status'),targetDate:nullableDay(lessonRaw.targetDate,'пакет.lesson.targetDate')},
+  lesson:{title:str(lessonRaw.title,'пакет.lesson.title')},
   words,links:[...links].sort((a,b)=>a.position-b.position),media,
  };
 }

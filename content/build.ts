@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {parse} from 'yaml';
 import {wordKey} from '../src/domain/import.ts';
 import {ContentError, SCHEMA_VERSION, SHIPPED_FIELDS, type Catalog, type CatalogCourse, type CatalogEntry, type ContentPackage, type PackageMedia, type PackageWord} from '../src/content/schema.ts';
-import type {Example, Lesson, Segment} from '../src/domain/types.ts';
+import type {Example, Segment} from '../src/domain/types.ts';
 import {checkArt, LEGACY_FILE, readLegacy, type ArtReport} from './art.ts';
 
 /**
@@ -27,7 +27,7 @@ export interface WordSource {
  reading?:{text:string;ipa:string;explanation:string}[];
  examples?:{greek:string;russian:string;target:string;source?:string}[];
 }
-export interface LessonSource {title:string;language?:string;status?:Lesson['status'];targetDate?:string|null;words:string[]}
+export interface LessonSource {title:string;language?:string;words:string[]}
 export interface CourseSource {id?:string;title:string;source?:string;lessons:string[]}
 
 const hash=(value:string|Uint8Array,length=12)=>createHash('sha256').update(value).digest('hex').slice(0,length);
@@ -170,14 +170,13 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(new Set(src.words).size!==src.words.length)fail(`${where}: слово повторяется в списке`);
   const packWords=src.words.map(wordId=>words.get(wordId)??fail(`${where}: слова ${wordId} нет в words/`) as PackageWord);
   packWords.forEach(word=>used.add(word.id));
-  const status=src.status??'upcoming';
-  if(status!=='upcoming'&&status!=='completed')fail(`${where}.status: ожидается upcoming или completed`);
-  const targetDate=src.targetDate?String(src.targetDate):null;
-  if(targetDate&&!/^\d{4}-\d{2}-\d{2}$/.test(targetDate))fail(`${where}.targetDate: дата в формате ГГГГ-ММ-ДД`);
+  // Положение урока во времени не поставляется: статус занятия и дата принадлежат пользователю.
+  for(const field of ['status','targetDate'] as const)
+   if(field in (src as object))fail(`${where}.${field}: поле не поставляется — статус занятия и дата урока принадлежат пользователю и задаются расписанием курса`);
   const packMedia=packWords.flatMap(word=>[word.imageAssetId,word.audioAssetId]).filter((ref):ref is string=>!!ref).map(ref=>media.get(ref)!.item);
   const draft:ContentPackage={
    schemaVersion:SCHEMA_VERSION,id,courseId,version:'',language:src.language??LANGUAGE,
-   lesson:{title,status,targetDate},words:packWords,links:packWords.map((word,position)=>({wordId:word.id,position})),media:packMedia,
+   lesson:{title},words:packWords,links:packWords.map((word,position)=>({wordId:word.id,position})),media:packMedia,
   };
   const version=hash(canonical({...draft,version:undefined}));
   const pack={...draft,version};
@@ -186,7 +185,7 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   packages.push(pack);
   files.push({path:url,body,mimeType:'application/json'});
   entries.push({
-   id,courseId,language:pack.language,title,wordCount:packWords.length,version,url,bytes:Buffer.byteLength(body),status,targetDate,
+   id,courseId,language:pack.language,title,wordCount:packWords.length,version,url,bytes:Buffer.byteLength(body),
    media:{count:packMedia.length,bytes:packMedia.reduce((sum,item)=>sum+item.bytes,0)},
   });
  }

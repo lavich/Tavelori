@@ -175,13 +175,14 @@ describe('расписание занятий',()=>{
   await ensureSeed(db);
   await db.courses.update('leeke',{schedule:monThu}); // как saveSettings раньше: без закрепления прошедших
   const byId=Object.fromEntries((await loadLessons(db)).map(l=>[l.id,l]));
-  expect(byId['lesson-1-1']).toMatchObject({targetDate:'2026-09-14',dateSource:'schedule',status:'completed'});
-  expect(byId['lesson-1-2']).toMatchObject({targetDate:'2026-09-18',dateSource:'manual'});
+  // Поставка не несёт дат: все четыре урока раскладывает расписание курса по порядку номеров.
+  expect(byId['lesson-1-1']).toMatchObject({targetDate:'2026-09-14',dateSource:'schedule',status:'upcoming'});
+  expect(byId['lesson-1-2']).toMatchObject({targetDate:'2026-09-17',dateSource:'schedule'});
   expect(byId['lesson-1-3']).toMatchObject({targetDate:'2026-09-21',dateSource:'schedule'});
   expect(byId['lesson-1-4']).toMatchObject({targetDate:'2026-09-24',dateSource:'schedule'});
   expect((await db.lessons.get('lesson-1-3'))!.targetDate).toBeNull();
   const plan=await makePlan(source(),new Date('2026-09-16T09:00:00Z'));
-  expect(plan.deadlines.map(d=>[d.lessonId,d.daysLeft])).toEqual([['lesson-1-2',2],['lesson-1-3',5],['lesson-1-4',8]]);
+  expect(plan.deadlines.map(d=>[d.lessonId,d.daysLeft])).toEqual([['lesson-1-2',1],['lesson-1-3',5],['lesson-1-4',8]]);
  });
 });
 
@@ -209,7 +210,7 @@ describe('операции над уроками при расписании',()
   await prepare();
   expect(await settleLessons(new Date('2026-09-22T06:00:00Z'),db)).toBe(3); // 1.1, 1.2 и 1.3
   expect(await raw('lesson-1-1')).toMatchObject({targetDate:'2026-09-14',status:'completed'});
-  expect(await raw('lesson-1-2')).toMatchObject({targetDate:'2026-09-18',status:'completed'});
+  expect(await raw('lesson-1-2')).toMatchObject({targetDate:'2026-09-17',status:'completed'});
   expect(await raw('lesson-1-3')).toMatchObject({targetDate:'2026-09-21',status:'completed'});
   expect(await raw('lesson-1-4')).toMatchObject({targetDate:null,status:'upcoming'});
   const before=await db.lessons.toArray();

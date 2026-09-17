@@ -61,7 +61,7 @@ export function LessonsScreen(){
          <ItemMedia variant="icon"><CloudDownload/></ItemMedia>
          <ItemContent>
           <ItemTitle className="text-base">{shortTitle(entry.title)} · не загружен</ItemTitle>
-          <ItemDescription>{withCount(entry.wordCount,WORDS)} · {fileSize(entry.bytes+entry.media.bytes)}{entry.targetDate?` · занятие ${dayMonth(entry.targetDate)}`:entry.status==='completed'?' · проведён':''}</ItemDescription>
+          <ItemDescription>{withCount(entry.wordCount,WORDS)} · {fileSize(entry.bytes+entry.media.bytes)}</ItemDescription>
          </ItemContent>
          <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
         </Item>

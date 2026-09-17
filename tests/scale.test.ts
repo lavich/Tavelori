@@ -5,7 +5,7 @@ import {indexWord, LexiDatabase} from '../src/storage/db';
 import {dexieSource, lessonViews, searchWordIds, wordPage} from '../src/storage/queries';
 import {makePlan, makeSession} from '../src/domain/learning';
 import {progress} from '../src/domain/stats';
-import {parseCatalog, type CatalogEntry} from '../src/content/schema';
+import {parseCatalog, SCHEMA_VERSION, type CatalogEntry} from '../src/content/schema';
 import {refreshCatalog} from '../src/content/client';
 import {submitAnswer} from '../src/storage/ops';
 import {defaultSettings, type LearningState, type ReviewEvent, type Word} from '../src/domain/types';
@@ -124,8 +124,8 @@ describe('ограниченные выборки на большой базе',
   expect(reads.states).toBeLessThanOrEqual(LESSONS*35);
  },60_000);
  it('каталог на 100 000 слов читается одним запросом и не создаёт ни слов, ни прогресса',async()=>{
-  const lessons:CatalogEntry[]=Array.from({length:3000},(_,i)=>({id:`cat-${pad(i)}`,courseId:'big',language:'el',title:`Урок ${i}`,wordCount:34,version:`v${i}`,url:`content/packages/cat-${pad(i)}@v${i}.json`,bytes:40000,status:'upcoming',targetDate:null,media:{count:34,bytes:20000}}));
-  const catalog=parseCatalog({schemaVersion:1,generatedAt:iso,lessons});
+  const lessons:CatalogEntry[]=Array.from({length:3000},(_,i)=>({id:`cat-${pad(i)}`,courseId:'big',language:'el',title:`Урок ${i}`,wordCount:34,version:`v${i}`,url:`content/packages/cat-${pad(i)}@v${i}.json`,bytes:40000,media:{count:34,bytes:20000}}));
+  const catalog=parseCatalog({schemaVersion:SCHEMA_VERSION,generatedAt:iso,lessons});
   expect(catalog.lessons.reduce((sum,l)=>sum+l.wordCount,0)).toBeGreaterThanOrEqual(100_000);
   const requests:string[]=[];
   const before=await db.words.count();

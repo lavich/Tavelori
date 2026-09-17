@@ -196,7 +196,8 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
   const base=new Map((installed?.words??[]).map(word=>[word.id,word]));
   const result:InstallResult={status:installed?'updated':'installed',added:0,changed:0,conflicts:[]};
   if(!known)
-   await database.lessons.add({id:pack.id,courseId:pack.courseId||undefined,title:pack.lesson.title,targetDate:pack.lesson.targetDate,status:pack.lesson.status,createdAt:now,updatedAt:now});
+   // Урок приходит без положения во времени: он предстоящий и без собственной даты, дальше им распоряжается расписание курса.
+   await database.lessons.add({id:pack.id,courseId:pack.courseId||undefined,title:pack.lesson.title,targetDate:null,status:'upcoming',createdAt:now,updatedAt:now});
   for(const incoming of pack.words){
    const local=await database.words.get(incoming.id);
    if(!local){
