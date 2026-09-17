@@ -5,14 +5,19 @@ import type {Page} from '@playwright/test';
  * и CloudStorage в памяти страницы. Вызовы записываются в `window.__tg.calls`, облако лежит в `window.__tg.cloud`.
  */
 export interface TelegramEmulation {platform?:'ios'|'android';version?:string;scheme?:'light'|'dark';theme?:Record<string,string>;stableHeight?:number;userId?:number;cloud?:Record<string,string>;bot?:string;failAudio?:boolean;noCloud?:boolean;fullscreen?:boolean;safeTop?:number;contentTop?:number}
+/** Клиент без Bot API 8.0 не знает событий активности; эмулятор отвергает их подписку, чтобы проверить устойчивость запуска. */
+const LIFECYCLE_EVENTS=['activated','deactivated'];
 export const LIGHT={bg_color:'#ffffff',text_color:'#000000',hint_color:'#999999',link_color:'#2481cc',button_color:'#2481cc',button_text_color:'#ffffff',secondary_bg_color:'#f1f1f1',section_bg_color:'#ffffff'};
 export const DARK={bg_color:'#17212b',text_color:'#f5f5f5',hint_color:'#708499',link_color:'#6ab3f3',button_color:'#5288c1',button_text_color:'#ffffff',secondary_bg_color:'#232e3c',section_bg_color:'#17212b'};
 
-export const bridgeScript=(options:TelegramEmulation)=>`(()=>{
+export const bridgeScript=(options:TelegramEmulation)=>{
+ const legacyField=parseFloat(options.version??'8.0')<8?'':'isActive:true,';
+ return `(()=>{
  const calls=[];
  const cloud=new Map(Object.entries(${JSON.stringify(options.cloud??{})}));
  const handlers=new Map();
- const on=(name,handler)=>{if(!handlers.has(name))handlers.set(name,new Set());handlers.get(name).add(handler)};
+ const legacy=${parseFloat(options.version??'8.0')<8};
+ const on=(name,handler)=>{if(legacy&&${JSON.stringify(LIFECYCLE_EVENTS)}.includes(name))throw new Error('WebAppMethodUnsupported');if(!handlers.has(name))handlers.set(name,new Set());handlers.get(name).add(handler)};
  const off=(name,handler)=>handlers.get(name)?.delete(handler);
  const fire=(name,...args)=>handlers.get(name)?.forEach(handler=>handler(...args));
  const button=name=>({isVisible:false,show(){this.isVisible=true;calls.push(name+'.show')},hide(){this.isVisible=false;calls.push(name+'.hide')},onClick(h){on(name,h)},offClick(h){off(name,h)}});
@@ -21,7 +26,7 @@ export const bridgeScript=(options:TelegramEmulation)=>`(()=>{
   initData:'',initDataUnsafe:{user:{id:${options.userId??1001},first_name:'Тест'}},
   version:'${options.version??'8.0'}',platform:'${options.platform??'ios'}',colorScheme:'${options.scheme??'light'}',
   themeParams:${JSON.stringify(options.theme??(options.scheme==='dark'?DARK:LIGHT))},
-  isExpanded:${options.fullscreen?'true':'false'},isFullscreen:${options.fullscreen?'true':'false'},viewportHeight:${options.stableHeight??844},viewportStableHeight:${options.stableHeight??844},
+  isExpanded:${options.fullscreen?'true':'false'},isFullscreen:${options.fullscreen?'true':'false'},${legacyField}viewportHeight:${options.stableHeight??844},viewportStableHeight:${options.stableHeight??844},
   safeAreaInset:{top:${options.safeTop??0},bottom:0,left:0,right:0},contentSafeAreaInset:{top:${options.contentTop??0},bottom:0,left:0,right:0},
   isVersionAtLeast(v){return parseFloat(this.version)>=parseFloat(v)},
   ready(){calls.push('ready')},expand(){this.isExpanded=true;calls.push('expand')},close(){calls.push('close')},
@@ -43,10 +48,16 @@ export const bridgeScript=(options:TelegramEmulation)=>`(()=>{
   setTheme(scheme,params){app.colorScheme=scheme;app.themeParams=params;fire('themeChanged')},
   setViewport(height,stable){app.viewportHeight=height;app.viewportStableHeight=height;fire('viewportChanged',{isStateStable:stable!==false})},
   back(){fire('back')},main(){fire('main')},
+  // Сворачивание (Bot API 8.0): клиент отдаёт нулевой viewport и deactivated; возврат присылает только activated — размеры и тему приложение перечитывает само.
+  deactivate(){app.isActive=false;app.viewportHeight=0;app.viewportStableHeight=0;fire('viewportChanged',{isStateStable:true});fire('deactivated')},
+  activate(height){app.isActive=true;app.viewportHeight=height;app.viewportStableHeight=height;fire('activated')},
+  // Клиент без событий активности: сворачивание видно только по видимости документа.
+  setHidden(hidden){Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>hidden?'hidden':'visible'});Object.defineProperty(document,'hidden',{configurable:true,get:()=>hidden});document.dispatchEvent(new Event('visibilitychange'))},
   setFullscreen(on,safeTop,contentTop){app.isFullscreen=on;app.isExpanded=true;app.safeAreaInset={top:safeTop,bottom:0,left:0,right:0};app.contentSafeAreaInset={top:contentTop,bottom:0,left:0,right:0};fire('safeAreaChanged');fire('contentSafeAreaChanged');fire('fullscreenChanged')},
  };
  ${options.failAudio?`window.HTMLMediaElement.prototype.play=function(){return Promise.reject(new DOMException('NotAllowedError','NotAllowedError'))};`:''}
 })()`;
+};
 
 /** Параметры запуска в hash, как их добавляет Telegram; пользователь берётся из tgWebAppData. */
 export const launchHash=(options:TelegramEmulation={})=>{
@@ -72,6 +83,11 @@ export const tg=(page:Page)=>({
  setTheme:(scheme:'light'|'dark',params:Record<string,string>)=>page.evaluate(([scheme,params])=>(window as unknown as {__tg:{setTheme:(s:string,p:unknown)=>void}}).__tg.setTheme(scheme,params),[scheme,params] as const),
  setFullscreen:(on:boolean,safeTop:number,contentTop:number)=>page.evaluate(([on,safeTop,contentTop])=>(window as unknown as {__tg:{setFullscreen:(o:boolean,s:number,c:number)=>void}}).__tg.setFullscreen(on,safeTop,contentTop),[on,safeTop,contentTop] as const),
  setViewport:(height:number,stable=true)=>page.evaluate(([height,stable])=>(window as unknown as {__tg:{setViewport:(h:number,s:boolean)=>void}}).__tg.setViewport(height,stable),[height,stable] as const),
+ deactivate:()=>page.evaluate(()=>(window as unknown as {__tg:{deactivate:()=>void}}).__tg.deactivate()),
+ activate:(height:number)=>page.evaluate(h=>(window as unknown as {__tg:{activate:(h:number)=>void}}).__tg.activate(h),height),
+ setHidden:(hidden:boolean)=>page.evaluate(h=>(window as unknown as {__tg:{setHidden:(h:boolean)=>void}}).__tg.setHidden(h),hidden),
+ /** Смена темы без события themeChanged: так выглядит тема, сменившаяся пока Mini App спал. */
+ silentTheme:(scheme:'light'|'dark',params:Record<string,string>)=>page.evaluate(([scheme,params])=>{const app=(window as unknown as {__tg:{app:{colorScheme:string;themeParams:unknown}}}).__tg.app;app.colorScheme=scheme;app.themeParams=params},[scheme,params] as const),
 });
 
 /** Дневной лимит новых слов = 0: занятие состоит только из повторений, без экрана знакомства. */

@@ -32,6 +32,8 @@ export interface TelegramWebApp {
  initDataUnsafe:{user?:{id:number;first_name:string;last_name?:string;username?:string;language_code?:string};start_param?:string;auth_date?:number};
  version:string;platform:string;colorScheme:'light'|'dark';themeParams:TelegramThemeParams;
  isExpanded:boolean;isFullscreen?:boolean;viewportHeight:number;viewportStableHeight:number;
+ /** Bot API 8.0: false, пока Mini App свёрнут в полосу чата; в старых клиентах поля нет. */
+ isActive?:boolean;
  safeAreaInset?:{top:number;bottom:number;left:number;right:number};
  contentSafeAreaInset?:{top:number;bottom:number;left:number;right:number};
  isVersionAtLeast(version:string):boolean;

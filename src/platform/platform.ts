@@ -10,6 +10,8 @@ import type {TelegramWebApp} from './telegram-types';
  */
 let adapter:PlatformAdapter=webAdapter();
 let bridge:TelegramWebApp|null=null;
+/** Последняя положительная высота оболочки: свёрнутый Mini App присылает нули, и экран занятия не должен схлопываться. */
+let lastHeight:number|null=null;
 const listeners=new Set<()=>void>();
 const notify=()=>listeners.forEach(listener=>listener());
 const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener)}};
@@ -47,11 +49,16 @@ export async function initPlatform(timeoutMs=4000):Promise<PlatformAdapter>{
  }
 }
 
-/** Тема и размеры переводятся в переменные оболочки; недоступные значения оставляют CSS браузера. */
+/**
+ * Тема и размеры переводятся в переменные оболочки; недоступные значения оставляют CSS браузера.
+ * Тот же пересчёт выполняется при возврате из свёрнутого состояния: смена переменных и атрибутов `<html>`
+ * заставляет WebView пересчитать стили и перерисовать экран, состояние которого при этом не трогается.
+ */
 export function applyEnvironment(){
  const root=document.documentElement;
  if(adapter.kind!=='telegram'){
-  root.removeAttribute('data-theme');root.removeAttribute('data-launch-mode');
+  lastHeight=null;
+  root.removeAttribute('data-theme');root.removeAttribute('data-launch-mode');root.removeAttribute('data-app-active');
   ['--app-height','--inset-top','--inset-bottom','--inset-safe-top','--inset-content-top'].forEach(name=>root.style.removeProperty(name));
   return;
  }
@@ -65,8 +72,12 @@ export function applyEnvironment(){
  // Док занятия следует за устойчивой высотой Telegram, а при открытой клавиатуре — за фактически видимой областью.
  const visual=typeof window!=='undefined'&&window.visualViewport?.height;
  const heights=[view.stableHeight,visual&&visual<window.innerHeight-1?visual:null].filter((value):value is number=>!!value&&value>0);
- if(heights.length)root.style.setProperty('--app-height',`${Math.round(Math.min(...heights))}px`);
+ // Нули и отсутствие размеров (свёрнутый Mini App) не отменяют последнюю известную высоту; без неё остаётся 100dvh из CSS.
+ if(heights.length)lastHeight=Math.round(Math.min(...heights));
+ if(lastHeight)root.style.setProperty('--app-height',`${lastHeight}px`);
  else root.style.removeProperty('--app-height');
+ // Активность видна стилям и отладке; прятать приложение на время сна нельзя: без `activated` оно осталось бы скрытым.
+ root.dataset.appActive=String(adapter.active()&&document.visibilityState!=='hidden');
  // Отступы устройства и перекрытия Telegram не суммируются с env(): в WebView действуют значения bridge.
  root.style.setProperty('--inset-top',`${view.safeArea.top+view.contentSafeArea.top}px`);
  // Отдельно: системная строка и полоса кнопок клиента — в полном экране строка прогресса занятия встаёт в эту полосу.
@@ -75,16 +86,23 @@ export function applyEnvironment(){
  root.style.setProperty('--inset-bottom',`${view.safeArea.bottom+view.contentSafeArea.bottom}px`);
 }
 
-/** Подписка на тему и размеры активного адаптера; переустанавливается при смене адаптера. */
+/**
+ * Подписка на тему, размеры и активность адаптера; переустанавливается при смене адаптера.
+ * Возврат из свёрнутого состояния приходит событием `activated`, а в клиентах без Bot API 8.0 — только видимостью документа;
+ * оба пути ведут в один идемпотентный пересчёт, поэтому двойной вызов безвреден.
+ */
 export function useEnvironment(){
  const current=usePlatform();
  useEffect(()=>{
   applyEnvironment();
   const offTheme=current.onThemeChange(applyEnvironment);
   const offViewport=current.onViewportChange(applyEnvironment);
-  const visual=current.kind==='telegram'?window.visualViewport:null;
+  const offActive=current.onActiveChange(applyEnvironment);
+  const telegram=current.kind==='telegram';
+  const visual=telegram?window.visualViewport:null;
   visual?.addEventListener('resize',applyEnvironment);
-  return()=>{offTheme();offViewport();visual?.removeEventListener('resize',applyEnvironment)};
+  if(telegram)document.addEventListener('visibilitychange',applyEnvironment);
+  return()=>{offTheme();offViewport();offActive();visual?.removeEventListener('resize',applyEnvironment);if(telegram)document.removeEventListener('visibilitychange',applyEnvironment)};
  },[current]);
 }
 
@@ -112,7 +130,7 @@ export function usePrimaryAction(action:PrimaryAction|null){
 export function useLaunchMode(){
  const current=usePlatform();
  return useSyncExternalStore(
-  listener=>{const off=current.onViewportChange(listener);return()=>off()},
+  listener=>{const offViewport=current.onViewportChange(listener), offActive=current.onActiveChange(listener);return()=>{offViewport();offActive()}},
   ()=>current.viewport().mode,()=>null,
  );
 }
