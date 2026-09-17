@@ -1,12 +1,12 @@
 import {createHash} from 'node:crypto';
-import {existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync} from 'node:fs';
 import {basename, extname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parse} from 'yaml';
 import {wordKey} from '../src/domain/import.ts';
 import {ContentError, SCHEMA_VERSION, SHIPPED_FIELDS, type Catalog, type CatalogCourse, type CatalogEntry, type ContentPackage, type PackageMedia, type PackageWord} from '../src/content/schema.ts';
 import type {Example, Lesson, Segment} from '../src/domain/types.ts';
-import {checkArt, LEGACY_FILE, readLegacy, type ArtReport} from './art.ts';
+import {checkArt, LEGACY_FILE, readLegacy, readThemes, type ArtReport} from './art.ts';
 
 /**
  * Публикация контента. Исходники — YAML: одно слово — один файл в `words/` с греческим именем, урок —
@@ -17,7 +17,10 @@ import {checkArt, LEGACY_FILE, readLegacy, type ArtReport} from './art.ts';
  */
 export const LANGUAGE='el';
 export const ART_SOURCE='Собственная векторная иллюстрация Lexi (CC0)';
-export const imageAssetId=(wordId:string)=>`img-${wordId}`;
+/** Медиа иллюстрации образуется от файла, а не от слова: слова с общей картинкой делят одну запись во всех языках и курсах. */
+export const imageAssetId=(file:string)=>`img-${basename(file,extname(file))}`;
+/** Имя файла иллюстрации — английское значение картинки латиницей в kebab-case: `money.svg`, `ride-bicycle.svg`. */
+export const ART_NAME=/^[a-z0-9]+(-[a-z0-9]+)*\.[a-z0-9]+$/;
 export const audioAssetId=(wordId:string)=>`snd-${wordId}`;
 const MIME:Record<string,string>={'.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.jpeg':'image/jpeg','.mp3':'audio/mpeg','.ogg':'audio/ogg','.m4a':'audio/mp4','.wav':'audio/wav'};
 
@@ -28,7 +31,7 @@ export interface WordSource {
  examples?:{greek:string;russian:string;target:string;source?:string}[];
 }
 export interface LessonSource {title:string;language?:string;status?:Lesson['status'];targetDate?:string|null;words:string[]}
-export interface CourseSource {id?:string;title:string;source?:string;lessons:string[]}
+export interface CourseSource {id?:string;title:string;source?:string;theme?:string;lessons:string[]}
 
 const hash=(value:string|Uint8Array,length=12)=>createHash('sha256').update(value).digest('hex').slice(0,length);
 /** Ключи в фиксированном порядке: одинаковое содержимое даёт одинаковую ревизию. */
@@ -64,7 +67,8 @@ export function readSources(root:string):ContentRoot{
   courses.set(id,{...doc,file});
  }
  const files=new Map<string,Uint8Array>();
- for(const dir of ['art','audio']) if(existsSync(join(root,dir))) for(const file of readdirSync(join(root,dir)))files.set(`${dir}/${file}`,readFileSync(join(root,dir,file)));
+ // Подпапки (art/parts/ с эталонами фигур) не читаются как файлы: медиа становятся только файлы, на которые ссылаются слова.
+ for(const dir of ['art','audio']) if(existsSync(join(root,dir))) for(const file of readdirSync(join(root,dir))) if(statSync(join(root,dir,file)).isFile())files.set(`${dir}/${file}`,readFileSync(join(root,dir,file)));
  return {words,lessons,courses,files};
 }
 
@@ -98,14 +102,15 @@ function describe(id:string,src:WordSource&{file:string}):PackageWord{
  if(draft.verified&&!draft.ipa)fail(`${where}: проверенное слово должно иметь IPA`);
  const note=text(src.note,`${where}.note`,false); if(note)draft.note=note;
  if(source)draft.source=source;
- if(src.image)draft.imageAssetId=imageAssetId(id);
+ if(src.image)draft.imageAssetId=imageAssetId(text(src.image,`${where}.image`)!);
  if(src.audio)draft.audioAssetId=audioAssetId(id);
  return {...draft,revision:revisionOf(draft)};
 }
 
-function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8Array>,word:PackageWord,where:string,legacy:Set<string>,art:ArtReport):{item:PackageMedia;body:Uint8Array}{
+function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8Array>,source:string|undefined,where:string,legacy:Set<string>,art:ArtReport):{item:PackageMedia;body:Uint8Array}{
  const body=files.get(`${dir}/${file}`);
  if(!body)fail(`${where}: файла ${dir}/${file} нет`);
+ if(dir==='art'&&!ART_NAME.test(file))fail(`${where}: имя иллюстрации «${file}» — латиница строчными, цифры и дефисы, английское значение картинки (money.svg, ride-bicycle.svg)`);
  const ext=extname(file).toLowerCase();
  const mimeType=MIME[ext]??fail(`${where}: неизвестный тип файла ${file}`);
  // Иллюстрация подчиняется стандарту (docs/art-standard.md); файлы до стандарта из legacy.txt считаются в отчёте о миграции.
@@ -113,7 +118,8 @@ function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8
  const version=hash(body!,10);
  return {body:body!,item:{
   id,kind:dir==='art'?'image':'audio',mimeType,url:`content/media/${id}@${version}${ext}`,bytes:body!.byteLength,version,
-  required:true,alt:dir==='art'?`Иллюстрация к слову «${word.russian}»`:'',source:dir==='art'?ART_SOURCE:word.source??'',
+  // Подпись иллюстрации пуста: картинка не должна называть слово ни глазу, ни вспомогательным технологиям, а файл общий для слов и языков.
+  required:true,alt:'',source:dir==='art'?ART_SOURCE:source??'',
  }};
 }
 
@@ -123,6 +129,7 @@ function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8
  */
 export function buildContent(root=defaultRoot()):BuiltContent{
  const sources=readSources(root);
+ const themes=readThemes(root);
  const words=new Map<string,PackageWord>(); const byKey=new Map<string,string>();
  for(const [id,src] of sources.words){
   const word=describe(id,src);
@@ -137,8 +144,16 @@ export function buildContent(root=defaultRoot()):BuiltContent{
  const media=new Map<string,{item:PackageMedia;body:Uint8Array}>();
  for(const [id,src] of sources.words){
   const word=words.get(id)!;
-  if(src.image)media.set(word.imageAssetId!,mediaFor(word.imageAssetId!,src.image,'art',sources.files,word,`words/${src.file}`,legacy,art));
-  if(src.audio)media.set(word.audioAssetId!,mediaFor(word.audioAssetId!,src.audio,'audio',sources.files,word,`words/${src.file}`,legacy,art));
+  // Общий файл двух слов — одна запись медиа и один файл в отчёте
+  if(src.image&&!media.has(word.imageAssetId!))media.set(word.imageAssetId!,mediaFor(word.imageAssetId!,src.image,'art',sources.files,word.source,`words/${src.file}`,legacy,art));
+  if(src.audio)media.set(word.audioAssetId!,mediaFor(word.audioAssetId!,src.audio,'audio',sources.files,word.source,`words/${src.file}`,legacy,art));
+ }
+ /** Общая картинка выражается ссылкой на один файл, поэтому побайтовая копия — ошибка, а не стиль. */
+ const twins=new Map<string,string>();
+ for(const [path,body] of sources.files) if(path.startsWith('art/')&&path.endsWith('.svg')){
+  const digest=hash(body,40), twin=twins.get(digest);
+  if(twin)fail(`${twin} и ${path} совпадают побайтно — оставьте один файл и сошлитесь на него из обоих слов`);
+  twins.set(digest,path);
  }
  /** Урок принадлежит ровно одному курсу: без курса он потеряется в каталоге, в двух — попадёт в занятие дважды. */
  const courseOf=new Map<string,string>(); const courses:CatalogCourse[]=[];
@@ -157,6 +172,12 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(languages.size>1)fail(`${where}: уроки курса на разных языках — ${[...languages].sort().join(', ')}`);
   const course:CatalogCourse={id:courseId,title,language:[...languages][0]??LANGUAGE,lessonIds:[...src.lessons]};
   const source=text(src.source,`${where}.source`,false); if(source)course.source=source;
+  const theme=text(src.theme,`${where}.theme`,false);
+  if(theme){
+   const palette=themes.get(theme);
+   if(!palette)fail(`${where}: темы «${theme}» нет в art/themes/${theme}.json`);
+   course.palette=palette;
+  }
   courses.push(course);
  }
 
@@ -174,7 +195,8 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(status!=='upcoming'&&status!=='completed')fail(`${where}.status: ожидается upcoming или completed`);
   const targetDate=src.targetDate?String(src.targetDate):null;
   if(targetDate&&!/^\d{4}-\d{2}-\d{2}$/.test(targetDate))fail(`${where}.targetDate: дата в формате ГГГГ-ММ-ДД`);
-  const packMedia=packWords.flatMap(word=>[word.imageAssetId,word.audioAssetId]).filter((ref):ref is string=>!!ref).map(ref=>media.get(ref)!.item);
+  // Слова с общей картинкой дают одну запись медиа на пакет
+  const packMedia=[...new Set(packWords.flatMap(word=>[word.imageAssetId,word.audioAssetId]).filter((ref):ref is string=>!!ref))].map(ref=>media.get(ref)!.item);
   const draft:ContentPackage={
    schemaVersion:SCHEMA_VERSION,id,courseId,version:'',language:src.language??LANGUAGE,
    lesson:{title,status,targetDate},words:packWords,links:packWords.map((word,position)=>({wordId:word.id,position})),media:packMedia,

@@ -23,5 +23,14 @@
   "brown": "#8a6a45",
   "brown-deep": "#4b3b2f",
   "tan": "#d9b382"
- }
+ },
+ "themeable": [
+  "sky",
+  "cream",
+  "mist",
+  "rose",
+  "mint",
+  "ink",
+  "blue"
+ ]
 }

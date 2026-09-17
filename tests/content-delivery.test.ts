@@ -6,6 +6,7 @@ import {ContentError, type ContentPackage} from '../src/content/schema';
 import {revisionOf} from '../content/build';
 import {deleteWord, removeFromLesson, saveWord} from '../src/storage/ops';
 import {lessonLinks} from '../src/storage/queries';
+import {applyPalette} from '../src/shared/store';
 import {content, installLessons, memoryFetcher, packageOf} from './helpers/content';
 
 let db:LexiDatabase;
@@ -56,6 +57,13 @@ describe('курсы',()=>{
   await refreshCatalog(db,memoryFetcher());
   expect(await db.courses.count()).toBe(1);
   expect((await db.courses.get('leeke'))!.createdAt).toBe(first!.createdAt);
+ });
+ it('палитра темы копируется и обновляется, а каталог без неё очищает прежнюю палитру',async()=>{
+  const palette={'#e7eefb':'#fff1e6'};
+  await refreshCatalog(db,memoryFetcher(content,{'content/catalog.json':{...content.catalog,courses:content.catalog.courses.map(course=>({...course,palette}))}}));
+  expect((await db.courses.get('leeke'))!.palette).toEqual(palette);
+  await refreshCatalog(db,memoryFetcher());
+  expect((await db.courses.get('leeke'))!.palette).toBeUndefined();
  });
 });
 
@@ -289,12 +297,21 @@ describe('медиа и готовность офлайн',()=>{
  it('картинка скачивается при первом обращении и потом читается из базы',async()=>{
   const fetcher=await installLessons(db,['lesson-1-2']);
   const before=fetcher.requests.length;
-  const asset=await ensureAsset('img-w12-16',db,fetcher);
+  const asset=await ensureAsset('img-house',db,fetcher);
   expect(asset).toMatchObject({kind:'image',mimeType:'image/svg+xml'});
   expect(await asset!.blob.text()).toContain('<svg');
-  await ensureAsset('img-w12-16',db,fetcher);
+  await ensureAsset('img-house',db,fetcher);
   expect(fetcher.requests.length).toBe(before+1);
   expect(await ensureAsset('img-нет',db,fetcher)).toBeNull();
+ });
+ it('перекраска выполняется над копией blob и не меняет сохранённый ассет',async()=>{
+  const fetcher=await installLessons(db,['lesson-1-2']);
+  const asset=await ensureAsset('img-house',db,fetcher);
+  const before=await asset!.blob.text();
+  const source='<svg fill="#e7eefb" stroke="#ef4444"/>';
+  const themed=new Blob([applyPalette(source,{'#e7eefb':'#fff1e6'})],{type:asset!.mimeType});
+  expect(await themed.text()).toBe('<svg fill="#fff1e6" stroke="#ef4444"/>');
+  expect(await (await db.assets.get('img-house'))!.blob.text()).toBe(before);
  });
  it('слова доступны локально, но урок не готов офлайн, пока обязательное медиа не скачано; повтор докачивает',async()=>{
   const fetcher=await installLessons(db,['lesson-1-2']);

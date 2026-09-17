@@ -1,4 +1,5 @@
-import {readFileSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync} from 'node:fs';
+import {basename, extname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ContentError} from '../src/content/schema.ts';
 
@@ -7,11 +8,42 @@ import {ContentError} from '../src/content/schema.ts';
  * из content/art/palette.json читают и публикация, и обзорный лист. Файлы из legacy.txt нарисованы до
  * стандарта: для них проверка палитры не действует, остальные правила действуют для всех.
  */
-export interface Palette {viewBox:string;maxBytes:number;backgrounds:Record<string,string>;colors:Record<string,string>}
+/** `themeable` — роли, которые вправе менять тема курса: подложки, контур и акцент. Остальные роли предметные и несут значение слова. */
+export interface Palette {viewBox:string;maxBytes:number;backgrounds:Record<string,string>;colors:Record<string,string>;themeable:string[]}
 export const PALETTE:Palette=JSON.parse(readFileSync(fileURLToPath(new URL('./art/palette.json',import.meta.url)),'utf8'));
 export const paletteColors=(palette=PALETTE)=>new Set([...Object.values(palette.backgrounds),...Object.values(palette.colors)]);
+export type ThemePalette=Record<string,string>;
 
-const fail=(message:string)=>{throw new ContentError(message)};
+/** Разворачивает имена тематических ролей в карту исходных hex → hex темы, которую читает клиент. */
+export function themePalette(name:string,input:unknown,palette=PALETTE):ThemePalette{
+ const where=`тема «${name}»`;
+ if(!input||typeof input!=='object'||Array.isArray(input))fail(`${where}: ожидался объект`);
+ const colors=(input as {colors?:unknown}).colors;
+ if(!colors||typeof colors!=='object'||Array.isArray(colors))fail(`${where}.colors: ожидался объект`);
+ const roles={...palette.backgrounds,...palette.colors};
+ const result:ThemePalette={};
+ for(const [role,value] of Object.entries(colors as Record<string,unknown>)){
+  if(!(role in roles))fail(`${where}: роли «${role}» нет в палитре`);
+  if(!palette.themeable.includes(role))fail(`${where}: роль «${role}» предметная и не может меняться темой`);
+  if(typeof value!=='string'||!/^#[0-9a-f]{6}$/.test(value))fail(`${where}: цвет роли «${role}» должен иметь вид #rrggbb`);
+  result[roles[role]]=value as string;
+ }
+ return result;
+}
+
+/** Все доступные темы; каталог и обзорные листы используют одну проверку и одно разворачивание. */
+export function readThemes(root:string):Map<string,ThemePalette>{
+ const dir=join(root,'art','themes');
+ if(!existsSync(dir))return new Map();
+ return new Map(readdirSync(dir).filter(file=>file.endsWith('.json')).sort().map(file=>{
+  const name=basename(file,extname(file));
+  let raw:unknown;
+  try{raw=JSON.parse(readFileSync(join(dir,file),'utf8'))}catch{fail(`тема «${name}»: файл art/themes/${file} содержит неверный JSON`)}
+  return [name,themePalette(name,raw)] as const;
+ }));
+}
+
+const fail=(message:string):never=>{throw new ContentError(message)};
 /** Служебные значения цвета: не краска, а указание её не класть или взять снаружи. */
 const KEYWORDS=new Set(['none','currentcolor','transparent','inherit']);
 const COLOR_ATTRS='fill|stroke|stop-color|color|flood-color|lighting-color';

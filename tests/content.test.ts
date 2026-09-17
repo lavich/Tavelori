@@ -1,13 +1,16 @@
-import {cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {colorsOf, foreignColors, PALETTE, paletteColors, parseLegacy} from '../content/art';
+import {checkArt, colorsOf, foreignColors, PALETTE, paletteColors, parseLegacy} from '../content/art';
 import {buildContent, revisionOf, wordsOf} from '../content/build';
+import {REFERENCE_SETS, writeArtSheets, writeReferenceSheet} from '../content/art-sheet';
 import {ContentError, parseCatalog, parsePackage, SCHEMA_VERSION} from '../src/content/schema';
 import {wordKey} from '../src/domain/import';
 import {stressNote} from '../src/domain/phonetics';
 import {tiles} from '../src/domain/syllables';
+import {applyPalette} from '../src/shared/store';
 
 const md=readFileSync('openspec/changes/archive/2026-09-16-build-greek-vocabulary-mvp/seed-lessons.md','utf8');
 const section=(title:string)=>md.split(`## ${title}`)[1].split('\n## ')[0];
@@ -22,6 +25,8 @@ const packageOf=(id:string)=>content.packages.find(p=>p.id===id)!;
 const fileOf=(path:string)=>content.files.find(file=>file.path===path)!;
 const lessonSource=(id:string)=>content.sources.lessons.get(id)!;
 const seedArt=(id:string)=>Buffer.from(content.sources.files.get(`art/${content.sources.words.get(id)!.image}`)!).toString('utf8');
+const house=readFileSync('content/words/το-σπίτι.yaml','utf8');
+const legacyText=readFileSync('content/art/legacy.txt','utf8');
 
 /** Копия исходников, в которой можно сломать один файл и проверить отказ публикации. */
 function brokenCopy(mutate:(root:string)=>void){
@@ -86,7 +91,7 @@ describe('наборы класса переносятся без потерь �
    if(word.verified){
     expect(word.ipa,word.greek).toMatch(/^\/.+\/$/);
     expect(word.examples.length,word.greek).toBeGreaterThan(0);
-    expect(word.imageAssetId,word.greek).toBe(`img-${word.id}`);
+    expect(word.imageAssetId,word.greek).toBe(`img-${content.sources.words.get(word.id)!.image!.replace(/\.svg$/,'')}`);
    }else{
     expect(word.ipa,word.greek).toBe('');
     expect(word.examples,word.greek).toEqual([]);
@@ -142,6 +147,29 @@ describe('каталог и пакеты',()=>{
    expect(entry.bytes).toBe(Buffer.byteLength(fileOf(entry.url).body as string));
    expect(entry.language).toBe('el');
   }
+  expect(catalog.courses[0].palette).toBeUndefined();
+ });
+ it('тема курса проверяется и разворачивается в карту цветов каталога',()=>{
+  const themed=brokenCopy(root=>{
+   mkdirSync(join(root,'art','themes'));
+   writeFileSync(join(root,'art','themes','aegean.json'),JSON.stringify({colors:{sky:'#fff1e6',blue:'#c2410c'}}));
+   writeFileSync(join(root,'courses','leeke.yaml'),readFileSync('content/courses/leeke.yaml','utf8').replace('source:', 'theme: aegean\nsource:'));
+  });
+  expect(themed.catalog.courses[0].palette).toEqual({'#e7eefb':'#fff1e6','#2563eb':'#c2410c'});
+  expect(parseCatalog(themed.catalog).courses[0].palette).toEqual(themed.catalog.courses[0].palette);
+  const fails=(theme:unknown,pattern:RegExp)=>expect(()=>brokenCopy(root=>{
+   mkdirSync(join(root,'art','themes'));
+   if(theme!==null)writeFileSync(join(root,'art','themes','bad.json'),JSON.stringify(theme));
+   writeFileSync(join(root,'courses','leeke.yaml'),readFileSync('content/courses/leeke.yaml','utf8').replace('source:', 'theme: bad\nsource:'));
+  })).toThrow(pattern);
+  fails(null,/темы «bad» нет/);
+  fails({colors:{violet:'#123456'}},/тема «bad».*роли «violet» нет/);
+  fails({colors:{red:'#123456'}},/тема «bad».*роль «red» предметная/);
+  fails({colors:{sky:'white'}},/тема «bad».*роли «sky».*#rrggbb/);
+ });
+ it('подмена темы меняет только полные тематические hex и не задевает ссылки и предметные цвета',()=>{
+  const svg='<svg><defs><linearGradient id="g"/></defs><path fill="#e7eefb" stroke="#EF4444" style="color:#2563eb"/><use href="#g" fill="url(#g)"/></svg>';
+  expect(applyPalette(svg,{'#e7eefb':'#fff1e6','#2563eb':'#c2410c'})).toBe('<svg><defs><linearGradient id="g"/></defs><path fill="#fff1e6" stroke="#EF4444" style="color:#c2410c"/><use href="#g" fill="url(#g)"/></svg>');
  });
  it('каждый пакет проходит собственную проверку и ссылается на существующие медиа',()=>{
   for(const entry of content.catalog.lessons){
@@ -164,7 +192,6 @@ describe('каталог и пакеты',()=>{
   expect([...content.sources.lessons.keys()]).toEqual(content.packages.map(p=>p.id));
  });
  it('публикация отклоняет дубликаты слов, битые ссылки уроков, сирот и подписи в картинках',()=>{
-  const house=readFileSync('content/words/το-σπίτι.yaml','utf8');
   expect(()=>brokenCopy(root=>{
    writeFileSync(join(root,'words','дубль.yaml'),house.replace('id: w12-16','id: w99-01'));
    writeFileSync(join(root,'lessons','lesson-1-2.yaml'),readFileSync('content/lessons/lesson-1-2.yaml','utf8').replace('- w12-16','- w99-01'));
@@ -173,8 +200,8 @@ describe('каталог и пакеты',()=>{
   expect(()=>brokenCopy(root=>writeFileSync(join(root,'lessons','lesson-1-2.yaml'),readFileSync('content/lessons/lesson-1-2.yaml','utf8').replace('- w12-16','- w12-99'))))
    .toThrow(/слова w12-99 нет/);
   expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','το-τεστ.yaml'),'greek: το τεστ\nrussian: тест\n'))).toThrow(/не входит ни в один урок/);
-  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),'<svg xmlns="http://www.w3.org/2000/svg"><text>дом</text></svg>'))).toThrow(/выдаёт ответ/);
-  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','το-σπίτι.yaml'),house.replace('image: το-σπίτι.svg','image: нет.svg')))).toThrow(/файла art\/нет.svg нет/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','house.svg'),'<svg xmlns="http://www.w3.org/2000/svg"><text>дом</text></svg>'))).toThrow(/выдаёт ответ/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','το-σπίτι.yaml'),house.replace('image: house.svg','image: нет.svg')))).toThrow(/файла art\/нет.svg нет/);
   expect(()=>brokenCopy(root=>writeFileSync(join(root,'words','το-σπίτι.yaml'),house.replace('target: σπίτι','target: σπιτάκι')))).toThrow(/не встречается в предложении/);
  });
  it('новое слово без поля id получает идентификатор из имени файла',()=>{
@@ -238,32 +265,150 @@ describe('карточка каждого подготовленного сло�
    expect(art,`${word.greek}: подпись в картинке выдаёт ответ`).not.toMatch(/<text/);
    expect(seen.has(art),`${word.greek}: картинка повторяет другую`).toBe(false);
    seen.add(art);
-   expect(word.imageAssetId).toBe(`img-${word.id}`);
+   const image=content.sources.words.get(word.id)!.image!;
+   expect(image,word.greek).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*\.svg$/);
+   expect(word.imageAssetId).toBe(`img-${image.replace(/\.svg$/,'')}`);
   }
+ });
+ /** Иллюстрация не принадлежит слову: имя английское, медиа по файлу, подпись пуста. */
+ it('имя файла иллюстрации — латиница kebab-case, а медиа образуется по файлу',()=>{
+  for(const item of packageOf('lesson-1-2').media)expect(item.alt,item.id).toBe('');
+  const badName=(name:string)=>brokenCopy(root=>{
+   writeFileSync(join(root,'art',name),readFileSync('content/art/house.svg'));
+   writeFileSync(join(root,'words','το-σπίτι.yaml'),house.replace('image: house.svg',`image: ${name}`));
+   writeFileSync(join(root,'art','legacy.txt'),legacyText.replace('house.svg\n',`${name}\n`));
+  });
+  expect(()=>badName('το-σπίτι.svg')).toThrow(/имя иллюстрации «το-σπίτι.svg» — латиница строчными/);
+  expect(()=>badName('Home.svg')).toThrow(/имя иллюстрации «Home.svg»/);
+  expect(()=>badName('my_house.svg')).toThrow(/имя иллюстрации «my_house.svg»/);
+  // Два слова с общим файлом: один идентификатор, одна запись медиа в пакете, файл учтён один раз
+  const shared=brokenCopy(root=>{
+   writeFileSync(join(root,'words','το-δοκίμιο.yaml'),'greek: το δοκίμιο\nrussian: очерк\nimage: house.svg\n');
+   writeFileSync(join(root,'lessons','lesson-1-2.yaml'),readFileSync('content/lessons/lesson-1-2.yaml','utf8')+'  - το-δοκίμιο\n');
+  });
+  const essay=shared.words.find(word=>word.id==='το-δοκίμιο')!, home=shared.words.find(word=>word.greek==='το σπίτι')!;
+  expect(essay.imageAssetId).toBe('img-house');
+  expect(essay.imageAssetId).toBe(home.imageAssetId);
+  expect(shared.packages.find(p=>p.id==='lesson-1-2')!.media.filter(item=>item.id==='img-house')).toHaveLength(1);
+  expect(shared.art).toEqual(content.art);
+  // Побайтовая копия — ошибка с обоими именами
+  expect(()=>brokenCopy(root=>{
+   writeFileSync(join(root,'art','home.svg'),readFileSync('content/art/house.svg'));
+   writeFileSync(join(root,'art','legacy.txt'),legacyText+'home.svg\n');
+  })).toThrow(/art\/home.svg и art\/house.svg совпадают побайтно — оставьте один файл/);
  });
  /** Лист — рабочий инструмент миграции: легенда палитры сверху, файлы вне палитры выделены рамкой с перечнем чужих цветов. */
  it('собирает лист для визуальной проверки с легендой палитры и подсветкой файлов вне палитры',()=>{
-  const legend=[...Object.entries(PALETTE.backgrounds),...Object.entries(PALETTE.colors)].map(([name,hex])=>`<span class="c"><i style="background:${hex}"></i>${name} ${hex}</span>`).join('');
-  const cards=prepared.map(w=>{
-   const art=seedArt(w.id), foreign=foreignColors(art);
-   return `<figure${foreign.length?' class="legacy"':''}><div class="a">${art}</div><figcaption>${w.greek} — ${w.russian}${foreign.length?`<small>${foreign.join(' ')}</small>`:''}</figcaption></figure>`;
-  }).join('');
-  mkdirSync('docs',{recursive:true});
-  writeFileSync('docs/art-sheet.html',`<!doctype html><meta charset="utf-8"><title>Иллюстрации Lexi</title><style>body{font:14px system-ui;background:#f7f7f5;margin:0;padding:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}header{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px}.c i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:4px;border:1px solid #0002}figure{margin:0;background:#fff;border-radius:12px;overflow:hidden}figure.legacy{outline:2px solid #ef4444}.a svg{display:block;width:100%}figcaption{padding:6px 8px;color:#171717}figcaption small{display:block;color:#ef4444;font-family:monospace}</style><header>${legend}</header>${cards}`);
+  const sheet=writeArtSheets(process.cwd(),process.env.ART_BASE??'main');
+  expect(sheet.full.match(/<figure/g)).toHaveLength(196);
+  expect(sheet.full).toContain('<figcaption>house</figcaption>');
+  expect(sheet.full).toContain('title="дом"');
+  for(const label of sheet.full.matchAll(/<figcaption>([^<]+)/g))expect(label[1]).toMatch(/^[a-z0-9 ]+(?: · было)?$/);
   expect(prepared).toHaveLength(189);
+ });
+ it('лист изменений показывает добавление, правку и переименование, а без git полный лист всё равно собирается',()=>{
+  const root=mkdtempSync(join(tmpdir(),'lexi-art-sheet-'));
+  try{
+   cpSync('content',join(root,'content'),{recursive:true}); mkdirSync(join(root,'docs'));
+   execFileSync('git',['init','-q'],{cwd:root}); execFileSync('git',['config','user.email','test@example.com'],{cwd:root}); execFileSync('git',['config','user.name','Test'],{cwd:root});
+   execFileSync('git',['add','content'],{cwd:root}); execFileSync('git',['commit','-qm','base'],{cwd:root});
+   execFileSync('git',['mv','content/art/house.svg','content/art/home.svg'],{cwd:root});
+   writeFileSync(join(root,'content/art/apple.svg'),readFileSync(join(root,'content/art/apple.svg'),'utf8')+'\n');
+   writeFileSync(join(root,'content/art/new.svg'),'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220"><rect width="320" height="220" fill="#e7eefb"/></svg>');
+   mkdirSync(join(root,'content/art/themes'));
+   writeFileSync(join(root,'content/art/themes/aegean.json'),JSON.stringify({colors:{sky:'#fff1e6',blue:'#c2410c'}}));
+   const result=writeArtSheets(root,'HEAD');
+   expect(result.changes).toContain('new');
+   expect(result.changes).toContain('home');
+   expect(result.changes!.match(/· было/g)?.length).toBeGreaterThanOrEqual(2);
+   expect(result.full).toContain('<select id="theme">');
+   expect(result.full).toContain('<template id="theme-aegean">');
+   expect(result.full).toContain('#fff1e6');
+   expect(result.full).toContain('#ef4444');
+   const plain=mkdtempSync(join(tmpdir(),'lexi-art-no-git-'));
+   try{
+    mkdirSync(join(plain,'docs')); cpSync(join(root,'content'),join(plain,'content'),{recursive:true});
+    const fallback=writeArtSheets(plain,'HEAD');
+    expect(fallback.full).toContain('<figcaption>home');
+    expect(fallback.note).toMatch(/Лист изменений пропущен/);
+   }finally{rmSync(plain,{recursive:true,force:true})}
+  }finally{rmSync(root,{recursive:true,force:true})}
+ });
+});
+
+/** Библиотека общих частей: эталоны повторяющихся фигур, из которых они копируются в новые картинки. */
+const PARTS='content/art/parts';
+const partFiles=()=>readdirSync(PARTS).filter(file=>file.endsWith('.svg')).sort();
+
+describe('библиотека общих частей',()=>{
+ it('семь эталонов проходят стандарт без поблажек для унаследованных файлов',()=>{
+  expect(partFiles()).toEqual(['cloud.svg','face.svg','house.svg','person.svg','sun.svg','table.svg','tree.svg']);
+  for(const file of partFiles()){
+   const body=readFileSync(join(PARTS,file));
+   expect(checkArt(`parts/${file}`,body,new Set()),file).toBe(false);
+   expect(Buffer.from(body).toString('utf8'),file).toContain(`<g id="${file.replace('.svg','')}"`);
+  }
+ });
+ it('подпапка не роняет публикацию и не становится медиа',()=>{
+  // Одноимённая картинка слова (cloud.svg) — другой файл: в медиа уходят байты из art/, а не из art/parts/
+  const published=new Set(content.files.filter(file=>file.path.startsWith('content/media/')).map(file=>Buffer.from(file.body).toString('utf8')));
+  for(const file of partFiles())expect(published.has(readFileSync(join(PARTS,file),'utf8')),file).toBe(false);
+  expect([...content.sources.files.keys()].some(path=>path.startsWith('art/parts'))).toBe(false);
+  // Стандарт для частей строже: файл вне палитры в parts/ — ошибка теста, а не миграция
+  expect(()=>checkArt('parts/x.svg',Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220"><rect width="320" height="220" fill="#e7eefb"/><circle r="9" fill="#123456"/></svg>'),new Set())).toThrow(/цвета вне палитры #123456/);
+ });
+});
+
+describe('визуальный норматив и законченные эталоны',()=>{
+ it('STYLE.md закрепляет параметры валидатора и тематические роли палитры',()=>{
+  const style=readFileSync('STYLE.md','utf8');
+  expect(style).toContain('Canvas:       320 × 220');
+  expect(style).toContain('Safe area:    20 units');
+  expect(style).toContain('Main stroke:  7–9 units');
+  expect(style).toContain(`Max size:     ${PALETTE.maxBytes} bytes`);
+  expect(style).toContain('Linecap:      round');
+  expect(style).toContain('Linejoin:     round');
+  expect(style).toContain('recognizable at 64 px');
+  for(const role of PALETTE.themeable)expect(style,role).toContain(`\`${role}\``);
+  expect(readFileSync('docs/art-standard.md','utf8')).toContain('[`STYLE.md`](../STYLE.md)');
+ });
+ it('три набора содержат ровно 15 эталонов, которые проходят стандарт без legacy',()=>{
+  expect(Object.keys(REFERENCE_SETS)).toEqual(['objects','characters','actions']);
+  expect(Object.values(REFERENCE_SETS).flat()).toHaveLength(15);
+  for(const [category,expected] of Object.entries(REFERENCE_SETS)){
+   const dir=join('content/art/references',category);
+   expect(readdirSync(dir).filter(file=>file.endsWith('.svg')).sort()).toEqual([...expected].sort());
+   for(const file of expected){
+    const body=readFileSync(join(dir,file));
+    expect(checkArt(`references/${category}/${file}`,body,new Set()),`${category}/${file}`).toBe(false);
+    expect(body.toString(),file).toContain(`<g id="${file.replace('.svg','')}"`);
+   }
+  }
+  expect([...content.sources.files.keys()].some(path=>path.startsWith('art/references'))).toBe(false);
+  const published=new Set(content.files.filter(file=>file.path.startsWith('content/media/')).map(file=>Buffer.from(file.body).toString('utf8')));
+  for(const [category,files] of Object.entries(REFERENCE_SETS))for(const file of files)
+   expect(published.has(readFileSync(join('content/art/references',category,file),'utf8')),`${category}/${file}`).toBe(false);
+  const cat=readFileSync('content/art/references/characters/cat.svg','utf8');
+  for(const group of ['background','cat','tail','body','head','ears','face'])expect(cat).toContain(`<g id="${group}"`);
+ });
+ it('обзорный лист содержит три секции по пять карточек и миниатюры 64 px',()=>{
+  const html=writeReferenceSheet();
+  expect(html.match(/<section>/g)).toHaveLength(3);
+  expect(html.match(/<figure data-category=/g)).toHaveLength(15);
+  expect(html.match(/class="small"/g)).toHaveLength(15);
+  expect(html).toContain('width:64px');
+  for(const name of Object.values(REFERENCE_SETS).flat())expect(html).toContain(`<figcaption>${name.replace('.svg','')}</figcaption>`);
  });
 });
 
 /** Стандарт иллюстраций (docs/art-standard.md): палитра — данные, проверки — в публикации, старые файлы — в legacy.txt. */
 describe('иллюстрации подчиняются стандарту',()=>{
- const legacyText=readFileSync('content/art/legacy.txt','utf8');
  const legacy=parseLegacy(legacyText);
- const house=readFileSync('content/words/το-σπίτι.yaml','utf8');
  const svg=(inner:string,attrs='viewBox="0 0 320 220"')=>`<svg xmlns="http://www.w3.org/2000/svg" ${attrs}><rect width="320" height="220" fill="#e7eefb"/>${inner}</svg>`;
- /** Копия, в которой το-σπίτι.svg перерисован заново и больше не числится унаследованным. */
+ /** Копия, в которой house.svg перерисован заново и больше не числится унаследованным. */
  const redrawn=(art:string)=>brokenCopy(root=>{
-  writeFileSync(join(root,'art','το-σπίτι.svg'),art);
-  writeFileSync(join(root,'art','legacy.txt'),legacyText.replace('το-σπίτι.svg\n',''));
+  writeFileSync(join(root,'art','house.svg'),art);
+  writeFileSync(join(root,'art','legacy.txt'),legacyText.replace('house.svg\n',''));
  });
  it('палитра — единственный источник: документ перечисляет те же цвета',()=>{
   const doc=readFileSync('docs/art-standard.md','utf8');
@@ -272,6 +417,16 @@ describe('иллюстрации подчиняются стандарту',()=>
   expect(paletteColors().size).toBeGreaterThanOrEqual(12);
   expect(paletteColors().size).toBeLessThanOrEqual(20);
   for(const hex of paletteColors())expect(hex).toMatch(/^#[0-9a-f]{6}$/);
+ });
+ it('тематические роли перечислены в палитре и помечены в документе колонкой «Тема»',()=>{
+  const names=new Set([...Object.keys(PALETTE.backgrounds),...Object.keys(PALETTE.colors)]);
+  for(const role of PALETTE.themeable)expect(names.has(role),role).toBe(true);
+  expect(PALETTE.themeable).toContain('blue');
+  expect(PALETTE.themeable).not.toContain('blue-soft');
+  const doc=readFileSync('docs/art-standard.md','utf8');
+  const section=doc.split('\n## Палитра')[1].split('\n## ')[0];
+  const marked=[...section.matchAll(/^\| `([a-z-]+)` \| `#[0-9a-f]{6}` \| (да|—) \|/gm)].filter(m=>m[2]==='да').map(m=>m[1]);
+  expect(new Set(marked)).toEqual(new Set(PALETTE.themeable));
  });
  it('цвета читаются из атрибутов и style, запись нормализуется',()=>{
   expect(colorsOf('<path fill="#FFF" stroke=\'#2563EB\' style="stop-color: #e7eefb; fill:none"/><stop stop-color="currentColor"/>'))
@@ -310,21 +465,21 @@ describe('иллюстрации подчиняются стандарту',()=>
   expect(redrawn(svg('<defs><linearGradient id="g"><stop stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><rect width="9" height="9" fill="url(#g)"/><use href="#g"/>')).art.legacy).toBe(186);
  });
  it('цвет вне палитры: новая картинка отклоняется, унаследованная публикуется, список только сокращается',()=>{
-  expect(()=>redrawn(svg('<circle r="9" fill="#fde68a" stroke="#ABCDEF"/>'))).toThrow(/art\/το-σπίτι.svg: цвета вне палитры #abcdef, #fde68a/);
+  expect(()=>redrawn(svg('<circle r="9" fill="#fde68a" stroke="#ABCDEF"/>'))).toThrow(/art\/house.svg: цвета вне палитры #abcdef, #fde68a/);
   // Тот же файл в legacy.txt — публикуется и учтён в отчёте
-  expect(brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<circle r="9" fill="#fde68a"/>'))).art).toEqual({files:189,legacy:187});
+  expect(brokenCopy(root=>writeFileSync(join(root,'art','house.svg'),svg('<circle r="9" fill="#fde68a"/>'))).art).toEqual({files:189,legacy:187});
   // Унаследованный файл, который уже в палитре, просят убрать из списка
-  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<circle r="9" fill="#2563eb"/>')))).toThrow(/уже в палитре — уберите его из art\/legacy.txt/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','house.svg'),svg('<circle r="9" fill="#2563eb"/>')))).toThrow(/уже в палитре — уберите его из art\/legacy.txt/);
   // Имя без файла — мусор в списке
   expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','legacy.txt'),legacyText+'нет.svg\n'))).toThrow(/файла art\/нет.svg нет — уберите имя из списка/);
   // Остальные проверки действуют и для унаследованных файлов
-  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<text>дом</text>')))).toThrow(/выдаёт ответ/);
+  expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','house.svg'),svg('<text>дом</text>')))).toThrow(/выдаёт ответ/);
   // Новое слово со своей картинкой вне палитры не спрятать: его нет в списке
   expect(()=>brokenCopy(root=>{
-   writeFileSync(join(root,'art','το-δοκίμιο.svg'),svg('<circle r="9" fill="#123456"/>'));
-   writeFileSync(join(root,'words','το-δοκίμιο.yaml'),'greek: το δοκίμιο\nrussian: очерк\nimage: το-δοκίμιο.svg\n');
+   writeFileSync(join(root,'art','essay.svg'),svg('<circle r="9" fill="#123456"/>'));
+   writeFileSync(join(root,'words','το-δοκίμιο.yaml'),'greek: το δοκίμιο\nrussian: очерк\nimage: essay.svg\n');
    writeFileSync(join(root,'lessons','lesson-1-4.yaml'),readFileSync('content/lessons/lesson-1-4.yaml','utf8')+'  - το-δοκίμιο\n');
-  })).toThrow(/art\/το-δοκίμιο.svg: цвета вне палитры #123456/);
-  expect(house).toContain('image: το-σπίτι.svg');
+  })).toThrow(/art\/essay.svg: цвета вне палитры #123456/);
+  expect(house).toContain('image: house.svg');
  });
 });

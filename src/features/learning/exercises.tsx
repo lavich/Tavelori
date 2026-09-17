@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {Button} from '@/components/ui/button';
 import {Check, Volume2, X} from 'lucide-react';
-import type {SessionItem, Word} from '../../domain/types';
+import type {SessionItem} from '../../domain/types';
 import {checkAnswer} from '../../domain/import';
 import {diffChars} from '../../domain/spelling';
 import {tiles} from '../../domain/syllables';

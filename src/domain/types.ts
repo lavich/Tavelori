@@ -12,7 +12,7 @@ export interface Word {id:string;greek:string;russian:string;ipa:string;note?:st
 /** Курс своих наборов: он есть всегда, не обновляется из каталога и не исчезает вместе с ним. */
 export const LOCAL_COURSE='my';
 /** Курс: состав приходит из каталога, а подписка и время синхронизации принадлежат пользователю. */
-export interface Course {id:string;title:string;source?:string;language?:string;origin:'content'|'local';subscribed:boolean;schedule:Schedule;newWordsPerDay:number;syncedAt?:string;createdAt:string;updatedAt:string}
+export interface Course {id:string;title:string;source?:string;language?:string;palette?:Record<string,string>;origin:'content'|'local';subscribed:boolean;schedule:Schedule;newWordsPerDay:number;syncedAt?:string;createdAt:string;updatedAt:string}
 export interface Lesson {id:string;courseId?:string;title:string;targetDate:string|null;status:'upcoming'|'completed';createdAt:string;updatedAt:string;dateSource?:'manual'|'schedule'}
 /** Членство слова в уроке: уникальная пара и порядок внутри урока. Удаление связи не трогает слово и прогресс. */
 export interface LessonWord {lessonId:string;wordId:string;position:number}

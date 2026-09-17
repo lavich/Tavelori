@@ -1,6 +1,6 @@
 import type {LexiDatabase} from '../storage/db';
 import type {SyncAdapter} from './adapter';
-import {concurrent, dominates, mergeClocks, sameClock} from './clock';
+import {dominates, mergeClocks, sameClock} from './clock';
 import {syncEvents} from './events';
 import {applySnapshot, buildAndCommit, buildSnapshot, describeSnapshot, hasLocalProgress, META, parseClock, readMeta, SNAPSHOT_TABLES, writeMeta, type SnapshotDescription} from './snapshot';
 import {SyncError, type SyncErrorKind} from './transport';
@@ -89,7 +89,7 @@ export class SyncCoordinator {
   return this.running;
  }
  private async run():Promise<SyncStatus>{
-  const {adapter,database}=this.options;
+  const {adapter}=this.options;
   this.cancelRetry?.();this.cancelRetry=null;
   const flags=await this.flags();
   this.update({dirty:flags.dirty||!!flags.restored,lastConfirmedAt:flags.lastOk});

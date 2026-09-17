@@ -1,17 +1,22 @@
 import {useState} from 'react';
+import {useLiveQuery} from 'dexie-react-hooks';
 import {Volume2} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent} from '@/components/ui/card';
 import type {Example, Word} from '../../domain/types';
 import {coreWord, stressNote, stressPosition} from '../../domain/phonetics';
 import {playWord, speakPhrase, useAudioKind, useGreekVoice} from '../../shared/audio';
-import {useAssetUrl} from '../../shared/store';
+import {useAssetUrl, useWordLessons} from '../../shared/store';
+import {db} from '../../storage/db';
 import ui from '../../shared/ui.module.css';
 import wordCss from '../../shared/word.module.css';
 import {cx} from '../../shared/cx';
 
 export function WordArt({word,hidden}:{word:Word;hidden?:boolean}){
- const url=useAssetUrl(hidden?undefined:word.imageAssetId);
+ const lessons=useWordLessons(word.id);
+ const courseId=lessons[0]?.courseId;
+ const palette=useLiveQuery(()=>courseId?db.courses.get(courseId).then(course=>course?.palette):undefined,[courseId]);
+ const url=useAssetUrl(hidden?undefined:word.imageAssetId,palette);
  if(hidden||!word.imageAssetId)return null;
  if(!url)return <div className={wordCss.art} aria-hidden/>;
  return <img className={wordCss.art} src={url} alt="" role="presentation" data-testid="word-art"/>;

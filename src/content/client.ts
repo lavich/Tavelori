@@ -58,8 +58,9 @@ async function adoptCourses(catalog:Catalog,database:LexiDatabase){
   };
   if(item.source)next.source=item.source;
   if(item.language)next.language=item.language;
+  if(item.palette)next.palette=item.palette;
   if(stored?.syncedAt)next.syncedAt=stored.syncedAt;
-  if(!stored||stored.title!==next.title||stored.source!==next.source||stored.language!==next.language||stored.subscribed!==next.subscribed)
+  if(!stored||stored.title!==next.title||stored.source!==next.source||stored.language!==next.language||!same(stored.palette,next.palette)||stored.subscribed!==next.subscribed)
    await database.courses.put({...next,updatedAt:now});
  }
 }

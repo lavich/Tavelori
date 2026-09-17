@@ -1,6 +1,6 @@
 import type {Card} from 'ts-fsrs';
 import {isStandardWord, SEED_LESSON, type LexiDatabase, type StoredWord} from '../storage/db';
-import {byTime, emptySkills, emptyStats, foldSkill, foldStats, type SkillSummary, type StatsSummary} from '../domain/skills';
+import {byTime, emptySkills, emptyStats, foldSkill, foldStats, type SkillSummary} from '../domain/skills';
 import {fillSettings, type LearningState, type ReviewEvent, type Word} from '../domain/types';
 import {loadSettings} from '../storage/queries';
 import {SNAPSHOT_FORMAT, type Clock, type CompactLesson, type CompactSnapshot, type CompactState, type SerializedCard} from './types';
@@ -139,4 +139,3 @@ export const describeSnapshot=(snapshot:CompactSnapshot):SnapshotDescription=>({
 });
 /** Есть ли локальный прогресс, который нельзя молча заменить облаком при первом подключении. */
 export const hasLocalProgress=async(database:LexiDatabase)=>(await database.states.count())>0||(await database.events.count())>0;
-

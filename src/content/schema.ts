@@ -6,7 +6,7 @@ import type {Example, Lesson, Segment} from '../domain/types';
  */
 export const SCHEMA_VERSION=1;
 
-export interface CatalogCourse {id:string;title:string;language:string;source?:string;lessonIds:string[]}
+export interface CatalogCourse {id:string;title:string;language:string;source?:string;lessonIds:string[];palette?:Record<string,string>}
 export interface CatalogEntry {
  id:string; courseId:string; language:string; title:string; wordCount:number;
  version:string; url:string; bytes:number;
@@ -88,6 +88,16 @@ export function parseCatalog(input:unknown):Catalog{
    lessonIds:list(item.lessonIds??[],`${path}.lessonIds`).map((value,i)=>str(value,`${path}.lessonIds[${i}]`)),
   };
   const source=opt(item.source,value=>str(value,`${path}.source`)); if(source)course.source=source;
+  const palette=opt(item.palette,value=>obj(value,`${path}.palette`));
+  if(palette){
+   course.palette={};
+   for(const [from,value] of Object.entries(palette)){
+    if(!/^#[0-9a-f]{6}$/.test(from))throw new ContentError(`${path}.palette: ключ цвета должен иметь вид #rrggbb`);
+    const to=str(value,`${path}.palette.${from}`);
+    if(!/^#[0-9a-f]{6}$/.test(to))throw new ContentError(`${path}.palette.${from}: цвет должен иметь вид #rrggbb`);
+    course.palette[from]=to;
+   }
+  }
   return course;
  });
  unique(courses.map(course=>course.id),'каталог.courses');

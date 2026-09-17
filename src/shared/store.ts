@@ -33,18 +33,28 @@ export const useCourses=()=>useLiveQuery(()=>db.courses.toArray(),[]);
 export const useCoursePhase=(courseId:string|undefined)=>useSyncExternalStore(subscribeInstall,()=>coursePhase(courseId??''));
 export const useReadiness=(lessonId:string|undefined)=>useLiveQuery(()=>lessonId?lessonReadiness(lessonId):undefined,[lessonId]);
 
-export function useAssetUrl(id:string|undefined):string|null{
+/** Подмена только полных шестизначных hex: ссылки url(#g) и href="#g" остаются нетронутыми. */
+export function applyPalette(svg:string,palette:Record<string,string>):string{
+ if(!Object.keys(palette).length)return svg;
+ return svg.replace(/#[0-9a-f]{6}(?![0-9a-f])/gi,color=>palette[color.toLowerCase()]??color);
+}
+
+export function useAssetUrl(id:string|undefined,palette?:Record<string,string>):string|null{
  const [url,setUrl]=useState<string|null>(null);
  useEffect(()=>{
   let revoke:string|null=null, alive=true;
   if(!id){setUrl(null);return}
-  ensureAsset(id).then(asset=>{
+  ensureAsset(id).then(async asset=>{
    if(!alive||!asset)return setUrl(null);
-   revoke=URL.createObjectURL(asset.blob);
+   const themed=asset.mimeType==='image/svg+xml'&&palette&&Object.keys(palette).length
+    ?new Blob([applyPalette(await asset.blob.text(),palette)],{type:asset.mimeType})
+    :asset.blob;
+   if(!alive)return;
+   revoke=URL.createObjectURL(themed);
    setUrl(revoke);
   }).catch(()=>{if(alive)setUrl(null)});
   return()=>{alive=false;if(revoke)URL.revokeObjectURL(revoke)};
- },[id]);
+ },[id,JSON.stringify(palette??{})]);
  return url;
 }
 

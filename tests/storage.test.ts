@@ -3,11 +3,11 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import {Rating} from 'ts-fsrs';
 import {LexiDatabase} from '../src/storage/db';
 import {dexieSource, lessonLinks, loadLessons} from '../src/storage/queries';
-import {ConflictError, commitImport, createLesson, markIntroduced, prepareObjectiveSession, saveCourseTempo, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
+import {ConflictError, commitImport, createLesson, markIntroduced, prepareObjectiveSession, saveCourseTempo, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
 import {makePlan, makeSession} from '../src/domain/learning';
-import {defaultSettings, type Settings} from '../src/domain/types';
+import type {Settings} from '../src/domain/types';
 import {parseImport} from '../src/domain/import';
-import {content, installLessons, wordsOf} from './helpers/content';
+import {installLessons, wordsOf} from './helpers/content';
 
 const now=new Date('2026-09-15T09:00:00Z');
 let db:LexiDatabase;
