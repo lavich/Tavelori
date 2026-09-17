@@ -11,6 +11,7 @@ import ui from '../../shared/ui.module.css';
 import wordCss from '../../shared/word.module.css';
 import s from './session.module.css';
 import {cx} from '../../shared/cx';
+import {shortTitle} from '../../shared/format';
 
 export interface Answer {correct:boolean;text:string;status?:'correct'|'almost'|'wrong'}
 /** onAnswer возвращает false, если запись не удалась: тогда упражнение остаётся открытым для повтора. `onSkip` — пропуск без оценки. */
@@ -25,11 +26,17 @@ function useRevealed(active:boolean){
  return ref;
 }
 
-export function Introduction({word,onReady,saving=false}:{word:Word;onReady:()=>void;saving?:boolean}){
+/** Подпись урока у нового слова: к какому занятию готовимся или чей хвост добираем. У слова вне уроков её нет. */
+export const lessonLabel=(item:Pick<SessionItem,'lessonTitle'|'lessonPast'>)=>item.lessonTitle?`${item.lessonPast?'Хвост урока':'К уроку'} ${shortTitle(item.lessonTitle)}`:null;
+
+export function Introduction({item,onReady,saving=false}:{item:Pick<SessionItem,'word'|'lessonTitle'|'lessonPast'>;onReady:()=>void;saving?:boolean}){
+ const {word}=item;
+ const label=lessonLabel(item);
  return (
   <>
    <div className={s.center}>
     <p className={cx(s.prompt,'sr-only')} data-testid="prompt">Новое слово</p>
+    {label&&<p className={s.prompt} style={{margin:0}} data-testid="lesson-label">{label}</p>}
     <WordArt word={word}/>
     <div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}}>
      <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>

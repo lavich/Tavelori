@@ -130,7 +130,7 @@ export function SessionScreen(){
  };
  // key по упражнению: иначе следующее слово успевает показаться с ответом предыдущего.
  const view=session.objectiveVersion!==1?null:introduction
-  ?<Introduction key={introduction.id} word={introduction.word} onReady={introduce} saving={introducing}/>
+  ?<Introduction key={introduction.id} item={introduction} onReady={introduce} saving={introducing}/>
   :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip}/>
   :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next}/>

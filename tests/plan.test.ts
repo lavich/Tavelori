@@ -107,7 +107,7 @@ describe('подготовка к нескольким занятиям',()=>{
   expect(plan.deadlines).toHaveLength(0);
   expect(plan.newWordIds).toHaveLength(3);
  });
- it('хвост прошедших занятий разбирается раньше подготовки к будущему',async()=>{
+ it('слова ближайшего занятия идут раньше хвоста прошедших',async()=>{
   const late=pool.slice(0,4).map(w=>w.id), soon=pool.slice(10,30).map(w=>w.id);
   const data=base({words:pool,lessons:[
    lesson('done',late.slice(0,2),'2026-09-08',{status:'completed'}), // помечен пройденным
@@ -115,11 +115,38 @@ describe('подготовка к нескольким занятиям',()=>{
    lesson('next',soon,'2026-09-18'),
   ]});
   const plan=await planOf(data);
-  expect(plan.backlog).toEqual({wordIds:late,lessons:2});
-  expect(plan.newWordIds.slice(0,4)).toEqual(late); // хвост занимает начало дневной квоты
-  expect(plan.newWordIds).toHaveLength(10);
-  expect(plan.deadlines[0].newLeft).toBe(24); // до будущего занятия нужно разобрать и хвост
-  expect(plan.deadlines[0].requiredPerDay).toBe(8);
+  expect(plan.backlog).toEqual({wordIds:late,lessons:2}); // хвост по-прежнему виден отдельно
+  expect(plan.newWordIds).toEqual(soon.slice(0,10)); // квота целиком уходит на подготовку к будущему
+  expect(plan.deadlines[0].newLeft).toBe(20); // хвост в счёт срока не входит
+  expect(plan.deadlines[0].requiredPerDay).toBe(7);
+  expect(plan.origins.get(soon[0])).toEqual({lessonId:'next',title:'next',past:false});
+  expect(plan.origins.get(late[0])).toEqual({lessonId:'done',title:'done',past:true});
+ });
+ it('хвост добирает остаток бюджета после слов ближайшего занятия',async()=>{
+  const late=pool.slice(0,4).map(w=>w.id), soon=pool.slice(10,16).map(w=>w.id), later=pool.slice(20,30).map(w=>w.id);
+  const data=base({words:pool,lessons:[
+   lesson('done',late,'2026-09-08',{status:'completed'}),
+   lesson('next',soon,'2026-09-18'),
+   lesson('later',later,null), // урок без даты идёт после хвоста
+  ]});
+  const plan=await planOf(data);
+  expect(plan.newWordIds).toEqual([...soon,...late]);
+  expect(plan.deadlines[0].newLeft).toBe(6);
+  const session=await sessionOf({data,now,random:()=>0.5});
+  const fresh=session.items.filter(item=>item.isNew);
+  expect(fresh.filter(item=>soon.includes(item.wordId)).every(item=>item.lessonTitle==='next'&&item.lessonPast===false)).toBe(true);
+  expect(fresh.filter(item=>late.includes(item.wordId)).every(item=>item.lessonTitle==='done'&&item.lessonPast===true)).toBe(true);
+  expect(fresh.length).toBe(10);
+ });
+ it('скан словаря локального курса не берёт слова уроков другого курса',async()=>{
+  const foreign=pool.slice(0,5).map(w=>w.id), loose=pool.slice(40,43).map(w=>w.id);
+  const data=base({words:[...pool.slice(0,5),...pool.slice(40,43)],
+   courses:[course('leeke',10),course('my',10,{origin:'local'})],
+   lessons:[lesson('done',foreign,null,{status:'completed',courseId:'leeke'})]});
+  const plan=await planOf(data);
+  const local=plan.courses.find(item=>item.courseId==='my')!;
+  expect(local.newWordIds).toEqual(loose); // только слова вне уроков
+  expect(plan.newWordIds).toEqual([...foreign,...loose]);
  });
  it('введённое слово прошедшего занятия в хвост не попадает: его ведёт повторение',async()=>{
   const ids=pool.slice(0,3).map(w=>w.id);
