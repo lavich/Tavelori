@@ -143,14 +143,15 @@ test('прогресс урока виден на «Сегодня» и «Уро
  const row=()=>page.getByRole('link',{name:/1\.1 ·/});
  const lessons=()=>page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
  await expect(row().getByTestId('lesson-progress')).toHaveText('38 новых');
- await expect(row().getByRole('img',{name:'38 новых'})).toBeVisible();
+ await expect(row().getByRole('img',{name:'Освоено 0% · 38 новых',exact:true})).toBeVisible();
  await lessons();
  await expect(row().getByTestId('lesson-progress')).toHaveText('38 новых');
  await expect(row()).toContainText('38 слов · проведён');
  await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click(); // засев перезагружает страницу и ждёт «Сегодня»
  await seedQueue(page,[{wordId:'w11-01',tested:['recall']},{wordId:'w11-02',tested:[]},{wordId:'w11-03',tested:[]},{wordId:'w11-04',tested:[]}]);
  await expect(row().getByTestId('lesson-progress')).toHaveText('4 в повторении · 34 новых');
- await expect(row().getByRole('img',{name:'4 в повторении · 34 новых'})).toBeVisible();
+ // Четыре слова с двухдневным интервалом из тридцати восьми — полоса едва тронута, а не полна.
+ await expect(row().getByRole('img',{name:'Освоено 1% · 4 в повторении · 34 новых',exact:true})).toBeVisible();
  await lessons();
  await expect(row().getByTestId('lesson-progress')).toHaveText('4 в повторении · 34 новых');
  // Пустой набор: число слов есть, полосы нет.
