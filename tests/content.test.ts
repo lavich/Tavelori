@@ -7,7 +7,7 @@ import {buildContent, revisionOf, wordsOf} from '../content/build';
 import {ContentError, parseCatalog, parsePackage, SCHEMA_VERSION} from '../src/content/schema';
 import {wordKey} from '../src/domain/import';
 import {stressNote} from '../src/domain/phonetics';
-import {tiles} from '../src/domain/syllables';
+import {restoreWriting, tiles} from '../src/domain/syllables';
 
 const md=readFileSync('openspec/changes/archive/2026-09-16-build-greek-vocabulary-mvp/seed-lessons.md','utf8');
 const section=(title:string)=>md.split(`## ${title}`)[1].split('\n## ')[0];
@@ -65,20 +65,21 @@ describe('наборы класса переносятся без потерь �
   expect(packageOf('lesson-1-3').media.some(item=>item.id===house[0].imageAssetId)).toBe(true);
  });
 
- it('каждое слово годится для упражнений: перевод, слоги и стабильный id',()=>{
+ it('каждое слово годится для упражнений: перевод, восстановимое написание и стабильный id',()=>{
   for(const word of seedWords){
    expect(word.greek.trim(),word.id).toMatch(/[Ͱ-Ͽἀ-῿]/u);
    expect(word.russian.trim().length,word.greek).toBeGreaterThan(0);
-   expect(tiles(word.greek).length,`${word.greek}: нечего собирать`).toBeGreaterThanOrEqual(2);
+   expect(restoreWriting(word.greek,tiles(word.greek)),word.greek).toBe(word.greek.normalize('NFC').trim());
    expect(word.id).toMatch(/^w\d{2}-\d{2}$/);
   }
+  expect(seedWords.filter(word=>tiles(word.greek).length<2).map(word=>word.greek)).toEqual(['η γη','ο γιος','το φως']);
  });
 
  it('множественное число живёт в заметке, а не в самом слове',()=>{
   const year=seedWords.find(word=>word.russian==='год')!;
   expect(year.greek).toBe('ο χρόνος');
   expect(year.note).toContain('τα χρόνια');
-  expect(tiles(year.greek)).toEqual(['ο','χρό','νος']);
+  expect(tiles(year.greek)).toEqual(['χρό','νος']);
  });
  /** Полумеры недопустимы: карточка либо готова к занятию целиком, либо честно помечена непроверенной. */
  it('карточка подготовлена целиком или не претендует на подготовленность',()=>{

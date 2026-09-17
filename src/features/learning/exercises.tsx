@@ -4,7 +4,7 @@ import {Check, Volume2, X} from 'lucide-react';
 import type {SessionItem, Word} from '../../domain/types';
 import {checkAnswer} from '../../domain/import';
 import {diffChars} from '../../domain/spelling';
-import {tiles} from '../../domain/syllables';
+import {assemblyOptions, formatSyllables, restoreWriting, splitWriting} from '../../domain/syllables';
 import {playWord, useAudioKind} from '../../shared/audio';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from '../words/WordCardView';
 import ui from '../../shared/ui.module.css';
@@ -142,14 +142,15 @@ export function Assembly({item,onAnswer,onNext}:Props){
  useEffect(()=>{setPlaced([]);setResult(null);setSaving(false)},[item.id]);
  const revealed=useRevealed(!!result);
  const word=item.word;
- const correct=tiles(word.greek);
- const pool=item.options;
- const answer=placed.map(index=>pool[index]).join('');
+ const writing=splitWriting(word.greek);
+ const pool=assemblyOptions(word.greek,item.options);
+ const ordered=placed.map(index=>pool[index]);
+ const answer=restoreWriting(word.greek,ordered);
  const complete=placed.length===pool.length;
 
  const check=async(skip=false)=>{
   if((!complete&&!skip)||result||saving)return;
-  const right=!skip&&answer===correct.join('');
+  const right=!skip&&answer.normalize('NFC').trim()===word.greek.normalize('NFC').trim();
   setSaving(true);
   const saved=await onAnswer({correct:right,text:skip?'':answer});
   setSaving(false);
@@ -159,13 +160,14 @@ export function Assembly({item,onAnswer,onNext}:Props){
   <>
    <div className={s.center}>
     <p className={s.prompt} data-testid="prompt">Собери слово</p>
+    {writing.article&&<p className={s.prompt} data-testid="article-hint">Слово дано с артиклем</p>}
     <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.russian}</p>
     <WordArt word={word}/>
     {result&&(
      <div style={{width:'100%'}} ref={revealed}>
       <div data-testid="feedback" className={cx(s.feedback, result==='correct'?s.ok:s.bad)} style={{marginTop:0}}>
-       <div>{result==='correct'?'Правильно!':result==='skipped'?'Правильный порядок слогов:':'Пока не сходится — посмотри порядок слогов.'}</div>
-       <p className="m-0 mt-1.5 text-[19px]">{correct.join(' · ')}</p>
+       <div>{result==='correct'?'Правильно!':result==='skipped'?(writing.article?'Правильное написание:':'Правильный порядок слогов:'):(writing.article?'Пока не сходится — посмотри написание.':'Пока не сходится — посмотри порядок слогов.')}</div>
+       <p className="m-0 mt-1.5 text-[19px]">{formatSyllables(word.greek)}</p>
       </div>
       {word.examples[0]&&<div style={{textAlign:'left',marginTop:12}}><ExampleBox example={word.examples[0]}/></div>}
      </div>
@@ -174,6 +176,7 @@ export function Assembly({item,onAnswer,onNext}:Props){
    <div className={s.dock}>
     {!result&&<>
     <div className={s.slots} aria-label="Собранное слово" data-testid="assembled">
+     {writing.article&&<span className={s.article} data-testid="fixed-article"><span>Артикль</span>{writing.article}</span>}
      {placed.length===0
       ?<span className={s.slotsHint}>Нажимай слоги по порядку</span>
       :placed.map((index,position)=>(
