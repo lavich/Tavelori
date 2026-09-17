@@ -16,6 +16,9 @@ npm test           # unit и integration тесты (Vitest)
 npm run test:e2e   # браузерные проверки по production build (Playwright, Chromium)
 ```
 
+Ветка `main` защищена: изменения попадают в неё только через pull request после зелёного job `checks`
+(`.github/workflows/ci.yml`: `typecheck`, `test`, `spec`, `build`, `test:e2e`). Прямой push и force-push запрещены.
+
 ## Что уже есть
 
 - **Каталог и уроки по запросу.** При запуске приложение получает только оболочку и небольшой каталог
