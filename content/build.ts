@@ -6,6 +6,7 @@ import {parse} from 'yaml';
 import {wordKey} from '../src/domain/import.ts';
 import {ContentError, SCHEMA_VERSION, SHIPPED_FIELDS, type Catalog, type CatalogCourse, type CatalogEntry, type ContentPackage, type PackageMedia, type PackageWord} from '../src/content/schema.ts';
 import type {Example, Lesson, Segment} from '../src/domain/types.ts';
+import {checkArt, LEGACY_FILE, readLegacy, type ArtReport} from './art.ts';
 
 /**
  * Публикация контента. Исходники — YAML: одно слово — один файл в `words/` с греческим именем, урок —
@@ -68,7 +69,7 @@ export function readSources(root:string):ContentRoot{
 }
 
 export interface BuiltFile {path:string;body:string|Uint8Array;mimeType:string}
-export interface BuiltContent {catalog:Catalog;packages:ContentPackage[];files:BuiltFile[];words:PackageWord[];sources:ContentRoot}
+export interface BuiltContent {catalog:Catalog;packages:ContentPackage[];files:BuiltFile[];words:PackageWord[];sources:ContentRoot;art:ArtReport}
 
 function describe(id:string,src:WordSource&{file:string}):PackageWord{
  const where=`words/${src.file}`;
@@ -102,12 +103,13 @@ function describe(id:string,src:WordSource&{file:string}):PackageWord{
  return {...draft,revision:revisionOf(draft)};
 }
 
-function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8Array>,word:PackageWord,where:string):{item:PackageMedia;body:Uint8Array}{
+function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8Array>,word:PackageWord,where:string,legacy:Set<string>,art:ArtReport):{item:PackageMedia;body:Uint8Array}{
  const body=files.get(`${dir}/${file}`);
  if(!body)fail(`${where}: файла ${dir}/${file} нет`);
  const ext=extname(file).toLowerCase();
  const mimeType=MIME[ext]??fail(`${where}: неизвестный тип файла ${file}`);
- if(dir==='art'&&mimeType==='image/svg+xml'&&/<text[\s>]/.test(Buffer.from(body!).toString('utf8')))fail(`art/${file}: подпись в картинке выдаёт ответ`);
+ // Иллюстрация подчиняется стандарту (docs/art-standard.md); файлы до стандарта из legacy.txt считаются в отчёте о миграции.
+ if(dir==='art'&&mimeType==='image/svg+xml'){art.files++;if(checkArt(file,body!,legacy))art.legacy++}
  const version=hash(body!,10);
  return {body:body!,item:{
   id,kind:dir==='art'?'image':'audio',mimeType,url:`content/media/${id}@${version}${ext}`,bytes:body!.byteLength,version,
@@ -129,11 +131,14 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(twin)fail(`words/${src.file} повторяет слово «${word.greek} — ${word.russian}» из words/${sources.words.get(twin)!.file}`);
   byKey.set(key,id); words.set(id,word);
  }
+ /** Список унаследованных картинок только сокращается: имя без файла — мусор, а не исключение. */
+ const legacy=readLegacy(sources.files); const art:ArtReport={files:0,legacy:0};
+ for(const file of legacy) if(!sources.files.has(`art/${file}`))fail(`art/${LEGACY_FILE}: файла art/${file} нет — уберите имя из списка`);
  const media=new Map<string,{item:PackageMedia;body:Uint8Array}>();
  for(const [id,src] of sources.words){
   const word=words.get(id)!;
-  if(src.image)media.set(word.imageAssetId!,mediaFor(word.imageAssetId!,src.image,'art',sources.files,word,`words/${src.file}`));
-  if(src.audio)media.set(word.audioAssetId!,mediaFor(word.audioAssetId!,src.audio,'audio',sources.files,word,`words/${src.file}`));
+  if(src.image)media.set(word.imageAssetId!,mediaFor(word.imageAssetId!,src.image,'art',sources.files,word,`words/${src.file}`,legacy,art));
+  if(src.audio)media.set(word.audioAssetId!,mediaFor(word.audioAssetId!,src.audio,'audio',sources.files,word,`words/${src.file}`,legacy,art));
  }
  /** Урок принадлежит ровно одному курсу: без курса он потеряется в каталоге, в двух — попадёт в занятие дважды. */
  const courseOf=new Map<string,string>(); const courses:CatalogCourse[]=[];
@@ -189,7 +194,7 @@ export function buildContent(root=defaultRoot()):BuiltContent{
  for(const {item,body} of media.values())files.push({path:item.url,body,mimeType:item.mimeType});
  const catalog:Catalog={schemaVersion:SCHEMA_VERSION,generatedAt:new Date().toISOString(),courses,lessons:entries};
  files.push({path:'content/catalog.json',body:JSON.stringify(catalog),mimeType:'application/json'});
- return {catalog,packages,files,words:[...words.values()],sources};
+ return {catalog,packages,files,words:[...words.values()],sources,art};
 }
 
 export const wordsOf=(content:BuiltContent,lessonId:string)=>{
@@ -213,4 +218,5 @@ export function writeContent(publicDir='public',root=defaultRoot()){
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  const built=writeContent();
  console.log(`Контент: ${built.packages.length} пакетов, ${built.words.length} слов, ${built.files.length} файлов → public/content`);
+ console.log(`Иллюстрации: ${built.art.files}, вне палитры (art/${LEGACY_FILE}): ${built.art.legacy}`);
 }
