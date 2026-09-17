@@ -26,7 +26,6 @@ function useRevealed(active:boolean){
  return ref;
 }
 
-/** Подпись урока у нового слова: к какому занятию готовимся или чей хвост добираем. У слова вне уроков её нет. */
 export const lessonLabel=(item:Pick<SessionItem,'lessonTitle'|'lessonPast'>)=>item.lessonTitle?`${item.lessonPast?'Хвост урока':'К уроку'} ${shortTitle(item.lessonTitle)}`:null;
 
 export function Introduction({item,onReady,saving=false}:{item:Pick<SessionItem,'word'|'lessonTitle'|'lessonPast'>;onReady:()=>void;saving?:boolean}){

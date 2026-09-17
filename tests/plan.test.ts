@@ -115,9 +115,9 @@ describe('подготовка к нескольким занятиям',()=>{
    lesson('next',soon,'2026-09-18'),
   ]});
   const plan=await planOf(data);
-  expect(plan.backlog).toEqual({wordIds:late,lessons:2}); // хвост по-прежнему виден отдельно
-  expect(plan.newWordIds).toEqual(soon.slice(0,10)); // квота целиком уходит на подготовку к будущему
-  expect(plan.deadlines[0].newLeft).toBe(20); // хвост в счёт срока не входит
+  expect(plan.backlog).toEqual({wordIds:late,lessons:2});
+  expect(plan.newWordIds).toEqual(soon.slice(0,10));
+  expect(plan.deadlines[0].newLeft).toBe(20);
   expect(plan.deadlines[0].requiredPerDay).toBe(7);
   expect(plan.origins.get(soon[0])).toEqual({lessonId:'next',title:'next',past:false});
   expect(plan.origins.get(late[0])).toEqual({lessonId:'done',title:'done',past:true});
@@ -127,7 +127,7 @@ describe('подготовка к нескольким занятиям',()=>{
   const data=base({words:pool,lessons:[
    lesson('done',late,'2026-09-08',{status:'completed'}),
    lesson('next',soon,'2026-09-18'),
-   lesson('later',later,null), // урок без даты идёт после хвоста
+   lesson('later',later,null),
   ]});
   const plan=await planOf(data);
   expect(plan.newWordIds).toEqual([...soon,...late]);
@@ -145,7 +145,7 @@ describe('подготовка к нескольким занятиям',()=>{
    lessons:[lesson('done',foreign,null,{status:'completed',courseId:'leeke'})]});
   const plan=await planOf(data);
   const local=plan.courses.find(item=>item.courseId==='my')!;
-  expect(local.newWordIds).toEqual(loose); // только слова вне уроков
+  expect(local.newWordIds).toEqual(loose);
   expect(plan.newWordIds).toEqual([...foreign,...loose]);
  });
  it('введённое слово прошедшего занятия в хвост не попадает: его ведёт повторение',async()=>{

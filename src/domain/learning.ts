@@ -33,7 +33,7 @@ export function zonedStart(day:string,timezone:string):Date{
 export interface DeadlinePlan {lessonId:string;title:string;targetDate:string;daysLeft:number;newLeft:number;requiredPerDay:number}
 /** Хвост прошедших занятий: слова, до которых очередь не дошла, пока урок был впереди. */
 export interface Backlog {wordIds:string[];lessons:number}
-/** Откуда взято новое слово: урок и признак, что занятие уже прошло. Слово из скана словаря источника не имеет. */
+/** Откуда взято новое слово; у слова из скана словаря источника нет. */
 export interface WordOrigin {lessonId:string;title:string;past:boolean}
 /** План одного курса: свой предел, своя очередь и свой срок — курсы не делят их между собой. */
 export interface CoursePlan {
@@ -64,7 +64,7 @@ export interface PlanSource {
  deletedWordIds():Promise<Set<string>>;
  dueStates(now:Date):Promise<LearningState[]>;
  scanLiveWordIds(after:string|null,limit:number):Promise<string[]>;
- /** Слова, входящие хоть в один урок: их ведёт очередь своего курса, а не скан словаря. */
+ /** Слова, входящие хоть в один урок. */
  lessonBoundWordIds(wordIds:string[]):Promise<Set<string>>;
 }
 export interface SessionSource extends PlanSource {
@@ -104,7 +104,6 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
    const [live,states]=await Promise.all([source.liveWordIds(unseen),source.statesOf(unseen)]);
    return unseen.filter(id=>live.has(id)&&!states.has(id));
   };
-  /** Нетронутые слова урока в очередь; каждое помнит свой урок для подписи в занятии. */
   const take=async(lesson:Lesson,into:string[],isPast:boolean)=>{
    let added=0;
    for(const id of await fresh(await source.lessonWordIds(lesson.id))) if(!seen.has(id)){
@@ -112,8 +111,7 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
    }
    return added;
   };
-  // Ближайшее занятие — единственный срок, который ещё можно успеть: его слова идут раньше хвоста прошедших.
-  // Хвост в счёт срока не входит: в момент записи в seen только слова предстоящих уроков не позже даты.
+  // Ближайшее занятие — единственный срок, который ещё можно успеть: его слова идут раньше хвоста, а хвост в счёт срока не входит.
   const dated:string[]=[];
   for(const lesson of upcoming){
    await take(lesson,dated,false);
@@ -128,8 +126,7 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
     if(picked.length>=budget)break;
     await take(lesson,picked,false);
    }
-   // Слово вне уроков принадлежит только локальному курсу: чужому курсу его добирать нечем.
-   // Слово урока другого курса скан пропускает: иначе локальный курс тратил бы на него второй бюджет.
+   // Слово вне уроков принадлежит только локальному курсу; слово урока ведёт очередь его курса.
    if(course.id===LOCAL_COURSE){
     let cursor:string|null=null;
     while(picked.length<budget){
@@ -174,7 +171,7 @@ export async function makePlan(source:PlanSource,now:Date):Promise<DailyPlan>{
   shortfall:plans.some(plan=>plan.shortfall),
   backlog:{wordIds:backlogIds,lessons:plans.reduce((sum,plan)=>sum+plan.backlog.lessons,0)},
   courses:plans,
-  // Слово из двух курсов подписывается уроком того курса, чей срок ближе: он же поставил его в очередь первым.
+  // Слово из двух курсов подписывается уроком курса с ближайшим сроком.
   origins:new Map(plans.flatMap(plan=>[...plan.origins]).reverse()),
  };
 }

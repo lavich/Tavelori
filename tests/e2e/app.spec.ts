@@ -23,7 +23,6 @@ test('оболочка открывается, разделы доступны �
 });
 
 test('хвост пройденного урока виден на «Сегодня», но занятие готовит к ближайшему уроку',async({page})=>{
- // Урок 1.1 поставляется пройденным: его слова — хвост, а бюджет дня уходит на подготовку к 1.2.
  await expect(page.getByTestId('backlog')).toContainText('Хвост прошедших занятий');
  await expect(page.getByTestId('backlog')).toContainText('33 слова из 1 занятия');
  await page.getByRole('button',{name:'Начать занятие'}).click();
@@ -46,8 +45,8 @@ test('хвост пройденного урока виден на «Сегод�
   };
   return {past:count('lesson-1-1'),next:count('lesson-1-2')};
  });
- expect(counts.next).toBeGreaterThan(0); // занятие готовит к ближайшему уроку
- expect(counts.past).toBe(0); // хвост не отбирает бюджет у подготовки
+ expect(counts.next).toBeGreaterThan(0);
+ expect(counts.past).toBe(0);
 });
 
 test('исходные уроки, карточка слова и ручная тренировка',async({page})=>{
