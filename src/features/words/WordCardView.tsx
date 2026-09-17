@@ -20,8 +20,10 @@ export function WordArt({word,hidden}:{word:Word;hidden?:boolean}){
 export function SpeakButton({word,label='Послушать слово'}:{word:Word;label?:string}){
  const kind=useAudioKind(word);
  const [failed,setFailed]=useState<'none'|'error'|null>(null);
+ // Кнопка стоит в строке справа от слова: подпись держим под кнопкой узкой колонкой,
+ // иначе в flex-строке она сжимает слово и IPA до нулевой ширины.
  return (
-  <>
+  <div className={wordCss.speakBox}>
    <Button size="icon-xl" className="size-14 rounded-full [&_svg:not([class*='size-'])]:size-6.5"
     disabled={kind==='none'} aria-label={kind==='none'?'Озвучка недоступна':label}
     onClick={()=>playWord(word).then(result=>setFailed(result==='none'||result==='error'?result:null))}>
@@ -29,7 +31,7 @@ export function SpeakButton({word,label='Послушать слово'}:{word:W
    </Button>
    {(kind==='none'||failed==='none')&&<span className={cx(ui.small, ui.muted)}>Озвучка недоступна: нет файла и греческого голоса</span>}
    {failed==='error'&&<span className={cx(ui.small, ui.muted)} role="status">Не удалось воспроизвести. Нажмите ещё раз.</span>}
-  </>
+  </div>
  );
 }
 
