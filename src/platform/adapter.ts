@@ -30,6 +30,9 @@ export interface PlatformAdapter {
  viewport():PlatformViewport;
  onThemeChange(listener:()=>void):()=>void;
  onViewportChange(listener:()=>void):()=>void;
+ /** Активен ли Mini App: Bot API 8.0 присылает `deactivated` при сворачивании и `activated` при возврате; без поддержки — всегда активен. */
+ active():boolean;
+ onActiveChange(listener:(active:boolean)=>void):()=>void;
  ready():void;
  dispose():void;
 }
@@ -42,7 +45,7 @@ export function webAdapter():PlatformAdapter{
   back:()=>NONE,hideBack:NONE,haptic:NONE,primaryAction:NONE,clearPrimaryAction:NONE,
   theme:()=>({scheme:'light',params:{}}),
   viewport:()=>({stableHeight:null,safeArea:{top:0,bottom:0},contentSafeArea:{top:0,bottom:0},mode:null}),
-  onThemeChange:()=>NONE,onViewportChange:()=>NONE,ready:NONE,dispose:NONE,
+  onThemeChange:()=>NONE,onViewportChange:()=>NONE,active:()=>true,onActiveChange:()=>NONE,ready:NONE,dispose:NONE,
  };
 }
 
@@ -68,7 +71,7 @@ export function telegramAdapter(app:TelegramWebApp):PlatformAdapter{
  const activeBack=()=>backStack.reduce<{handler:()=>void;priority:number}|null>((best,entry)=>!best||entry.priority>=best.priority?entry:best,null);
  const syncBack=()=>attempt(()=>{if(backStack.length)backButton!.show();else backButton!.hide()});
  let primary:PrimaryAction|null=null;
- const themeListeners=new Set<()=>void>(), viewportListeners=new Set<()=>void>();
+ const themeListeners=new Set<()=>void>(), viewportListeners=new Set<()=>void>(), activeListeners=new Set<(active:boolean)=>void>();
  const onBack=()=>activeBack()?.handler();
  const onMain=()=>{if(primary&&!primary.disabled&&!primary.loading)primary.onClick()};
  const onTheme=()=>themeListeners.forEach(listener=>listener());
@@ -78,6 +81,8 @@ export function telegramAdapter(app:TelegramWebApp):PlatformAdapter{
   if(state&&state.isStateStable===false)return;
   viewportListeners.forEach(listener=>listener());
  };
+ const onActivated=()=>activeListeners.forEach(listener=>listener(true));
+ const onDeactivated=()=>activeListeners.forEach(listener=>listener(false));
  if(capabilities.back)attempt(()=>backButton!.onClick(onBack));
  if(capabilities.primaryAction)attempt(()=>mainButton!.onClick(onMain));
  attempt(()=>app.onEvent('themeChanged',onTheme));
@@ -85,6 +90,9 @@ export function telegramAdapter(app:TelegramWebApp):PlatformAdapter{
  attempt(()=>app.onEvent('safeAreaChanged',onViewport));
  attempt(()=>app.onEvent('contentSafeAreaChanged',onViewport));
  attempt(()=>app.onEvent('fullscreenChanged',onViewport));
+ // Клиент без Bot API 8.0 этих событий не знает: официальный bridge молча их регистрирует, исключение перехватывается.
+ attempt(()=>app.onEvent('activated',onActivated));
+ attempt(()=>app.onEvent('deactivated',onDeactivated));
  const inset=(value:{top:number;bottom:number}|undefined)=>({top:value?.top??0,bottom:value?.bottom??0});
  return {
   kind:'telegram',capabilities,
@@ -114,6 +122,8 @@ export function telegramAdapter(app:TelegramWebApp):PlatformAdapter{
   }),
   onThemeChange(listener){themeListeners.add(listener);return()=>{themeListeners.delete(listener)}},
   onViewportChange(listener){viewportListeners.add(listener);return()=>{viewportListeners.delete(listener)}},
+  active:()=>app.isActive!==false,
+  onActiveChange(listener){activeListeners.add(listener);return()=>{activeListeners.delete(listener)}},
   ready(){attempt(()=>app.ready());if(capabilities.expand&&!app.isExpanded)attempt(()=>app.expand())},
   dispose(){
    if(capabilities.back)attempt(()=>{backButton!.offClick(onBack);backButton!.hide()});
@@ -123,7 +133,9 @@ export function telegramAdapter(app:TelegramWebApp):PlatformAdapter{
    attempt(()=>app.offEvent('safeAreaChanged',onViewport));
    attempt(()=>app.offEvent('contentSafeAreaChanged',onViewport));
    attempt(()=>app.offEvent('fullscreenChanged',onViewport));
-   themeListeners.clear();viewportListeners.clear();backStack.length=0;primary=null;
+   attempt(()=>app.offEvent('activated',onActivated));
+   attempt(()=>app.offEvent('deactivated',onDeactivated));
+   themeListeners.clear();viewportListeners.clear();activeListeners.clear();backStack.length=0;primary=null;
   },
  };
 }

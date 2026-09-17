@@ -216,6 +216,53 @@ test.describe('навигация, тема и размеры',()=>{
   await check.click();
   await expect(page.getByTestId('feedback')).toBeVisible();
  });
+ test('свернули → вернули (Bot API 8.0): нулевой viewport не схлопывает занятие, после возврата экран виден, тема и размеры перечитаны',async({page})=>{
+  await openTelegram(page,{noCloud:true,scheme:'light'});
+  await installLessons(page,['lesson-1-1']);
+  await onlyReviews(page);
+  await seedQueue(page,[{wordId:'w11-01',tested:['recall']}],TG_DB);
+  await page.getByRole('button',{name:/Начать занятие/}).click();
+  await page.waitForURL('**/session');
+  const prompt=await page.getByTestId('prompt').first().innerText();
+  const height=()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--app-height').trim());
+  const sessionHeight=()=>page.locator('main').first().evaluate(node=>node.getBoundingClientRect().height);
+  const active=()=>page.locator('html').getAttribute('data-app-active');
+  await expect.poll(height).toBe('844px');
+  expect(await active()).toBe('true');
+  // Сворачивание: клиент отдаёт нулевую высоту и deactivated — высота остаётся прежней, экран не схлопывается.
+  await tg(page).deactivate();
+  await expect.poll(active).toBe('false');
+  expect(await height()).toBe('844px');
+  expect(await sessionHeight()).toBeGreaterThan(400);
+  // Пока приложение спало, клиент сменил тему без события themeChanged и уменьшил высоту.
+  await tg(page).silentTheme('dark',DARK);
+  await tg(page).activate(780);
+  await expect.poll(active).toBe('true');
+  await expect.poll(height).toBe('780px'); // размеры перечитаны по одному activated, без viewportChanged
+  await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.body).backgroundColor)).toBe('rgb(23, 33, 43)'); // тема перечитана
+  expect(await page.locator('html').getAttribute('data-theme')).toBe('dark');
+  await expect(page.getByTestId('prompt').first()).toBeVisible();
+  await expect(page.getByTestId('prompt').first()).toHaveText(prompt); // упражнение не сброшено
+  expect(await sessionHeight()).toBeGreaterThan(400);
+  await page.getByTestId('option').and(page.locator(':not([disabled])')).first().click();
+  await expect(page.getByRole('button',{name:'Далее',exact:true})).toBeVisible(); // занятие отвечает на касания после возврата
+ });
+ test('клиент без Bot API 8.0: подписка на activated отвергнута — запуск не пострадал, возврат виден по видимости документа',async({page})=>{
+  await openTelegram(page,{noCloud:true,version:'7.0',scheme:'light'});
+  await installLessons(page,['lesson-1-1']);
+  expect((await tg(page).calls())).toContain('ready');
+  const active=()=>page.locator('html').getAttribute('data-app-active');
+  expect(await active()).toBe('true');
+  await tg(page).setHidden(true);
+  await expect.poll(active).toBe('false');
+  await tg(page).silentTheme('dark',DARK);
+  await tg(page).setViewport(0,true); // нулевая высота без возврата
+  expect(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--app-height').trim())).toBe('844px');
+  await tg(page).setHidden(false);
+  await expect.poll(active).toBe('true');
+  await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.body).backgroundColor)).toBe('rgb(23, 33, 43)'); // тема перечитана по visibilitychange
+  await expect(page.getByRole('heading',{name:'Немного каждый день'})).toBeVisible();
+ });
 });
 
 test.describe('аудио, копии и облако',()=>{

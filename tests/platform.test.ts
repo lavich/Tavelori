@@ -3,6 +3,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {parseLaunch, launchContext, resetLaunchContext} from '../src/platform/launch';
 import {telegramAdapter, webAdapter} from '../src/platform/adapter';
 import {loadTelegramBridge, resetBridge} from '../src/platform/bridge';
+import {applyEnvironment, platform, setPlatform} from '../src/platform/platform';
 import type {TelegramWebApp} from '../src/platform/telegram-types';
 import {profileFor} from '../src/storage/profile';
 
@@ -50,7 +51,7 @@ function fakeApp(over:Partial<TelegramWebApp>={}){
  });
  const app={
   initData:'',initDataUnsafe:{},version:'8.0',platform:'ios',colorScheme:'light',themeParams:{bg_color:'#ffffff',text_color:'#000000'},
-  isExpanded:false,viewportHeight:700,viewportStableHeight:700,
+  isExpanded:false,viewportHeight:700,viewportStableHeight:700,isActive:true,
   isVersionAtLeast:(version:string)=>Number(version)<=8,
   ready(){calls.push('ready')},expand(){calls.push('expand');(app as {isExpanded:boolean}).isExpanded=true},close(){},
   onEvent(event:string,handler:(...args:unknown[])=>void){calls.push(`on:${event}`);handlers.set(event,(handlers.get(event)??new Set()).add(handler))},
@@ -86,9 +87,13 @@ describe('платформенный адаптер Telegram',()=>{
   expect(handlers.get('back')?.size).toBe(1);
   expect(handlers.get('main')?.size).toBe(1);
   expect(handlers.get('themeChanged')?.size).toBe(1);
+  expect(handlers.get('activated')?.size).toBe(1);
+  expect(handlers.get('deactivated')?.size).toBe(1);
   second.dispose();
   expect(handlers.get('back')?.size).toBe(0);
   expect(handlers.get('themeChanged')?.size).toBe(0);
+  expect(handlers.get('activated')?.size).toBe(0);
+  expect(handlers.get('deactivated')?.size).toBe(0);
   expect(calls.filter(call=>call==='back.onClick')).toHaveLength(2);
   expect(calls.filter(call=>call==='back.offClick')).toHaveLength(2);
  });
@@ -153,6 +158,61 @@ describe('платформенный адаптер Telegram',()=>{
   expect(adapter.theme()).toEqual({scheme:'light',params:{bg_color:'#ffffff',text_color:'#000000'}});
   adapter.ready();
   expect(app.isExpanded).toBe(true);
+ });
+ it('активность: сворачивание и возврат доходят до слушателей, isActive читается, клиент без этих событий не ломает адаптер',()=>{
+  const {app,fire}=fakeApp();
+  const adapter=telegramAdapter(app);
+  const seen:boolean[]=[];
+  const off=adapter.onActiveChange(active=>seen.push(active));
+  expect(adapter.active()).toBe(true);
+  (app as {isActive:boolean}).isActive=false;
+  fire('deactivated');
+  expect(adapter.active()).toBe(false);
+  (app as {isActive:boolean}).isActive=true;
+  fire('activated');
+  expect(seen).toEqual([false,true]);
+  off();
+  fire('deactivated');
+  expect(seen).toHaveLength(2);
+  // Клиент старше Bot API 8.0: поля нет — активен; подписка на неизвестное событие отвергнута — остальное работает.
+  const legacy=fakeApp({isActive:undefined,version:'6.0'} as never);
+  legacy.app.onEvent=(event,handler)=>{if(event==='activated'||event==='deactivated')throw new Error('Unknown event');legacy.handlers.set(event,(legacy.handlers.get(event)??new Set()).add(handler))};
+  const old=telegramAdapter(legacy.app);
+  expect(old.active()).toBe(true);
+  expect(legacy.handlers.get('themeChanged')?.size).toBe(1);
+  expect(webAdapter().active()).toBe(true);
+ });
+});
+
+describe('переменные оболочки',()=>{
+ afterEach(()=>{setPlatform(webAdapter())});
+ it('высота держит последнее положительное значение при нулевом viewport, активность видна в атрибуте',()=>{
+  const root=document.documentElement;
+  const {app,fire}=fakeApp();
+  setPlatform(telegramAdapter(app),app);
+  expect(platform().kind).toBe('telegram');
+  expect(root.style.getPropertyValue('--app-height')).toBe('700px');
+  expect(root.dataset.appActive).toBe('true');
+  // Свёрнутый Mini App: нулевая высота и isActive=false не схлопывают экран.
+  (app as {viewportStableHeight:number}).viewportStableHeight=0;
+  (app as {isActive:boolean}).isActive=false;
+  applyEnvironment();
+  expect(root.style.getPropertyValue('--app-height')).toBe('700px');
+  expect(root.dataset.appActive).toBe('false');
+  // Возврат с новой высотой применяется как раньше.
+  (app as {viewportStableHeight:number}).viewportStableHeight=640;
+  (app as {isActive:boolean}).isActive=true;
+  applyEnvironment();
+  expect(root.style.getPropertyValue('--app-height')).toBe('640px');
+  expect(root.dataset.appActive).toBe('true');
+  fire('activated'); // событие без слушателей окружения безвредно
+  // Веб-адаптер убирает переменные и забывает высоту: новый Telegram-адаптер без размеров оставляет CSS.
+  setPlatform(webAdapter());
+  expect(root.style.getPropertyValue('--app-height')).toBe('');
+  expect(root.dataset.appActive).toBeUndefined();
+  const zero=fakeApp({viewportStableHeight:0} as never);
+  setPlatform(telegramAdapter(zero.app),zero.app);
+  expect(root.style.getPropertyValue('--app-height')).toBe('');
  });
 });
 

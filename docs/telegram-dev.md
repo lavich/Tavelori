@@ -56,6 +56,16 @@ npx --yes cloudflared tunnel run lexi-dev                                       
 - **Десктопный Telegram** (Windows/Linux/macOS) открывает Mini App во встроенном WebView; для быстрой проверки CloudStorage удобен, но клавиатуру и share он не эмулирует.
 - В любом клиенте параметры запуска видны в `sessionStorage['lexi:launch']`, статус синхронизации — на экране «Ещё», ключи облака — через DevTools: `Telegram.WebApp.CloudStorage.getKeys(console.log)`.
 
+## Сворачивание и возврат
+
+Свернуть Mini App можно жестом вниз по шапке (Bot API 8.0, iOS и Android); в полосе внизу чата оно остаётся живым, касание возвращает его. Что смотреть в инспекторе после возврата:
+
+- `document.documentElement.dataset.appActive` — `false` пока свёрнуто, `true` после возврата; если остаётся `false`, клиент не прислал `activated` и не изменил видимость документа.
+- `getComputedStyle(document.documentElement).getPropertyValue('--app-height')` — положительное значение и до, и после сворачивания; ноль или пустая строка при открытом занятии означают схлопнувшийся экран.
+- `Telegram.WebApp.isActive`, `Telegram.WebApp.viewportStableHeight`, `Telegram.WebApp.colorScheme` — что отдаёт клиент в момент возврата. Подписка для журнала: `Telegram.WebApp.onEvent('activated',()=>console.log('activated',Telegram.WebApp.viewportStableHeight))`.
+
+Белый экран, который не лечится возвратом, а только полным закрытием, — повод записать платформу, версию клиента и версию WebView (Android: `chrome://inspect` показывает её в заголовке) в матрицу `docs/telegram.md`: это может быть дефект клиента, а не приложения.
+
 ## Последствия смены origin
 
 IndexedDB привязана к origin. Новый адрес туннеля = пустая база, а профиль на старом адресе остаётся в WebView до очистки. Компактный прогресс вернётся из CloudStorage того же бота после первого обмена; полная история, свои слова и медиа — только полной копией (см. `docs/origin-migration.md`). При частой смене адресов используйте один аккаунт-тестировщик и не жалейте данные.
