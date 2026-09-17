@@ -15,6 +15,19 @@ const GROUPS=[
 export const progressText=(progress:LessonProgress)=>GROUPS.filter(([key])=>progress[key]).map(([key,forms])=>withCount(progress[key],[...forms])).join(' · ');
 
 /**
+ * Полоса показывает освоенность, а не состав: закрашена средняя зрелость живых слов урока.
+ * Закрашенное делится надвое — вклад устойчивых слов и вклад остальных введённых, — чтобы было
+ * видно, чем урок держится. Остаток дорожки и есть недостающая зрелость.
+ */
+export function progressFill(progress:LessonProgress){
+ const total=progress.solid+progress.review+progress.fresh;
+ if(!total)return {solid:0,review:0,rest:1,percent:0};
+ const solid=progress.solid/total;
+ const review=Math.max(0,progress.mature-progress.solid)/total;
+ return {solid,review,rest:Math.max(0,1-solid-review),percent:Math.round((progress.mature/total)*100)};
+}
+
+/**
  * Заголовок и подпись строки урока. Предлог «К» с днём недели получает только ближайшее занятие курса:
  * к нему готовятся сейчас, и день недели там — срок. Остальным — прошедшим и дальним — хватает даты.
  */
@@ -30,6 +43,7 @@ export function LessonRow({lesson,next}:{lesson:LessonView;next?:boolean}){
  const {title,note}=lessonLabels(lesson,next);
  const progress=lesson.wordCount?lesson.progress:undefined;
  const text=progress?progressText(progress):'';
+ const fill=progress&&progressFill(progress);
  return (
   <Item variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
    <ItemMedia variant="icon"><FileText/></ItemMedia>
@@ -38,8 +52,10 @@ export function LessonRow({lesson,next}:{lesson:LessonView;next?:boolean}){
     <ItemDescription>{withCount(lesson.wordCount,WORDS)} · {note}</ItemDescription>
     {progress&&(
      <>
-      <div role="img" aria-label={text} className={styles.bar}>
-       {GROUPS.map(([key,forms])=>!!progress[key]&&<span key={key} className={styles[key]} style={{flexGrow:progress[key]}} title={withCount(progress[key],[...forms])}/>)}
+      <div role="img" aria-label={`Освоено ${fill!.percent}% · ${text}`} className={styles.bar}>
+       {([['solid',fill!.solid],['review',fill!.review],['rest',fill!.rest]] as const).map(([key,share])=>!!share&&(
+        <span key={key} className={styles[key]} style={{flexGrow:share}} title={key==='rest'?`Осталось освоить ${100-fill!.percent}%`:withCount(progress[key],[...GROUPS.find(([name])=>name===key)![1]])}/>
+       ))}
       </div>
       <div aria-hidden="true" className="text-xs text-muted-foreground" data-testid="lesson-progress">{text}</div>
      </>

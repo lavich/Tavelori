@@ -4,7 +4,8 @@ import {indexWord, LexiDatabase} from '../src/storage/db';
 import {dexieSource, importPreview, lessonViews, searchWordIds, wordPage, type WordCursor} from '../src/storage/queries';
 import {commitImport, saveWord} from '../src/storage/ops';
 import {fromSnapshot} from '../src/domain/snapshot-source';
-import {lessonProgress, progress} from '../src/domain/stats';
+import {lessonProgress, progress, wordMaturity} from '../src/domain/stats';
+import {progressFill} from '../src/features/lessons/LessonRow';
 import {State} from 'ts-fsrs';
 import {parseImport} from '../src/domain/import';
 import {defaultSettings, type Snapshot, type Word} from '../src/domain/types';
@@ -61,8 +62,19 @@ describe('прогресс урока',()=>{
  const state=(id:string,fsrs:State,days:number)=>[id,{wordId:id,introducedAt:iso,version:1,card:{due:now,state:fsrs,scheduled_days:days} as never}] as const;
  it('группирует слова на устойчивые, в повторении и новые по границам статистики',()=>{
   const states=new Map([state('a',State.Review,21),state('b',State.Review,20),state('c',State.Learning,0),state('d',State.Relearning,1),state('e',State.New,0)]);
-  expect(lessonProgress(['a','b','c','d','e','f','g'],states)).toEqual({solid:1,review:4,fresh:2});
-  expect(lessonProgress([],states)).toEqual({solid:0,review:0,fresh:0});
+  const groups=lessonProgress(['a','b','c','d','e','f','g'],states);
+  expect(groups).toMatchObject({solid:1,review:4,fresh:2});
+  // Зрелость: устойчивое слово — единица, двадцатидневное — почти единица, три едва начатых — по одной двадцать первой.
+  expect(groups.mature).toBeCloseTo(1+20/21+3/21,10);
+  expect(lessonProgress([],states)).toEqual({solid:0,review:0,fresh:0,mature:0});
+ });
+ it('зрелость слова растёт вместе с интервалом и упирается в порог',()=>{
+  const card=(days:number,fsrs=State.Review)=>state('x',fsrs,days)[1];
+  expect(wordMaturity()).toBe(0); // слово без состояния
+  expect(wordMaturity(card(0,State.Learning))).toBeCloseTo(1/21,10); // введено сегодня — видно, но мало
+  expect(wordMaturity(card(10))).toBeCloseTo(10/21,10);
+  expect(wordMaturity(card(21))).toBe(1);
+  expect(wordMaturity(card(90))).toBe(1); // сверх порога больше единицы не бывает
  });
  it('список уроков считает группы из одной выборки состояний по живым словам',async()=>{
   const words=Array.from({length:8},(_,i)=>word(i,i===6?{deletedAt:iso}:{}));
@@ -77,8 +89,36 @@ describe('прогресс урока',()=>{
   expect(plain.map(view=>[view.wordCount,view.progress])).toEqual([[0,undefined],[8,undefined]]);
   const [empty,lesson]=await lessonViews(db,true);
   expect(lesson.wordCount).toBe(7);
-  expect(lesson.progress).toEqual({solid:1,review:2,fresh:4}); // удалённое слово с устойчивым состоянием не считается
-  expect(empty.progress).toEqual({solid:0,review:0,fresh:0});
+  expect(lesson.progress).toMatchObject({solid:1,review:2,fresh:4}); // удалённое слово с устойчивым состоянием не считается
+  expect(lesson.progress!.mature).toBeCloseTo(1+5/21+1/21,10);
+  expect(empty.progress).toEqual({solid:0,review:0,fresh:0,mature:0});
+ });
+});
+
+/** Полоса отвечает на вопрос «насколько освоено», а не «сколько слов показывали». */
+describe('полоса освоенности урока',()=>{
+ it('нетронутый урок оставляет полосу пустой',()=>{
+  expect(progressFill({solid:0,review:0,fresh:33,mature:0})).toEqual({solid:0,review:0,rest:1,percent:0});
+ });
+ it('слова, показанные по разу, дают узкую полосу, а не полную',()=>{
+  const fill=progressFill({solid:0,review:30,fresh:0,mature:30*(1/21)});
+  expect(fill.percent).toBe(5);
+  expect(fill.solid).toBe(0);
+  expect(fill.review).toBeCloseTo(1/21,10);
+  expect(fill.rest).toBeCloseTo(20/21,10);
+ });
+ it('закрашенное делится на вклад устойчивых и вклад остальных',()=>{
+  const fill=progressFill({solid:12,review:8,fresh:13,mature:12+8*(10/21)});
+  expect(fill.solid).toBeCloseTo(12/33,10);
+  expect(fill.review).toBeCloseTo(8*(10/21)/33,10);
+  expect(fill.percent).toBe(48);
+  expect(fill.solid+fill.review+fill.rest).toBeCloseTo(1,10);
+ });
+ it('полностью освоенный урок закрашен целиком',()=>{
+  expect(progressFill({solid:33,review:0,fresh:0,mature:33})).toEqual({solid:1,review:0,rest:0,percent:100});
+ });
+ it('урок без слов полосы не делит',()=>{
+  expect(progressFill({solid:0,review:0,fresh:0,mature:0})).toEqual({solid:0,review:0,rest:1,percent:0});
  });
 });
 

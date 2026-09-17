@@ -55,15 +55,29 @@ export async function progress(source:StatsSource,now:Date):Promise<Progress>{
   groups,totals:await source.totals(),
  };
 }
-export interface LessonProgress {solid:number;review:number;fresh:number}
-/** Три группы слов урока для строки списка: устойчивые — Review с интервалом от 21 дня, в повторении — любое другое состояние, новые — без состояния. */
+/** Порог устойчивости: слово с таким интервалом считается выученным и в тексте, и в полосе. */
+export const SOLID_DAYS=21;
+/**
+ * Зрелость слова — доля его интервала до порога устойчивости. Слово без состояния даёт ноль,
+ * слово с интервалом от порога — единицу. Нижняя граница в один день нужна введённому сегодня
+ * слову: иначе занятие не двигало бы полосу и выглядело бы бесполезным.
+ */
+export const wordMaturity=(state?:LearningState)=>state?Math.min(1,Math.max(1,state.card.scheduled_days)/SOLID_DAYS):0;
+
+export interface LessonProgress {solid:number;review:number;fresh:number;mature:number}
+/**
+ * Строка списка показывает урок с двух сторон: три группы слов отвечают на вопрос «сколько слов»
+ * (устойчивые — Review с интервалом от порога, в повторении — любое другое состояние, новые — без состояния),
+ * а `mature` — сумма зрелостей, из которой считается закрашенная доля полосы.
+ */
 export function lessonProgress(ids:Iterable<string>,states:Map<string,LearningState>):LessonProgress{
- const groups:LessonProgress={solid:0,review:0,fresh:0};
+ const groups:LessonProgress={solid:0,review:0,fresh:0,mature:0};
  for(const id of ids){
   const state=states.get(id);
   if(!state)groups.fresh++;
-  else if(state.card.state===State.Review&&state.card.scheduled_days>=21)groups.solid++;
+  else if(state.card.state===State.Review&&state.card.scheduled_days>=SOLID_DAYS)groups.solid++;
   else groups.review++;
+  groups.mature+=wordMaturity(state);
  }
  return groups;
 }
