@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test';
-import {installLessons, seedQueue} from './helpers';
+import {breakStorage, installLessons, seedQueue} from './helpers';
 import {DARK, LIGHT, onlyReviews, openTelegram, tg} from './telegram';
 
 /** База Telegram-профиля тестового пользователя: отдельная от браузерной `lexi`. */
@@ -262,6 +262,31 @@ test.describe('навигация, тема и размеры',()=>{
   await expect.poll(active).toBe('true');
   await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.body).backgroundColor)).toBe('rgb(23, 33, 43)'); // тема перечитана по visibilitychange
   await expect(page.getByRole('heading',{name:'Немного каждый день'})).toBeVisible();
+ });
+ test('отказ хранилища после сна (WebKit): экран восстанавливается без перезагрузки на том же разделе, повторный сбой даёт экран с перезапуском',async({page})=>{
+  await openTelegram(page,{noCloud:true});
+  await installLessons(page,['lesson-1-1']);
+  const alive=()=>page.evaluate(()=>(window as unknown as {__alive?:boolean}).__alive===true);
+  const reopened=()=>page.evaluate(()=>(window as unknown as {__reopened?:number}).__reopened??0);
+  await page.evaluate(()=>{(window as unknown as {__alive:boolean}).__alive=true});
+  await breakStorage(page);
+  await tg(page).deactivate();
+  await tg(page).activate(844);
+  await page.getByRole('navigation').getByRole('link',{name:'Ещё'}).click(); // новый экран читает базу и получает UnknownError
+  await expect(page.getByTestId('storage-scope')).toBeVisible(); // экран «Ещё» отрисован после переоткрытия базы
+  await expect(page).toHaveURL(/\/more$/); // маршрут не потерян
+  expect(await alive()).toBe(true); // страница не перезагружалась
+  expect(await reopened()).toBe(1);
+  await expect(page.getByTestId('recovery-failed')).toHaveCount(0);
+  // Хранилище отказывает снова и снова: после трёх попыток — экран с перезапуском, а не пустая страница.
+  await breakStorage(page,true);
+  await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
+  await expect(page.getByTestId('recovery-failed')).toBeVisible({timeout:15000});
+  await expect(page.getByTestId('recovery-failed')).toContainText('Данные на устройстве сохранены');
+  expect(await reopened()).toBe(3); // предел три попытки за минуту: первое восстановление уже в счёте
+  await page.getByRole('button',{name:'Перезапустить'}).click();
+  await expect(page.getByRole('heading',{name:'Слова'})).toBeVisible(); // перезапуск на том же разделе
+  expect(await alive()).toBe(false);
  });
 });
 

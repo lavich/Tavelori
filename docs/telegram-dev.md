@@ -64,6 +64,8 @@ npx --yes cloudflared tunnel run lexi-dev                                       
 - `getComputedStyle(document.documentElement).getPropertyValue('--app-height')` — положительное значение и до, и после сворачивания; ноль или пустая строка при открытом занятии означают схлопнувшийся экран.
 - `Telegram.WebApp.isActive`, `Telegram.WebApp.viewportStableHeight`, `Telegram.WebApp.colorScheme` — что отдаёт клиент в момент возврата. Подписка для журнала: `Telegram.WebApp.onEvent('activated',()=>console.log('activated',Telegram.WebApp.viewportStableHeight))`.
 
+В dev-режиме Vite пересылает консоль устройства в терминал сервера: строки `[vite] (client) [Unhandled error]` и `[console.error]` видны без инспектора. Признак отказа хранилища после сна — `UnknownError: Attempt to get a record from database without an in-progress transaction` (WebKit) и следом `Экран упал, приложение восстанавливается`; за ним должен идти обычный экран, а не пустая страница. Если вместо этого показан экран «Не удалось показать экран», хранилище отказало три раза подряд — нажать «Перезапустить» и записать версии в матрицу.
+
 Белый экран, который не лечится возвратом, а только полным закрытием, — повод записать платформу, версию клиента и версию WebView (Android: `chrome://inspect` показывает её в заголовке) в матрицу `docs/telegram.md`: это может быть дефект клиента, а не приложения.
 
 ## Последствия смены origin
