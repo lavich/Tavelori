@@ -1,10 +1,11 @@
 import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {indexWord, LexiDatabase} from '../src/storage/db';
-import {dexieSource, importPreview, searchWordIds, wordPage, type WordCursor} from '../src/storage/queries';
+import {dexieSource, importPreview, lessonViews, searchWordIds, wordPage, type WordCursor} from '../src/storage/queries';
 import {commitImport, saveWord} from '../src/storage/ops';
 import {fromSnapshot} from '../src/domain/snapshot-source';
-import {progress} from '../src/domain/stats';
+import {lessonProgress, progress} from '../src/domain/stats';
+import {State} from 'ts-fsrs';
 import {parseImport} from '../src/domain/import';
 import {defaultSettings, type Snapshot, type Word} from '../src/domain/types';
 import {recordFor, scenarios} from './plan-golden.test';
@@ -53,6 +54,31 @@ describe('эквивалентность планирования на базе 
   expect(plan.map(l=>l.id)).toEqual(['lesson-1-1']);
   expect(await db.catalog.count()).toBe(content.catalog.lessons.length);
   expect(await db.words.count()).toBe(33);
+ });
+});
+
+describe('прогресс урока',()=>{
+ const state=(id:string,fsrs:State,days:number)=>[id,{wordId:id,introducedAt:iso,version:1,card:{due:now,state:fsrs,scheduled_days:days} as never}] as const;
+ it('группирует слова на устойчивые, в повторении и новые по границам статистики',()=>{
+  const states=new Map([state('a',State.Review,21),state('b',State.Review,20),state('c',State.Learning,0),state('d',State.Relearning,1),state('e',State.New,0)]);
+  expect(lessonProgress(['a','b','c','d','e','f','g'],states)).toEqual({solid:1,review:4,fresh:2});
+  expect(lessonProgress([],states)).toEqual({solid:0,review:0,fresh:0});
+ });
+ it('список уроков считает группы из одной выборки состояний по живым словам',async()=>{
+  const words=Array.from({length:8},(_,i)=>word(i,i===6?{deletedAt:iso}:{}));
+  await load({words,lessons:[{id:'l',title:'Урок 1.1',targetDate:null,status:'upcoming',createdAt:iso,updatedAt:iso},{id:'empty',title:'Пустой',targetDate:null,status:'upcoming',createdAt:iso,updatedAt:iso}],
+   links:words.map((w,position)=>({lessonId:'l',wordId:w.id,position})),
+   states:[{wordId:words[0].id,introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:30} as never},
+    {wordId:words[1].id,introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:5} as never},
+    {wordId:words[2].id,introducedAt:iso,version:1,card:{due:now,state:State.Learning,scheduled_days:0} as never},
+    {wordId:words[6].id,introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:40} as never}],
+   events:[],sessions:[],settings:defaultSettings});
+  const plain=await lessonViews(db);
+  expect(plain.map(view=>[view.wordCount,view.progress])).toEqual([[0,undefined],[8,undefined]]);
+  const [empty,lesson]=await lessonViews(db,true);
+  expect(lesson.wordCount).toBe(7);
+  expect(lesson.progress).toEqual({solid:1,review:2,fresh:4}); // удалённое слово с устойчивым состоянием не считается
+  expect(empty.progress).toEqual({solid:0,review:0,fresh:0});
  });
 });
 

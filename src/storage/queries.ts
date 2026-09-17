@@ -5,7 +5,7 @@ import {addDays, localDay, type SessionSource} from '../domain/learning';
 import {byTime, emptyStats, emptySkills, foldStats, succeeded, summarizeEvents, type DaySummary} from '../domain/skills';
 import {normalize, wordKey} from '../domain/import';
 import {scheduleCourses} from '../domain/schedule';
-import type {StatsSource} from '../domain/stats';
+import {lessonProgress, type LessonProgress, type StatsSource} from '../domain/stats';
 import {defaultSchedule, DEFAULT_NEW_WORDS_PER_DAY, fillSettings, LOCAL_COURSE, type LearningState, type Lesson, type LessonWord, type Word} from '../domain/types';
 
 const span=(first:string)=>[[first,Dexie.minKey],[first,Dexie.maxKey]] as const;
@@ -124,17 +124,18 @@ export async function optionPool(want:number,database:LexiDatabase=db):Promise<W
  return [...seen.values()];
 }
 
-export interface LessonView extends Lesson {wordCount:number;newCount?:number}
-export async function lessonViews(database:LexiDatabase=db,withNew=false):Promise<LessonView[]>{
+export interface LessonView extends Lesson {wordCount:number;progress?:LessonProgress}
+/** С прогрессом состояния слов урока читаются один раз здесь, по ключам связей; экраны получают группы готовыми. */
+export async function lessonViews(database:LexiDatabase=db,withProgress=false):Promise<LessonView[]>{
  const lessons=await loadLessons(database);
  return Promise.all(lessons.map(async lesson=>{
   const links=await lessonLinks(lesson.id,database);
   const view:LessonView={...lesson,wordCount:links.length};
-  if(withNew){
+  if(withProgress){
    const ids=links.map(link=>link.wordId);
    const [live,states]=await Promise.all([liveWordIds(ids,database),statesOf(ids,database)]);
    view.wordCount=live.size;
-   view.newCount=ids.filter(id=>live.has(id)&&!states.has(id)).length;
+   view.progress=lessonProgress(ids.filter(id=>live.has(id)),states);
   }
   return view;
  }));

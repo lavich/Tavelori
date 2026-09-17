@@ -128,6 +128,33 @@ test('занятие: знакомство, четыре упражнения, �
  await page.getByRole('link',{name:/Статистика/}).click();
  const recorded=await page.getByText(/Всего записано/).innerText();
  expect(recorded).not.toContain('Всего записано 0');
+ // Новые слова занятия были из урока 1.2: его строка прогресса больше не «30 новых».
+ await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click();
+ await expect(page.getByRole('link',{name:/1\.2 ·/})).toContainText('в повторении');
+ await expect(page.getByRole('link',{name:/1\.2 ·/})).not.toContainText('30 новых');
+});
+
+test('прогресс урока виден на «Сегодня» и «Уроках» и меняется вслед за состояниями слов',async({page})=>{
+ const row=()=>page.getByRole('link',{name:/1\.1 ·/});
+ const lessons=()=>page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
+ await expect(row().getByTestId('lesson-progress')).toHaveText('33 новых');
+ await expect(row().getByRole('img',{name:'33 новых'})).toBeVisible();
+ await lessons();
+ await expect(row().getByTestId('lesson-progress')).toHaveText('33 новых');
+ await expect(row()).toContainText('33 слова · проведён');
+ await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click(); // засев перезагружает страницу и ждёт «Сегодня»
+ await seedQueue(page,[{wordId:'w11-01',tested:['recall']},{wordId:'w11-02',tested:[]},{wordId:'w11-03',tested:[]},{wordId:'w11-04',tested:[]}]);
+ await expect(row().getByTestId('lesson-progress')).toHaveText('4 в повторении · 29 новых');
+ await expect(row().getByRole('img',{name:'4 в повторении · 29 новых'})).toBeVisible();
+ await lessons();
+ await expect(row().getByTestId('lesson-progress')).toHaveText('4 в повторении · 29 новых');
+ // Пустой набор: число слов есть, полосы нет.
+ await page.getByRole('button',{name:'Добавить занятие'}).click();
+ await page.locator('#title').fill('Урок 9.9');
+ await page.getByRole('button',{name:'Создать'}).click();
+ const fresh=page.getByRole('link',{name:/9\.9 ·/});
+ await expect(fresh).toContainText('0 слов');
+ await expect(fresh.getByTestId('lesson-progress')).toHaveCount(0);
 });
 
 test('будущие занятия: импорт нового набора без даты, дата на экране урока и пересчёт плана',async({page})=>{

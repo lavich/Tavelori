@@ -114,12 +114,14 @@ describe('ограниченные выборки на большой базе',
   expect(reads.events).toBeLessThan(EVENTS/2+50);
   expect(reads.sessions).toBe(0);
  },60_000);
- it('список уроков читает метаданные и связи, а не карточки',async()=>{
+ it('список уроков с прогрессом читает связи и по одному состоянию на связь, а не карточки',async()=>{
   track();
   const views=await lessonViews(db,true);
   expect(views).toHaveLength(LESSONS);
+  expect(views.every(view=>view.progress!.solid+view.progress!.review+view.progress!.fresh===view.wordCount)).toBe(true);
   expect(reads.words).toBe(0);
   expect(reads.events).toBe(0);
+  expect(reads.states).toBeLessThanOrEqual(LESSONS*35);
  },60_000);
  it('каталог на 100 000 слов читается одним запросом и не создаёт ни слов, ни прогресса',async()=>{
   const lessons:CatalogEntry[]=Array.from({length:3000},(_,i)=>({id:`cat-${pad(i)}`,courseId:'big',language:'el',title:`Урок ${i}`,wordCount:34,version:`v${i}`,url:`content/packages/cat-${pad(i)}@v${i}.json`,bytes:40000,status:'upcoming',targetDate:null,media:{count:34,bytes:20000}}));

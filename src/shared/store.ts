@@ -16,7 +16,7 @@ export function useSettings(){
  const settings=useLiveQuery(()=>loadSettings(),[]);
  return {settings:settings??defaultSettings,ready:!!settings};
 }
-export const useLessons=(withNew=false)=>useLiveQuery(()=>lessonViews(db,withNew),[withNew]);
+export const useLessons=(withProgress=false)=>useLiveQuery(()=>lessonViews(db,withProgress),[withProgress]);
 /** `undefined` — ещё читается, `null` — урока нет локально. */
 export const useLesson=(id:string|undefined)=>useLiveQuery(()=>id?lessonDetail(id):null,[id]);
 export const useWord=(id:string|undefined)=>useLiveQuery(()=>id?db.words.get(id):undefined,[id]);
