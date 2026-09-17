@@ -164,7 +164,7 @@ describe('импорт',()=>{
 
 describe('расписание занятий',()=>{
  const monThu={startDate:'2026-09-14',weekdays:[1,4]};
- const legacy={id:'settings',timezone:'Asia/Nicosia',newWordsPerDay:10,sessionSize:20} as Settings;
+ const legacy={id:'settings',timezone:'Asia/Nicosia',newWordsPerDay:10,sessionSize:20} as unknown as Settings;
  it('дополняет запись настроек без расписания значением по умолчанию',async()=>{
   await ensureSeed(db);
   await db.settings.put(legacy);
