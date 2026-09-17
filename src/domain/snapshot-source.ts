@@ -36,6 +36,7 @@ export function fromSnapshot(data:Snapshot):SessionSource&StatsSource{
   statesOf:async ids=>new Map(ids.filter(id=>states.has(id)).map(id=>[id,states.get(id)!])),
   liveWordIds:async ids=>new Set(ids.filter(id=>live.has(id))),
   dueStates:async now=>data.states.filter(state=>new Date(state.card.due).getTime()<=now.getTime()),
+  lessonBoundWordIds:async ids=>{const bound=new Set(data.links.map(link=>link.wordId));return new Set(ids.filter(id=>bound.has(id)))},
   scanLiveWordIds:async(after,limit)=>{
    const ids=[...live.keys()];
    const start=after===null?0:ids.indexOf(after)+1;

@@ -97,7 +97,7 @@ export function TodayScreen(){
       <AlertTitle>Хвост прошедших занятий</AlertTitle>
       <AlertDescription>
        {withCount(plan.backlog.wordIds.length,WORDS)} из {withCount(plan.backlog.lessons,LESSONS)} ещё ни разу не показывали.
-       Lexi берёт их в «Новые» первыми — раньше подготовки к будущему занятию.
+       Lexi добирает их в «Новые» после слов ближайшего занятия: подготовка к нему важнее долгов.
       </AlertDescription>
      </Alert>
     )}

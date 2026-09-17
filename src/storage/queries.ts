@@ -56,6 +56,7 @@ export function dexieSource(database:LexiDatabase=db):SessionSource&StatsSource{
   statesOf:ids=>statesOf(ids,database),
   liveWordIds:ids=>liveWordIds(ids,database),
   dueStates:now=>database.states.where('card.due').belowOrEqual(now).toArray(),
+  lessonBoundWordIds:async ids=>new Set(ids.length?(await database.lessonWords.where('wordId').anyOf(ids).toArray()).map(link=>link.wordId):[]),
   scanLiveWordIds:async(after,limit)=>{
    const deleted=await deletedWordIds(database);
    let cursor=after;
