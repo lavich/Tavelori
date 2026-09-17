@@ -1,6 +1,11 @@
 import {expect, test} from '@playwright/test';
 import {breakStorage, installLessons, ready} from './helpers';
 
+/** Тестовая сборка идёт без адреса приёма: ни один сценарий, включая сбои, не должен обращаться к сервису отчётов и грузить его чанк. */
+const external:string[]=[];
+test.beforeEach(({page})=>{page.on('request',request=>{const url=request.url();if(/sentry|\/assets\/sentry-/.test(url))external.push(url)})});
+test.afterEach(()=>{expect(external).toEqual([])});
+
 test('база не открывается при запуске: вместо пустой страницы — понятное сообщение с перезапуском и диагностикой',async({page})=>{
  // Хранилище недоступно с первого обращения, как в приватном режиме WebKit или при повреждённом профиле.
  await page.addInitScript(()=>{
