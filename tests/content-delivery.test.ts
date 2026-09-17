@@ -163,9 +163,9 @@ describe('установка урока',()=>{
   expect(word).toMatchObject({greek:'το σπίτι',revision:packageOf('lesson-1-2').words.find(w=>w.id==='w12-16')!.revision});
   expect(word.tokens).toContain('σπιτι');
  });
- it('пакеты 1.1 и 1.2 дают 63 слова и проведённый урок без даты',async()=>{
+ it('пакеты 1.1 и 1.2 дают 68 слов и проведённый урок без даты',async()=>{
   await installLessons(db,['lesson-1-1','lesson-1-2']);
-  expect(await db.words.count()).toBe(63);
+  expect(await db.words.count()).toBe(68);
   expect(await db.lessons.get('lesson-1-1')).toMatchObject({status:'completed',targetDate:null});
   expect(await db.events.count()).toBe(0);
   expect(await db.states.count()).toBe(0);
@@ -183,8 +183,8 @@ describe('установка урока',()=>{
   expect(a).toBe(b);
   expect(fetcher.requests.filter(url=>url.includes('lesson-1-1'))).toHaveLength(1);
   expect(await installLesson('lesson-1-1',db,fetcher)).toMatchObject({status:'current'});
-  expect(await db.words.count()).toBe(33);
-  expect(await db.lessonWords.count()).toBe(33);
+  expect(await db.words.count()).toBe(38);
+  expect(await db.lessonWords.count()).toBe(38);
   expect(await db.packages.count()).toBe(1);
  });
  it('повреждённый, чужой и несовместимый пакет отклоняются без частичного урока',async()=>{
@@ -220,7 +220,7 @@ describe('установка урока',()=>{
   const fetcher=await installLessons(db,['lesson-1-1']);
   fetcher.json=async url=>{if(url.endsWith('catalog.json'))return content.catalog;throw new ContentError('Нет сети: пакет урока ещё не загружен на это устройство.','network')};
   await expect(installLesson('lesson-1-2',db,fetcher)).rejects.toMatchObject({kind:'network'});
-  expect(await db.words.count()).toBe(33);
+  expect(await db.words.count()).toBe(38);
   expect(await db.lessons.count()).toBe(1);
  });
 });

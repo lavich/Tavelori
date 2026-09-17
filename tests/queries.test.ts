@@ -53,7 +53,7 @@ describe('эквивалентность планирования на базе 
   const plan=await dexieSource(db).lessons();
   expect(plan.map(l=>l.id)).toEqual(['lesson-1-1']);
   expect(await db.catalog.count()).toBe(content.catalog.lessons.length);
-  expect(await db.words.count()).toBe(33);
+  expect(await db.words.count()).toBe(38);
  });
 });
 

@@ -55,7 +55,7 @@ describe('деление на слоги',()=>{
  });
  it('односложные слова считаются по слову без артикля',()=>{
   const short=seedWords.filter(word=>tiles(word.greek).length<2).map(word=>word.greek);
-  expect(short).toEqual(['η γη','ο γιος','το φως']);
+  expect(short).toEqual(['η γη','και','ο γιος','στο','το φως']);
  });
  it('восстанавливает пробелы и форматирует обратную связь',()=>{
   expect(restoreWriting('η οικογένεια',['οι','κο','γέ','νεια'])).toBe('η οικογένεια');

@@ -24,7 +24,7 @@ test('оболочка открывается, разделы доступны �
 
 test('хвост пройденного урока виден на «Сегодня», но занятие готовит к ближайшему уроку',async({page})=>{
  await expect(page.getByTestId('backlog')).toContainText('Хвост прошедших занятий');
- await expect(page.getByTestId('backlog')).toContainText('33 слова из 1 занятия');
+ await expect(page.getByTestId('backlog')).toContainText('38 слов из 1 занятия');
  await page.getByRole('button',{name:'Начать занятие'}).click();
  await page.waitForURL('**/session');
  await expect(page.getByTestId('lesson-label')).toHaveText('К уроку 1.2');
@@ -137,17 +137,17 @@ test('занятие: знакомство, четыре упражнения, �
 test('прогресс урока виден на «Сегодня» и «Уроках» и меняется вслед за состояниями слов',async({page})=>{
  const row=()=>page.getByRole('link',{name:/1\.1 ·/});
  const lessons=()=>page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
- await expect(row().getByTestId('lesson-progress')).toHaveText('33 новых');
- await expect(row().getByRole('img',{name:'33 новых'})).toBeVisible();
+ await expect(row().getByTestId('lesson-progress')).toHaveText('38 новых');
+ await expect(row().getByRole('img',{name:'38 новых'})).toBeVisible();
  await lessons();
- await expect(row().getByTestId('lesson-progress')).toHaveText('33 новых');
- await expect(row()).toContainText('33 слова · проведён');
+ await expect(row().getByTestId('lesson-progress')).toHaveText('38 новых');
+ await expect(row()).toContainText('38 слов · проведён');
  await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click(); // засев перезагружает страницу и ждёт «Сегодня»
  await seedQueue(page,[{wordId:'w11-01',tested:['recall']},{wordId:'w11-02',tested:[]},{wordId:'w11-03',tested:[]},{wordId:'w11-04',tested:[]}]);
- await expect(row().getByTestId('lesson-progress')).toHaveText('4 в повторении · 29 новых');
- await expect(row().getByRole('img',{name:'4 в повторении · 29 новых'})).toBeVisible();
+ await expect(row().getByTestId('lesson-progress')).toHaveText('4 в повторении · 34 новых');
+ await expect(row().getByRole('img',{name:'4 в повторении · 34 новых'})).toBeVisible();
  await lessons();
- await expect(row().getByTestId('lesson-progress')).toHaveText('4 в повторении · 29 новых');
+ await expect(row().getByTestId('lesson-progress')).toHaveText('4 в повторении · 34 новых');
  // Пустой набор: число слов есть, полосы нет.
  await page.getByRole('button',{name:'Добавить занятие'}).click();
  await page.locator('#title').fill('Урок 9.9');
