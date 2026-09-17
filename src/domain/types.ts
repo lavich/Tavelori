@@ -28,7 +28,7 @@ export interface InstalledPackage {lessonId:string;courseId?:string;version:stri
 export interface LearningState {wordId:string;card:Card;introducedAt:string;version:number}
 export interface ReviewEvent {id:string;sessionId:string;itemId:string;wordId:string;snapshot:{greek:string;russian:string};type:ExerciseType;mode:'scheduled'|'practice';rating:Grade;correct:boolean|null;answer:string;createdAt:string;localDate:string;responseTimeMs:number;before?:Card;after?:Card}
 /** `skipped` — упражнение пропущено без оценки знания (например, аудио недоступно): события нет, позиция сдвигается. */
-/** `lessonTitle`/`lessonPast` — урок, из которого взято новое слово, для подписи на экране знакомства; у слова вне уроков их нет. */
+/** `lessonTitle`/`lessonPast` — урок нового слова для подписи на экране знакомства. */
 export interface SessionItem {id:string;wordId:string;word:Word;type:ExerciseType;options:string[];isNew:boolean;mode:'scheduled'|'practice';expectedVersion:number;eventId?:string;retryOf?:string;skipped?:boolean;lessonTitle?:string;lessonPast?:boolean}
 export interface Session {id:string;createdAt:string;planDate:string;items:SessionItem[];index:number;status:'active'|'done'|'ended';activeTimeMs:number;introducedWordIds?:string[];objectiveVersion?:1}
 /** Дни недели по ISO: 1 — понедельник, 7 — воскресенье. */
