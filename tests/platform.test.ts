@@ -174,7 +174,6 @@ describe('платформенный адаптер Telegram',()=>{
   off();
   fire('deactivated');
   expect(seen).toHaveLength(2);
-  // Клиент старше Bot API 8.0: поля нет — активен; подписка на неизвестное событие отвергнута — остальное работает.
   const legacy=fakeApp({isActive:undefined,version:'6.0'} as never);
   legacy.app.onEvent=(event,handler)=>{if(event==='activated'||event==='deactivated')throw new Error('Unknown event');legacy.handlers.set(event,(legacy.handlers.get(event)??new Set()).add(handler))};
   const old=telegramAdapter(legacy.app);
@@ -193,20 +192,17 @@ describe('переменные оболочки',()=>{
   expect(platform().kind).toBe('telegram');
   expect(root.style.getPropertyValue('--app-height')).toBe('700px');
   expect(root.dataset.appActive).toBe('true');
-  // Свёрнутый Mini App: нулевая высота и isActive=false не схлопывают экран.
   (app as {viewportStableHeight:number}).viewportStableHeight=0;
   (app as {isActive:boolean}).isActive=false;
   applyEnvironment();
   expect(root.style.getPropertyValue('--app-height')).toBe('700px');
   expect(root.dataset.appActive).toBe('false');
-  // Возврат с новой высотой применяется как раньше.
   (app as {viewportStableHeight:number}).viewportStableHeight=640;
   (app as {isActive:boolean}).isActive=true;
   applyEnvironment();
   expect(root.style.getPropertyValue('--app-height')).toBe('640px');
   expect(root.dataset.appActive).toBe('true');
   fire('activated'); // событие без слушателей окружения безвредно
-  // Веб-адаптер убирает переменные и забывает высоту: новый Telegram-адаптер без размеров оставляет CSS.
   setPlatform(webAdapter());
   expect(root.style.getPropertyValue('--app-height')).toBe('');
   expect(root.dataset.appActive).toBeUndefined();

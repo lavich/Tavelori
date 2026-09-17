@@ -229,12 +229,10 @@ test.describe('навигация, тема и размеры',()=>{
   const active=()=>page.locator('html').getAttribute('data-app-active');
   await expect.poll(height).toBe('844px');
   expect(await active()).toBe('true');
-  // Сворачивание: клиент отдаёт нулевую высоту и deactivated — высота остаётся прежней, экран не схлопывается.
   await tg(page).deactivate();
   await expect.poll(active).toBe('false');
   expect(await height()).toBe('844px');
   expect(await sessionHeight()).toBeGreaterThan(400);
-  // Пока приложение спало, клиент сменил тему без события themeChanged и уменьшил высоту.
   await tg(page).silentTheme('dark',DARK);
   await tg(page).activate(780);
   await expect.poll(active).toBe('true');
@@ -278,7 +276,6 @@ test.describe('навигация, тема и размеры',()=>{
   expect(await alive()).toBe(true); // страница не перезагружалась
   expect(await reopened()).toBe(1);
   await expect(page.getByTestId('recovery-failed')).toHaveCount(0);
-  // Хранилище отказывает снова и снова: после трёх попыток — экран с перезапуском, а не пустая страница.
   await breakStorage(page,true);
   await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
   await expect(page.getByTestId('recovery-failed')).toBeVisible({timeout:15000});

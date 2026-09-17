@@ -1,10 +1,6 @@
 import {db, type LexiDatabase} from './db';
 
-/**
- * Отказ хранилища браузера: WebKit после сна WebView отвечает на чтение `UnknownError: Attempt to get a record
- * from database without an in-progress transaction`, Dexie при закрытом соединении — `DatabaseClosedError`.
- * Такие ошибки лечатся переоткрытием базы, остальные — нет.
- */
+/** Ошибки хранилища, которые лечит переоткрытие базы: WebKit после сна WebView отдаёт `UnknownError` на чтение IndexedDB. */
 const STORAGE_ERRORS=new Set(['UnknownError','InvalidStateError','TransactionInactiveError','AbortError','DatabaseClosedError']);
 export function isStorageError(error:unknown,depth=0):boolean{
  if(!error||typeof error!=='object'||depth>3)return false;
@@ -13,7 +9,6 @@ export function isStorageError(error:unknown,depth=0):boolean{
  return isStorageError(inner,depth+1);
 }
 
-/** База переоткрывается тем же экземпляром: все модули держат один объект `db`, ссылки не устаревают. */
 export async function reopenDatabase(database:LexiDatabase=db):Promise<void>{
  database.close({disableAutoOpen:false});
  await database.open();

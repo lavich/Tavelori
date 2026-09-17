@@ -3,15 +3,12 @@ import {Button} from '@/components/ui/button';
 import {isStorageError, reopenDatabase} from '../storage/recovery';
 import ui from '../shared/ui.module.css';
 
-/** Больше трёх сбоев хранилища за минуту — восстановление бессмысленно, нужен перезапуск. */
 const MAX_ATTEMPTS=3, WINDOW_MS=60000;
 interface State {error:unknown;recovering:boolean;generation:number}
 
 /**
- * Граница ошибок над всем приложением: без неё React 19 снимает корень целиком, и остаётся пустая страница,
- * которую в Mini App нельзя перезагрузить иначе как полным закрытием.
- * Ошибка хранилища (WebKit после сна WebView отдаёт `UnknownError` на чтение IndexedDB) лечится переоткрытием базы
- * и перемонтированием дерева по новому поколению: живые запросы подписываются заново, маршрут остаётся в адресе.
+ * Граница ошибок над приложением: без неё React снимает корень целиком, а перезагрузить Mini App нельзя.
+ * Ошибка хранилища лечится переоткрытием базы и перемонтированием дерева по поколению; маршрут остаётся в адресе.
  */
 export class Recovery extends Component<{children:ReactNode},State>{
  state:State={error:null,recovering:false,generation:0};
