@@ -7,7 +7,7 @@ import {buildContent, revisionOf, wordsOf} from '../content/build';
 import {ContentError, parseCatalog, parsePackage, SCHEMA_VERSION} from '../src/content/schema';
 import {wordKey} from '../src/domain/import';
 import {stressNote} from '../src/domain/phonetics';
-import {restoreWriting, tiles} from '../src/domain/syllables';
+import {assemblyOptions, restoreWriting, splitWriting, tiles} from '../src/domain/syllables';
 
 const md=readFileSync('openspec/changes/archive/2026-09-16-build-greek-vocabulary-mvp/seed-lessons.md','utf8');
 const section=(title:string)=>md.split(`## ${title}`)[1].split('\n## ')[0];
@@ -80,6 +80,21 @@ describe('наборы класса переносятся без потерь �
    expect(word.id).toMatch(/^w\d{2}-\d{2}$/);
   }
   expect(seedWords.filter(word=>tiles(word.greek).length<2).map(word=>word.greek)).toEqual(['η γη','και','ο γιος','στο','το φως']);
+ });
+
+ /**
+  * Экран сборки чистит варианты от артикля ещё раз, поэтому чистка обязана быть безобидной
+  * для готового набора: у «το φρούτο», «η ημέρα», «τα χρήματα» и «το αυτοκίνητο» слог совпадает
+  * с собственным артиклем, и чистка по совпадению строки отбирала у них слог.
+  */
+ it('чистка от артикля не отбирает у слова его собственные слоги',()=>{
+  for(const word of seedWords){
+   const parts=tiles(word.greek);
+   if(parts.length<2)continue;
+   const {article}=splitWriting(word.greek);
+   expect(assemblyOptions(word.greek,parts),word.greek).toEqual(parts);
+   if(article)expect(assemblyOptions(word.greek,[article,...parts]),word.greek).toEqual(parts);
+  }
  });
 
  it('множественное число живёт в заметке, а не в самом слове',()=>{

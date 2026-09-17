@@ -1,6 +1,7 @@
 import {expect,it} from 'vitest';
 import {createEmptyCard, Rating} from 'ts-fsrs';
 import {localDay,daysBetween,makePlan as planOf,nextState,chooseType,makeSession as sessionOf,objectiveExercise} from '../src/domain/learning';
+import {assemblyOptions,restoreWriting} from '../src/domain/syllables';
 import {fromSnapshot} from '../src/domain/snapshot-source';
 import {defaultSettings,type Word,type Lesson,type Snapshot} from '../src/domain/types';
 const now=new Date('2026-09-15T09:00:00Z');
@@ -28,6 +29,17 @@ it('считает сборку по слогам без артикля и со�
  const light={...words[0],id:'light',greek:'το φως'};
  expect(objectiveExercise(light,[],skills,()=>0).type).toBe('spelling');
  expect(history).toHaveLength(1); // форма события остаётся совместимой
+});
+
+/** Экран сборки чистит варианты ещё раз: набор плиток от этого меняться не должен. */
+it('слово, кончающееся на свой артикль, даёт полный набор плиток и на экране',()=>{
+ const skills={cleanAssemblies:0,lastTypes:['recognition' as const],types:{recognition:{recent:[true],lastAt:now.toISOString()}}};
+ const fruit={...words[0],id:'fruit',greek:'το φρούτο'};
+ const {type,options}=objectiveExercise(fruit,[],skills,()=>0);
+ expect(type).toBe('assembly');
+ expect([...options].sort()).toEqual(['το','φρού']);
+ expect(assemblyOptions(fruit.greek,options)).toEqual(options);
+ expect(restoreWriting(fruit.greek,['φρού','το'])).toBe('το φρούτο');
 });
 
 it('never creates recall, including tiny dictionaries and duplicate translations',async()=>{

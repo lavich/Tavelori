@@ -92,10 +92,14 @@ export function restoreWriting(greek:string,ordered:string[]):string{
 /** Плитки упражнения содержат только слоги самого слова, без артикля. */
 export const tiles=(greek:string):string[]=>splitWriting(greek).syllables;
 
-/** Старые сессии хранили артикль среди вариантов; при открытии убираем только эту плитку. */
+/**
+ * Старые сессии хранили артикль среди вариантов; при открытии убираем только эту плитку.
+ * Лишний артикль узнаётся по счёту, а не по совпадению строки: слог слова может совпасть с
+ * его же артиклем («το φρού-το»), и чистка по строке отобрала бы у слова собственный слог.
+ */
 export function assemblyOptions(greek:string,options:string[]):string[]{
- const {article}=splitWriting(greek);
- if(!article)return options;
+ const {article,syllables}=splitWriting(greek);
+ if(!article||options.length!==syllables.length+1)return options;
  const articleIndex=options.findIndex(option=>option.normalize('NFC')===article);
  return articleIndex<0?options:options.filter((_,index)=>index!==articleIndex);
 }
