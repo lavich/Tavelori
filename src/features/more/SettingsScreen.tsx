@@ -18,11 +18,15 @@ export function SettingsScreen(){
  const [zone,setZone]=useState('Asia/Nicosia');
  const [problem,setProblem]=useState('');
  const [saved,setSaved]=useState(false);
+ // Переключатель отвечает сразу, не дожидаясь живого запроса; значение из базы догоняет через эффект ниже.
+ const [reports,setReports]=useState(true);
+ const [reportsStatus,setReportsStatus]=useState('');
  const platform=usePlatform();
  const [haptics,setHaptics]=useHapticsSetting();
  useEffect(()=>{
   setSize(String(settings.sessionSize));
   setZone(settings.timezone);
+  setReports(settings.errorReports);
  },[settings]);
  const submit=async(event:React.FormEvent)=>{
   event.preventDefault();
@@ -68,6 +72,14 @@ export function SettingsScreen(){
      <Button size="xl" type="submit" className="mt-4">Сохранить</Button>
      {saved&&<p className="mt-2 text-sm text-(--ok)" role="status">Сохранено. Новые значения применятся к следующим занятиям, история ответов не изменилась.</p>}
     </form>
+    <section className="mt-6" data-testid="error-reports-settings">
+     <h2>Отчёты об ошибках</h2>
+     <label className="flex items-center justify-between gap-3" style={{color:'inherit',fontSize:16,margin:0}}>
+      <span>Отправлять отчёты об ошибках<br/><span className="text-sm text-muted-foreground">При сбое приложение отправляет тип ошибки, стек и версию — без слов, ответов и данных Telegram. Что именно уходит, описано на экране «Копия данных». Действует сразу.</span></span>
+      <input type="checkbox" role="switch" aria-label="Отправлять отчёты об ошибках" checked={reports} onChange={event=>{const enabled=event.target.checked;setReports(enabled);setReportsStatus('');saveSettings({...settings,errorReports:enabled}).then(()=>setReportsStatus(enabled?'Отчёты включены.':'Отчёты выключены, накопленная очередь удалена.'),()=>setReportsStatus('Не удалось сохранить настройку.'))}} style={{width:22,height:22,minHeight:0}}/>
+     </label>
+     {reportsStatus&&<p className="mt-2 text-sm text-(--ok)" role="status" data-testid="error-reports-status">{reportsStatus}</p>}
+    </section>
     {platform.kind==='telegram'&&(
      <section className="mt-6" data-testid="telegram-settings">
       <h2>Telegram</h2>
