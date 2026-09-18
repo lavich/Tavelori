@@ -1,0 +1,14 @@
+id: ph11-10
+text: "Είμαι από την Αυστρία."
+translation: "Я из Австрии."
+usage: "Ответ на вопрос «Από πού είσαι;»."
+provenance:
+  sourceLabel: "Материалы класса LEEKE, урок 1 (A2)"
+  operation: verbatim
+  locator: "Урок 1 A2, слайд «Откуда вы?»"
+  excerpt: "Είμαι από την Αυστρία. Я из Австрии."
+  parts:
+    translation:
+      sourceLabel: "Материалы класса LEEKE, урок 1 (A2)"
+      operation: verbatim
+      locator: "Урок 1 A2, слайд «Откуда вы?»"

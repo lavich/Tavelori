@@ -1,0 +1,14 @@
+id: cl11-05
+template: "Η γιαγιά ξέρει πολλά {{gap}} και τα λέει στα παιδιά."
+answer: "πράγματα"
+acceptedAnswers:
+  - "πράγματα"
+context: "Бабушка знает много вещей и рассказывает их детям."
+related:
+  kind: word
+  id: w11-49
+provenance:
+  sourceLabel: "Материалы класса LEEKE, урок 1 (A2)"
+  operation: cloze-from-source
+  locator: "ДЗ 1.1, домашнее задание 2"
+  excerpt: "Η γιαγιά ξέρει πολλά πράγματα και τα λέει στα παιδιά."

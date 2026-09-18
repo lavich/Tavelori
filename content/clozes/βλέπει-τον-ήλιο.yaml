@@ -1,0 +1,14 @@
+id: cl11-02
+template: "Η κόρη βλέπει τον {{gap}} και χαμογελάει."
+answer: "ήλιο"
+acceptedAnswers:
+  - "ήλιο"
+context: "Дочь смотрит на солнце и улыбается."
+related:
+  kind: word
+  id: w12-25
+provenance:
+  sourceLabel: "Материалы класса LEEKE, урок 1 (A2)"
+  operation: cloze-from-source
+  locator: "Практика 1.1, вариант 3"
+  excerpt: "Η κόρη βλέπει τον ήλιο και χαμογελάει."

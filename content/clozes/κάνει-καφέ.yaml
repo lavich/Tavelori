@@ -1,0 +1,14 @@
+id: cl11-04
+template: "Η μητέρα συχνά κάνει {{gap}} για τον πατέρα."
+answer: "καφέ"
+acceptedAnswers:
+  - "καφέ"
+context: "Мать часто варит кофе для отца."
+related:
+  kind: word
+  id: w14-18
+provenance:
+  sourceLabel: "Материалы класса LEEKE, урок 1 (A2)"
+  operation: cloze-from-source
+  locator: "Практика 1.1, вариант 2"
+  excerpt: "Η μητέρα συχνά κάνει καφέ για τον πατέρα."
