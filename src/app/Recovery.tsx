@@ -1,5 +1,5 @@
 import {Component, type ErrorInfo, type ReactNode} from 'react';
-import {reportError} from '../reporting/reporting';
+import {lifecycle, reportError} from '../reporting/reporting';
 import {isStorageError, reopenDatabase} from '../storage/recovery';
 import {CrashScreen} from './CrashScreen';
 import ui from '../shared/ui.module.css';
@@ -10,7 +10,9 @@ interface State {error:unknown;recovering:boolean;generation:number;reportId:str
 /**
  * Граница ошибок над приложением: без неё React снимает корень целиком, а перезагрузить Mini App нельзя.
  * Ошибка хранилища лечится переоткрытием базы и перемонтированием дерева по поколению; маршрут остаётся в адресе.
- * Любое падение уходит отчётом категории «ui»; остальное показывает экран сбоя с перезапуском и диагностикой.
+ * Вылеченный отказ хранилища оставляет лишь крошку жизненного цикла: это штатное поведение WebKit после сна WebView, а не сбой.
+ * Отчёт категории «ui» уходит, когда падение не из хранилища, переоткрытие не помогло или попытки исчерпаны;
+ * к нему прикладывается стек компонентов — у DOMException из WebKit своего стека нет.
  * Граница ничего не пишет в базу: активное занятие уже лежит в IndexedDB, после перезапуска «Сегодня» предложит продолжить.
  */
 export class Recovery extends Component<{children:ReactNode},State>{
@@ -19,15 +21,17 @@ export class Recovery extends Component<{children:ReactNode},State>{
  static getDerivedStateFromError(error:unknown):Partial<State>{return {error}}
  componentDidCatch(error:unknown,info:ErrorInfo){
   console.warn('Экран упал, приложение восстанавливается',error,info.componentStack);
-  this.setState({reportId:reportError(error,{category:'ui'})});
+  const componentStack=info.componentStack??'';
+  const report=()=>reportError(error,{category:'ui',extra:{componentStack}});
   const now=Date.now();
   this.attempts=this.attempts.filter(at=>now-at<WINDOW_MS);
-  if(!isStorageError(error)||this.attempts.length>=MAX_ATTEMPTS)return;
+  if(!isStorageError(error)||this.attempts.length>=MAX_ATTEMPTS){this.setState({reportId:report()});return}
   this.attempts.push(now);
+  const attempt=this.attempts.length;
   this.setState({recovering:true});
   reopenDatabase().then(
-   ()=>this.setState(state=>({error:null,recovering:false,generation:state.generation+1})),
-   failure=>{console.warn('Не удалось переоткрыть локальную базу',failure);this.setState({recovering:false})},
+   ()=>{lifecycle('storageRecovered',{attempt});this.setState(state=>({error:null,recovering:false,generation:state.generation+1}))},
+   failure=>{console.warn('Не удалось переоткрыть локальную базу',failure);this.setState({recovering:false,reportId:report()})},
   );
  }
  render(){
