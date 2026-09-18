@@ -92,11 +92,7 @@ export function restoreWriting(greek:string,ordered:string[]):string{
 /** Плитки упражнения содержат только слоги самого слова, без артикля. */
 export const tiles=(greek:string):string[]=>splitWriting(greek).syllables;
 
-/**
- * Старые сессии хранили артикль среди вариантов; при открытии убираем только эту плитку.
- * Слог слова может совпадать с артиклем (το φρού-το), поэтому лишней считаем плитку,
- * которой нет среди слогов самого слова.
- */
+/** Старые сессии хранили артикль среди вариантов; убираем его, только если он лишний: слог тоже может писаться как артикль (το φρού-το). */
 export function assemblyOptions(greek:string,options:string[]):string[]{
  const {article,syllables}=splitWriting(greek);
  if(!article)return options;
