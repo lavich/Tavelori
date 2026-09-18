@@ -92,12 +92,20 @@ export function restoreWriting(greek:string,ordered:string[]):string{
 /** Плитки упражнения содержат только слоги самого слова, без артикля. */
 export const tiles=(greek:string):string[]=>splitWriting(greek).syllables;
 
-/** Старые сессии хранили артикль среди вариантов; при открытии убираем только эту плитку. */
+/**
+ * Старые сессии хранили артикль среди вариантов; при открытии убираем только эту плитку.
+ * Слог слова может совпадать с артиклем (το φρού-το), поэтому лишней считаем плитку,
+ * которой нет среди слогов самого слова.
+ */
 export function assemblyOptions(greek:string,options:string[]):string[]{
- const {article}=splitWriting(greek);
+ const {article,syllables}=splitWriting(greek);
  if(!article)return options;
- const articleIndex=options.findIndex(option=>option.normalize('NFC')===article);
- return articleIndex<0?options:options.filter((_,index)=>index!==articleIndex);
+ const matches=(value:string)=>value.normalize('NFC')===article;
+ const expected=syllables.filter(matches).length;
+ const present=options.filter(matches).length;
+ if(present<=expected)return options;
+ const articleIndex=options.findIndex(matches);
+ return options.filter((_,index)=>index!==articleIndex);
 }
 
 /** Человекочитаемая запись правильного ответа: артикль · сло-ги. */
