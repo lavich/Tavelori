@@ -5,7 +5,7 @@ import {Card, CardContent} from '@/components/ui/card';
 import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
 import {syncPhaseText} from '../../app/TelegramNotices';
-import {withCount, WORDS} from '../../shared/format';
+import {CARDS, withCount, WORDS} from '../../shared/format';
 import {megabytes, useOfflineStatus} from '../../shared/offline';
 import {useCounts} from '../../shared/store';
 import {launchContext} from '../../platform/launch';
@@ -91,7 +91,7 @@ export function MoreScreen(){
      ))}
     </ItemGroup>
     <p className="mt-5 text-sm text-muted-foreground">
-     Lexi хранит {withCount(counts?.words??0,WORDS)} и {withCount(counts?.answers??0,['ответ','ответа','ответов'])} {telegram?'на этом устройстве; в облако Telegram уходит только компактный прогресс':'только на этом устройстве'}. Регистрация и сервер не нужны.
+     Lexi хранит {counts&&counts.cards>counts.words?withCount(counts.cards,CARDS):withCount(counts?.words??0,WORDS)} и {withCount(counts?.answers??0,['ответ','ответа','ответов'])} {telegram?'на этом устройстве; в облако Telegram уходит только компактный прогресс':'только на этом устройстве'}. Регистрация и сервер не нужны.
     </p>
    </main>
   </>

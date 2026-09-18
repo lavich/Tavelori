@@ -7,7 +7,7 @@ import {db, LexiDatabase} from '../storage/db';
 import {currentProfile, WEB_DATABASE} from '../storage/profile';
 import {sync, useSyncStatus} from '../sync';
 import {META, readMeta, writeMeta} from '../sync/snapshot';
-import {withCount, WORDS} from '../shared/format';
+import {CARDS, withCount, WORDS} from '../shared/format';
 import ui from '../shared/ui.module.css';
 
 /** Текст границ синхронизации: одинаковый на первом запуске и на экране копий. */
@@ -93,7 +93,7 @@ export function SyncConflictDialog(){
      {conflict.branches.map(branch=>(
       <div key={branch.id} role="listitem" className="rounded-[14px] border border-border p-3">
        <p className="m-0 font-semibold">{branch.label}</p>
-       <p className="m-0 text-sm text-muted-foreground">{when(branch.createdAt)} · {withCount(branch.description.words,WORDS)} в обучении · {withCount(branch.description.answers,['ответ','ответа','ответов'])}{branch.description.lastDay?` · последнее занятие ${branch.description.lastDay}`:''}</p>
+       <p className="m-0 text-sm text-muted-foreground">{when(branch.createdAt)} · {withCount(branch.description.cards,CARDS)} в обучении · {withCount(branch.description.answers,['ответ','ответа','ответов'])}{branch.description.lastDay?` · последнее занятие ${branch.description.lastDay}`:''}</p>
        <Button size="md" className="mt-2" variant={branch.local?'default':'soft'} disabled={!!busy} onClick={()=>choose(branch.id)}>{busy===branch.id?'Применяем…':`Продолжить с этой версии`}</Button>
       </div>
      ))}

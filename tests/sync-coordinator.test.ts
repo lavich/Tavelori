@@ -14,6 +14,7 @@ import {profileFor} from '../src/storage/profile';
 import {installLessons, memoryFetcher} from './helpers/content';
 import {installLesson, refreshCatalog} from '../src/content/client';
 import type {Word} from '../src/domain/types';
+import {wordKeyOf, wordRef, wordState} from './helpers/cards';
 
 let cloud:MemoryTransport;
 let clockMs=Date.parse('2026-09-16T08:00:00Z');
@@ -34,14 +35,14 @@ async function study(dev:Device,answers:boolean[],mode:'scheduled'|'practice'='s
  await dev.db.sessions.add(session);
  const items=session.items.filter(item=>!item.eventId).slice(0,answers.length);
  for(const [index,item] of items.entries())await submitAnswer({session,item,correct:answers[index],answer:'',responseTimeMs:900,activeTimeMs:900,timezone:'Asia/Nicosia',now:tick(),database:dev.db});
- return items.map(item=>item.wordId);
+ return items.map(item=>item.ref.id);
 }
 const skillsOf=async(dev:Device,ids:string[])=>{
  const source=dexieSource(dev.db);
- const words=await source.wordsOf(ids);
- return Object.fromEntries(await Promise.all(words.map(async word=>[word.id,await source.skillsOf(word)])));
+ const cards=await source.cardsOf(ids.map(wordRef));
+ return Object.fromEntries(await Promise.all([...cards.values()].map(async card=>[card.kind==='word'?card.word.id:'',await source.skillsOf(card)])));
 };
-const statesOf=async(dev:Device)=>(await dev.db.states.orderBy('wordId').toArray()).map(state=>({...state,card:{...state.card,due:new Date(state.card.due).toISOString(),last_review:state.card.last_review?new Date(state.card.last_review).toISOString():undefined}}));
+const statesOf=async(dev:Device)=>(await dev.db.cardStates.orderBy('unitKey').toArray()).map(state=>({...state,card:{...state.card,due:new Date(state.card.due).toISOString(),last_review:state.card.last_review?new Date(state.card.last_review).toISOString():undefined}}));
 const stats=(dev:Device)=>progress(dexieSource(dev.db),now());
 const plan=(dev:Device)=>makePlan(dexieSource(dev.db),now());
 
@@ -52,7 +53,7 @@ describe('перенос компактного прогресса между у
   const phone=await device('phone',{lessons:['lesson-1-1']});
   const tablet=await device('tablet',{lessons:['lesson-1-1']});
   await saveSettings({id:'settings',timezone:'Europe/Athens',sessionSize:6,errorReports:true},phone.db);
-  await saveCourseTempo('leeke',{newWordsPerDay:7,schedule:{startDate:'2026-09-14',weekdays:[1,3]}},new Date('2026-09-16T09:00:00Z'),phone.db);
+  await saveCourseTempo('leeke',{newItemsPerDay:7,schedule:{startDate:'2026-09-14',weekdays:[1,3]}},new Date('2026-09-16T09:00:00Z'),phone.db);
   await updateLesson('lesson-1-1',{targetDate:'2026-10-01'},phone.db);
   const studied=await study(phone,[true,false,true,true,false]);
   await study(phone,[true,true,false]);
@@ -65,7 +66,7 @@ describe('перенос компактного прогресса между у
   expect(await skillsOf(tablet,studied)).toEqual(await skillsOf(phone,studied));
   expect(await tablet.db.settings.get('settings')).toMatchObject({timezone:'Europe/Athens',sessionSize:6});
   // Темп принадлежит курсу и переносится вместе с ним, иначе второе устройство считало бы дни иначе.
-  expect(await tablet.db.courses.get('leeke')).toMatchObject({newWordsPerDay:7,schedule:{startDate:'2026-09-14',weekdays:[1,3]}});
+  expect(await tablet.db.courses.get('leeke')).toMatchObject({newItemsPerDay:7,schedule:{startDate:'2026-09-14',weekdays:[1,3]}});
   expect((await tablet.db.lessons.get('lesson-1-1'))?.targetDate).toBe('2026-10-01');
   const [planPhone,planTablet]=await Promise.all([plan(phone),plan(tablet)]);
   expect(planTablet).toEqual(planPhone);
@@ -76,7 +77,7 @@ describe('перенос компактного прогресса между у
   expect(statsTablet.due).toEqual(statsPhone.due);
   // Одинаковая случайность даёт одинаковое следующее занятие: выбор упражнений эквивалентен.
   const [nextPhone,nextTablet]=await Promise.all([makeSession({source:dexieSource(phone.db),now:now(),random:()=>0.5}),makeSession({source:dexieSource(tablet.db),now:now(),random:()=>0.5})]);
-  expect(nextTablet.items.map(item=>[item.wordId,item.type,item.isNew])).toEqual(nextPhone.items.map(item=>[item.wordId,item.type,item.isNew]));
+  expect(nextTablet.items.map(item=>[item.unitKey,item.type,item.isNew])).toEqual(nextPhone.items.map(item=>[item.unitKey,item.type,item.isNew]));
   // Ответы после базы учитываются один раз: планшет отвечает, телефон получает ровно +2 ответа.
   await study(tablet,[true,false]);
   expect((await stats(tablet)).totals.answers).toBe(10);
@@ -99,8 +100,8 @@ describe('перенос компактного прогресса между у
   const missing:string[][]=[];
   fresh.sync.onMissingPackages=ids=>{missing.push(ids)};
   expect((await fresh.sync.exchange()).phase).toBe('synced');
-  expect(await fresh.db.states.count()).toBe(0);
-  expect(await fresh.db.syncStash.count()).toBe(await phone.db.states.count());
+  expect(await fresh.db.cardStates.count()).toBe(0);
+  expect(await fresh.db.cardStash.count()).toBe(await phone.db.cardStates.count());
   expect(missing[0]).toEqual(['lesson-1-1','lesson-1-2']);
   expect((await plan(fresh)).reviews).toHaveLength(0);
   const fetcher=memoryFetcher();
@@ -108,14 +109,14 @@ describe('перенос компактного прогресса между у
   await installLesson('lesson-1-1',fresh.db,fetcher);
   const phoneStates=await statesOf(phone);
   const adopted=await statesOf(fresh);
-  expect(adopted).toEqual(phoneStates.filter(state=>state.wordId.startsWith('w11-')));
-  expect(await fresh.db.syncStash.count()).toBe(phoneStates.length-adopted.length);
+  expect(adopted).toEqual(phoneStates.filter(state=>state.ref.id.startsWith('w11-')));
+  expect(await fresh.db.cardStash.count()).toBe(phoneStates.length-adopted.length);
   // Повторная публикация с нового устройства не теряет ещё не загруженные состояния.
   await study(fresh,[true]);
   await fresh.sync.exchange();
   expect((await phone.sync.exchange()).phase).toBe('synced');
-  const merged=(await statesOf(phone)).map(state=>state.wordId);
-  expect(merged).toEqual(expect.arrayContaining(phoneStates.map(state=>state.wordId)));
+  const merged=(await statesOf(phone)).map(state=>state.unitKey);
+  expect(merged).toEqual(expect.arrayContaining(phoneStates.map(state=>state.unitKey)));
   expect(merged).toHaveLength(phoneStates.length+1); // плюс новое слово, отвеченное на новом устройстве
  });
  it('пользовательские слова и полная история остаются локальными',async()=>{
@@ -123,15 +124,15 @@ describe('перенос компактного прогресса между у
   const own:Word={id:'w-own',greek:'η καρέκλα',russian:'стул',ipa:'',segments:[],examples:[],verified:false,createdAt:now().toISOString(),updatedAt:now().toISOString()};
   const {indexWord}=await import('../src/storage/db');
   await phone.db.words.add(indexWord(own));
-  await phone.db.states.add({wordId:'w-own',card:{due:now(),stability:1,difficulty:5,elapsed_days:0,scheduled_days:1,reps:1,lapses:0,state:2,learning_steps:0},introducedAt:now().toISOString(),version:1});
+  await phone.db.cardStates.add(wordState('w-own',{card:{due:now(),stability:1,difficulty:5,elapsed_days:0,scheduled_days:1,reps:1,lapses:0,state:2,learning_steps:0},introducedAt:now().toISOString(),version:1}));
   await study(phone,[true,true]);
   await phone.sync.exchange();
   const tablet=await device('tablet',{lessons:['lesson-1-1']});
   await tablet.sync.exchange();
-  expect(await tablet.db.states.get('w-own')).toBeUndefined();
+  expect(await tablet.db.cardStates.get(wordKeyOf('w-own'))).toBeUndefined();
   expect(await tablet.db.events.count()).toBe(0);
   expect(await tablet.db.sessions.count()).toBe(0);
-  expect(await phone.db.states.get('w-own')).toBeDefined();
+  expect(await phone.db.cardStates.get(wordKeyOf('w-own'))).toBeDefined();
  });
 });
 

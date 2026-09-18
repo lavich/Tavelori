@@ -35,7 +35,8 @@ describe('границы данных в сообщениях ошибок',()=>
   const session=await makeSession({source:dexieSource(db),now,random:()=>0.3});
   await db.sessions.add(session);
   const item=session.items.find(entry=>entry.type!=='recall')!;
-  const secret=[item.word.greek,item.word.russian,'мой тайный ответ'];
+  const word=(item.card as {kind:'word';word:{greek:string;russian:string}}).word;
+  const secret=[word.greek,word.russian,'мой тайный ответ'];
   const failures:unknown[]=[];
   // Конфликт версий: слово уже отвечено в другой вкладке.
   await recordAnswer({session,item:{...item,expectedVersion:99},correct:false,answer:secret[2],responseTimeMs:1,activeTimeMs:1,timezone:'UTC',now,database:db}).catch(error=>failures.push(error));

@@ -7,3 +7,8 @@ test-results/
 docs/art-sheet.html
 public/content/
 .playwright-mcp/
+
+# Навыки агента — часть репозитория: инструкция подготовки урока должна быть доступна будущим сессиям.
+# Явное исключение из глобального ignore (`**/.agents/*` в core.excludesFile).
+!.agents/
+!.agents/**

@@ -20,11 +20,11 @@ test('работает без сети после закрытия страни�
  // Подписанный курс доустанавливает все уроки, поэтому неустановленный урок для проверки готовим сами.
  await page.evaluate(async()=>{
   const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open('lexi');request.onsuccess=()=>resolve(request.result)});
-  const tx=database.transaction(['lessons','packages','lessonWords'],'readwrite');
+  const tx=database.transaction(['lessons','packages','lessonItems'],'readwrite');
   tx.objectStore('lessons').delete('lesson-1-3');
   tx.objectStore('packages').delete('lesson-1-3');
-  const links=tx.objectStore('lessonWords').getAllKeys();
-  links.onsuccess=()=>{for(const key of links.result as [string,string][])if(key[0]==='lesson-1-3')tx.objectStore('lessonWords').delete(key)};
+  const links=tx.objectStore('lessonItems').getAllKeys();
+  links.onsuccess=()=>{for(const key of links.result as [string,string][])if(key[0]==='lesson-1-3')tx.objectStore('lessonItems').delete(key)};
   await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
   database.close();
  });
@@ -46,6 +46,6 @@ test('работает без сети после закрытия страни�
  await offlinePage.goto('/lessons/lesson-1-3');
  await expect(offlinePage.getByText('Пакет не загружен')).toBeVisible();
  await expect(offlinePage.getByRole('button',{name:'Повторить загрузку'})).toBeVisible();
- await expect(offlinePage.getByRole('heading',{name:'Слова набора'})).toHaveCount(0);
+ await expect(offlinePage.getByRole('heading',{name:/^Слова · \d+$/})).toHaveCount(0);
  await context.setOffline(false);
 });

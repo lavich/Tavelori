@@ -100,7 +100,7 @@ export async function onlyReviews(page:Page){
     const tx=database.transaction('courses','readwrite');
     const store=tx.objectStore('courses');
     const all=store.getAll();
-    all.onsuccess=()=>{for(const course of all.result as {newWordsPerDay:number}[])store.put({...course,newWordsPerDay:0})};
+    all.onsuccess=()=>{for(const course of all.result as {newItemsPerDay:number}[])store.put({...course,newItemsPerDay:0})};
     await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
    }
    database.close();

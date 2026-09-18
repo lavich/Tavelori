@@ -37,14 +37,15 @@ export async function seedQueue(page:Page,plan:DuePlan[],databaseName='lexi'){
   });
   const database=await open();
   const due=new Date(Date.now()-2*86400000);
-  const tx=database.transaction(['states','events','assets','words'],'readwrite');
-  const states=tx.objectStore('states'), events=tx.objectStore('events'), assets=tx.objectStore('assets'), words=tx.objectStore('words');
+  const tx=database.transaction(['cardStates','events','assets','words'],'readwrite');
+  const states=tx.objectStore('cardStates'), events=tx.objectStore('events'), assets=tx.objectStore('assets'), words=tx.objectStore('words');
+  const key=(wordId:string)=>JSON.stringify(['word',wordId]);
   for(const entry of plan){
-   states.put({wordId:entry.wordId,version:1,introducedAt:new Date(Date.now()-10*86400000).toISOString(),
+   states.put({unitKey:key(entry.wordId),ref:{kind:'word',id:entry.wordId},version:1,introducedAt:new Date(Date.now()-10*86400000).toISOString(),
     card:{due,stability:2.5,difficulty:5,elapsed_days:2,scheduled_days:2,reps:3,lapses:0,state:2,learning_steps:0,last_review:new Date(Date.now()-4*86400000)}});
    entry.tested.forEach((type,index)=>{
     const at=new Date(Date.now()-(9-index)*86400000).toISOString();
-    events.put({id:`seed-${entry.wordId}-${index}-${type}`,sessionId:'seed',itemId:`seed-${entry.wordId}-${index}-${type}`,wordId:entry.wordId,
+    events.put({id:`seed-${entry.wordId}-${index}-${type}`,sessionId:'seed',itemId:`seed-${entry.wordId}-${index}-${type}`,ref:{kind:'word',id:entry.wordId},unitKey:key(entry.wordId),
      snapshot:{greek:'',russian:''},type,mode:'scheduled',rating:3,correct:true,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:1000});
    });
    if(entry.audio){
@@ -101,8 +102,57 @@ export async function useSchedule(page:Page,courseId='leeke',databaseName='lexi'
 export async function installLessons(page:Page,ids:string[]){
  for(const id of ids){
   await page.goto(`/lessons/${id}`);
-  await page.getByRole('heading',{name:'Слова набора'}).waitFor({timeout:20000});
+  await page.getByRole('heading',{name:/^Слова · \d+$/}).waitFor({timeout:20000});
  }
  await page.goto('/');
  await ready(page);
 }
+
+/**
+ * Смешанный урок для браузерных проверок: непубликуемая фикстура собирается на стороне Node и кладётся
+ * прямо в IndexedDB как установленный пакет — так, как это сделала бы установка из каталога.
+ * Слова урока берутся из уже установленных пакетов; выбором `only` можно ограничить состав.
+ */
+export async function seedMixedLesson(page:Page,options:{lessonId?:string;title?:string;only?:string[];targetDate?:string|null;databaseName?:string}={}){
+ const {mixedPackage}=await import('../helpers/mixed-fixture');
+ const pack=mixedPackage();
+ const lessonId=options.lessonId??pack.id;
+ const items=pack.items.filter(item=>!options.only||options.only.includes(item.id)).map((item,position)=>({...item,position}));
+ const payload={lessonId,title:options.title??pack.lesson.title,courseId:pack.courseId,version:pack.version,schemaVersion:pack.schemaVersion,items,
+  phrases:pack.phrases.filter(p=>items.some(i=>i.kind==='phrase'&&i.id===p.id)),clozes:pack.clozes.filter(c=>items.some(i=>i.kind==='cloze'&&i.id===c.id)),
+  targetDate:options.targetDate??null};
+ await page.evaluate(async([payload,databaseName])=>{
+  const database=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(databaseName);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  const now=new Date().toISOString();
+  const tx=database.transaction(['lessons','lessonItems','phrases','clozes','packages'],'readwrite');
+  tx.objectStore('lessons').put({id:payload.lessonId,courseId:payload.courseId,title:payload.title,targetDate:payload.targetDate,status:'upcoming',createdAt:now,updatedAt:now});
+  for(const item of payload.items)tx.objectStore('lessonItems').put({lessonId:payload.lessonId,unitKey:JSON.stringify([item.kind,item.id]),ref:{kind:item.kind,id:item.id},position:item.position});
+  for(const phrase of payload.phrases)tx.objectStore('phrases').put({...phrase,createdAt:now,updatedAt:now});
+  for(const cloze of payload.clozes)tx.objectStore('clozes').put({...cloze,createdAt:now,updatedAt:now});
+  tx.objectStore('packages').put({lessonId:payload.lessonId,courseId:payload.courseId,version:payload.version,schemaVersion:payload.schemaVersion,installedAt:now,words:[],phrases:payload.phrases,clozes:payload.clozes,items:payload.items,media:[],removed:[]});
+  await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
+  database.close();
+ },[payload,options.databaseName??'lexi'] as const);
+ await page.reload();
+ await ready(page);
+ return payload;
+}
+/** Дневной предел курса: чтобы в занятие попали именно новые карточки смешанного урока. */
+export async function setCourseLimit(page:Page,courseId:string,newItemsPerDay:number,databaseName='lexi'){
+ await page.evaluate(async([courseId,newItemsPerDay,databaseName])=>{
+  const database=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(databaseName);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  const tx=database.transaction('courses','readwrite');
+  const store=tx.objectStore('courses');
+  const current=await new Promise<Record<string,unknown>>(resolve=>{const request=store.get(courseId);request.onsuccess=()=>resolve(request.result as Record<string,unknown>)});
+  store.put({...current,newItemsPerDay,updatedAt:new Date().toISOString()});
+  await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
+  database.close();
+ },[courseId,newItemsPerDay,databaseName] as const);
+}
+/** Чтение таблицы IndexedDB целиком: только для проверок в тестах. */
+export const readTable=(page:Page,name:string,databaseName='lexi')=>page.evaluate(async([name,databaseName])=>{
+ const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open(databaseName);request.onsuccess=()=>resolve(request.result)});
+ const rows=await new Promise<any[]>(resolve=>{const request=database.transaction(name).objectStore(name).getAll();request.onsuccess=()=>resolve(request.result)});
+ database.close();
+ return rows;
+},[name,databaseName] as const);

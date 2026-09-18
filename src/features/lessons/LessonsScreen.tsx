@@ -10,7 +10,7 @@ import {BrandBar} from '../../app/TopBar';
 import {localDay} from '../../domain/learning';
 import {lessonOrder} from '../../domain/schedule';
 import {useNow} from '../../shared/clock';
-import {shortTitle, withCount, WORDS} from '../../shared/format';
+import {CARDS, shortTitle, withCount, WORDS} from '../../shared/format';
 import {fileSize} from '../../shared/offline';
 import {useCatalog, useCourses, useLessons, useSettings} from '../../shared/store';
 import {installCourse} from '../../content/client';
@@ -60,7 +60,7 @@ export function LessonsScreen(){
          <ItemMedia variant="icon"><CloudDownload/></ItemMedia>
          <ItemContent>
           <ItemTitle className="text-base">{shortTitle(entry.title)} · не загружен</ItemTitle>
-          <ItemDescription>{withCount(entry.wordCount,WORDS)} · {fileSize(entry.bytes+entry.media.bytes)}</ItemDescription>
+          <ItemDescription>{entry.phraseCount||entry.clozeCount?withCount(entry.cardCount,CARDS):withCount(entry.wordCount,WORDS)} · {fileSize(entry.bytes+entry.media.bytes)}</ItemDescription>
          </ItemContent>
          <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
         </Item>

@@ -1,6 +1,6 @@
 import {decodeSnapshot, encodeSnapshot, SnapshotFormatError} from './codec';
 import {SyncError, validKey, type KeyValueTransport} from './transport';
-import {SNAPSHOT_FORMAT, type Clock, type CompactSnapshot, type VersionMeta} from './types';
+import {SNAPSHOT_FORMAT, SUPPORTED_SNAPSHOT_FORMATS, type Clock, type CompactSnapshot, type VersionMeta} from './types';
 
 /**
  * Адаптер синхронизации: чтение и публикация целых версий поверх транспорта «ключ → строка».
@@ -71,7 +71,7 @@ export function kvAdapter(transport:KeyValueTransport):SyncAdapter{
   },
   async readVersion(meta){
    ensure();
-   if(meta.format!==SNAPSHOT_FORMAT)throw new SyncError('format',meta.format>SNAPSHOT_FORMAT?'В облаке версия более нового формата. Обновите приложение.':'В облаке версия устаревшего формата.');
+   if(!(SUPPORTED_SNAPSHOT_FORMATS as readonly number[]).includes(meta.format))throw new SyncError('format',meta.format>SNAPSHOT_FORMAT?'В облаке версия более нового формата. Обновите приложение.':'В облаке версия устаревшего формата.');
    const keys=Array.from({length:meta.parts},(_,index)=>partKey(meta.id,index));
    const values=await transport.getItems(keys);
    const missing=keys.filter(key=>values[key]===undefined);

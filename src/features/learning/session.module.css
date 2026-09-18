@@ -41,3 +41,5 @@
 .chars b{background:var(--same-bg);border-radius:4px;padding:0 1px}
 .chars s{background:var(--wrong-bg);border-radius:4px;padding:0 1px;text-decoration:none}
 .answer{font-size:24px;text-align:center}
+
+.gap{display:inline-block;min-width:3ch;border-bottom:2px solid currentColor;text-align:center;opacity:.7}

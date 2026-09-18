@@ -5,7 +5,8 @@ import {fromSnapshot} from '../src/domain/snapshot-source';
 import {diffChars} from '../src/domain/spelling';
 import {checkAnswer} from '../src/domain/import';
 import {progress} from '../src/domain/stats';
-import {defaultSchedule, defaultSettings, type Course, type ExerciseType, type LearningState, type Lesson, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
+import {defaultSchedule, defaultSettings, type Cloze, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type LessonItem, type Phrase, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
+import {idsOf, unitKey, wordEvent, wordKeyOf, wordRef, wordState} from './helpers/cards';
 
 const now=new Date('2026-09-15T09:00:00Z');
 const iso=now.toISOString();
@@ -13,7 +14,7 @@ const word=(id:string,index:number):Word=>({id,greek:`λέξη${index}`,russian:
 const words=(count:number,prefix='w')=>Array.from({length:count},(_,index)=>word(`${prefix}${index}`,index));
 type LessonSpec=Lesson&{wordIds:string[]};
 const lesson=(id:string,wordIds:string[],targetDate:string|null,over:Partial<Lesson>={}):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso,...over});
-const course=(id:string,newWordsPerDay:number,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:true,schedule:defaultSchedule,newWordsPerDay,createdAt:iso,updatedAt:iso,...over});
+const course=(id:string,newItemsPerDay:number,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:true,schedule:defaultSchedule,newItemsPerDay,createdAt:iso,updatedAt:iso,...over});
 /** Снимок для тестов: состав уроков задаётся массивами и раскладывается в связи с порядком. */
 const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):Snapshot=>({
  words:[],states:[],events:[],sessions:[],settings:defaultSettings,...over,
@@ -22,8 +23,8 @@ const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):S
 });
 const planOf=(data:Snapshot,at=now)=>makePlan(fromSnapshot(data),at);
 const sessionOf=(input:Omit<Parameters<typeof makeSession>[0],'source'>&{data:Snapshot})=>{const {data,...rest}=input;return makeSession({source:fromSnapshot(data),...rest})};
-const learned=(id:string,due:string,state=State.Review):LearningState=>({
- wordId:id,introducedAt:'2026-09-01T09:00:00Z',version:1,
+const learned=(id:string,due:string,state=State.Review):LearningState=>wordState(id,{
+ introducedAt:'2026-09-01T09:00:00Z',version:1,
  card:{...createEmptyCard(new Date('2026-09-01')),due:new Date(due),state,scheduled_days:3,reps:2},
 });
 
@@ -40,9 +41,9 @@ describe('темп принадлежит курсу',()=>{
    ],
   });
   const plan=await planOf(data);
-  expect(plan.courses.map(item=>[item.courseId,item.budget,item.newWordIds.length])).toEqual([['near',10,10],['far',5,5]]);
-  expect(plan.newWordIds.slice(0,10)).toEqual(ids(0,10)); // курс с ближайшим занятием идёт раньше
-  expect(plan.newWordIds).toHaveLength(15);
+  expect(plan.courses.map(item=>[item.courseId,item.budget,item.newRefs.length])).toEqual([['near',10,10],['far',5,5]]);
+  expect(idsOf(plan.newRefs).slice(0,10)).toEqual(ids(0,10)); // курс с ближайшим занятием идёт раньше
+  expect(plan.newRefs).toHaveLength(15);
   expect(plan.budget).toBe(15);
  });
  it('слово из двух курсов вводится один раз и тратит бюджет обоих',async()=>{
@@ -83,7 +84,7 @@ describe('подготовка к нескольким занятиям',()=>{
   const plan=await planOf(urgent);
   expect(plan.requiredPerDay).toBe(30);
   expect(plan.shortfall).toBe(true);
-  expect(plan.newWordIds).toHaveLength(10); // дневной лимит не превышается автоматически
+  expect(plan.newRefs).toHaveLength(10); // дневной лимит не превышается автоматически
  });
  it('считает общее слово двух наборов один раз по самой ранней дате',async()=>{
   const shared=pool.slice(0,10).map(w=>w.id);
@@ -99,13 +100,13 @@ describe('подготовка к нескольким занятиям',()=>{
   const plan=await planOf(moved);
   expect(plan.deadlines[0].newLeft).toBe(24);
   expect(plan.requiredPerDay).toBe(5);
-  expect(plan.newWordIds.every(id=>!states.some(state=>state.wordId===id))).toBe(true);
+  expect(plan.newRefs.every(ref=>!states.some(state=>state.ref.id===ref.id))).toBe(true);
  });
  it('прошедший урок не исчезает: слова идут в общей очереди',async()=>{
   const data=base({words:pool.slice(0,3),lessons:[lesson('old',pool.slice(0,3).map(w=>w.id),'2026-09-10')]});
   const plan=await planOf(data);
   expect(plan.deadlines).toHaveLength(0);
-  expect(plan.newWordIds).toHaveLength(3);
+  expect(plan.newRefs).toHaveLength(3);
  });
  it('слова ближайшего занятия идут раньше хвоста прошедших',async()=>{
   const late=pool.slice(0,4).map(w=>w.id), soon=pool.slice(10,30).map(w=>w.id);
@@ -115,12 +116,12 @@ describe('подготовка к нескольким занятиям',()=>{
    lesson('next',soon,'2026-09-18'),
   ]});
   const plan=await planOf(data);
-  expect(plan.backlog).toEqual({wordIds:late,lessons:2});
-  expect(plan.newWordIds).toEqual(soon.slice(0,10));
+  expect(plan.backlog).toEqual({refs:late.map(wordRef),lessons:2});
+  expect(idsOf(plan.newRefs)).toEqual(soon.slice(0,10));
   expect(plan.deadlines[0].newLeft).toBe(20);
   expect(plan.deadlines[0].requiredPerDay).toBe(7);
-  expect(plan.origins.get(soon[0])).toEqual({lessonId:'next',title:'next',past:false});
-  expect(plan.origins.get(late[0])).toEqual({lessonId:'done',title:'done',past:true});
+  expect(plan.origins.get(wordKeyOf(soon[0]))).toEqual({lessonId:'next',title:'next',past:false});
+  expect(plan.origins.get(wordKeyOf(late[0]))).toEqual({lessonId:'done',title:'done',past:true});
  });
  it('хвост добирает остаток бюджета после слов ближайшего занятия',async()=>{
   const late=pool.slice(0,4).map(w=>w.id), soon=pool.slice(10,16).map(w=>w.id), later=pool.slice(20,30).map(w=>w.id);
@@ -130,12 +131,12 @@ describe('подготовка к нескольким занятиям',()=>{
    lesson('later',later,null),
   ]});
   const plan=await planOf(data);
-  expect(plan.newWordIds).toEqual([...soon,...late]);
+  expect(idsOf(plan.newRefs)).toEqual([...soon,...late]);
   expect(plan.deadlines[0].newLeft).toBe(6);
   const session=await sessionOf({data,now,random:()=>0.5});
   const fresh=session.items.filter(item=>item.isNew);
-  expect(fresh.filter(item=>soon.includes(item.wordId)).every(item=>item.lessonTitle==='next'&&item.lessonPast===false)).toBe(true);
-  expect(fresh.filter(item=>late.includes(item.wordId)).every(item=>item.lessonTitle==='done'&&item.lessonPast===true)).toBe(true);
+  expect(fresh.filter(item=>soon.includes(item.ref.id)).every(item=>item.lessonTitle==='next'&&item.lessonPast===false)).toBe(true);
+  expect(fresh.filter(item=>late.includes(item.ref.id)).every(item=>item.lessonTitle==='done'&&item.lessonPast===true)).toBe(true);
   expect(fresh.length).toBe(10);
  });
  it('скан словаря локального курса не берёт слова уроков другого курса',async()=>{
@@ -145,8 +146,8 @@ describe('подготовка к нескольким занятиям',()=>{
    lessons:[lesson('done',foreign,null,{status:'completed',courseId:'leeke'})]});
   const plan=await planOf(data);
   const local=plan.courses.find(item=>item.courseId==='my')!;
-  expect(local.newWordIds).toEqual(loose);
-  expect(plan.newWordIds).toEqual([...foreign,...loose]);
+  expect(idsOf(local.newRefs)).toEqual(loose);
+  expect(idsOf(plan.newRefs)).toEqual([...foreign,...loose]);
  });
  it('введённое слово прошедшего занятия в хвост не попадает: его ведёт повторение',async()=>{
   const ids=pool.slice(0,3).map(w=>w.id);
@@ -154,12 +155,12 @@ describe('подготовка к нескольким занятиям',()=>{
   const data=base({words:pool,states:[learned(ids[0],'2026-09-20T09:00:00Z')],
    lessons:[lesson('done',ids,null,{status:'completed'})]});
   const plan=await planOf(data);
-  expect(plan.backlog).toEqual({wordIds:ids.slice(1),lessons:1});
+  expect(plan.backlog).toEqual({refs:ids.slice(1).map(wordRef),lessons:1});
   expect(plan.reviews).toHaveLength(0); // срок ещё не подошёл, слово просто ждёт
  });
  it('без прошедших занятий хвоста нет',async()=>{
   const plan=await planOf(base({words:pool,lessons:[lesson('next',pool.slice(0,5).map(w=>w.id),'2026-09-18')]}));
-  expect(plan.backlog).toEqual({wordIds:[],lessons:0});
+  expect(plan.backlog).toEqual({refs:[],lessons:0});
  });
  it('день занятия считается догоняющей подготовкой с делителем один',async()=>{
   const ids=pool.slice(0,8).map(w=>w.id);
@@ -201,18 +202,18 @@ describe('дневной бюджет и состав занятия',()=>{
    {...learned(ids[2],'2026-09-14T08:00:00Z',State.Relearning)},
   ];
   const plan=await planOf(base({words:pool,states}));
-  expect(plan.reviews.map(review=>review.wordId)).toEqual([ids[2],ids[1],ids[0]]);
+  expect(plan.reviews.map(review=>review.ref.id)).toEqual([ids[2],ids[1],ids[0]]);
  });
  it('аудирование доступно и без своего файла, если есть системный греческий голос',async()=>{
-  const history=(['recall','recognition','assembly','spelling'] as ExerciseType[]).map((type,index)=>({
-   id:`${type}`,sessionId:'s',itemId:`${type}`,wordId:ids[0],snapshot:{greek:'',russian:''},
+  const history=(['recall','recognition','assembly','spelling'] as ExerciseType[]).map((type,index)=>wordEvent(ids[0],{
+   id:`${type}`,sessionId:'s',itemId:`${type}`,snapshot:{greek:'',russian:''},
    type,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',
    createdAt:`2026-09-1${index}T09:00:00Z`,localDate:`2026-09-1${index}`,responseTimeMs:900,
   }));
   const data=base({words:pool,states:[learned(ids[0],'2026-09-14T08:00:00Z')],events:history});
-  const silent=(await sessionOf({data,now,random:()=>0.5,hasVoice:false})).items.find(item=>item.wordId===ids[0])!;
+  const silent=(await sessionOf({data,now,random:()=>0.5,hasVoice:false})).items.find(item=>item.ref.id===ids[0])!;
   expect(silent.type).not.toBe('listening');
-  const spoken=(await sessionOf({data,now,random:()=>0.5,hasVoice:true})).items.find(item=>item.wordId===ids[0])!;
+  const spoken=(await sessionOf({data,now,random:()=>0.5,hasVoice:true})).items.find(item=>item.ref.id===ids[0])!;
   expect(spoken.type).toBe('listening');
   expect(new Set(spoken.options).size).toBe(4);
  });
@@ -224,8 +225,8 @@ describe('дневной бюджет и состав занятия',()=>{
  });
  it('ручная тренировка набора берёт указанные слова в режиме practice',async()=>{
   const data=base({words:pool,lessons:[lesson('l1',ids,'2026-09-18')]});
-  const session=await sessionOf({data,now,random:()=>0.5,mode:'practice',wordIds:ids.slice(0,3)});
-  expect(session.items.map(item=>item.wordId)).toEqual(ids.slice(0,3));
+  const session=await sessionOf({data,now,random:()=>0.5,mode:'practice',refs:ids.slice(0,3).map(wordRef)});
+  expect(idsOf(session.items.map(item=>item.ref))).toEqual(ids.slice(0,3));
   expect(session.items.every(item=>item.mode==='practice')).toBe(true);
  });
  it('варианты ответа уникальны, а при нехватке слов упражнение заменяется на сборку',async()=>{
@@ -239,7 +240,7 @@ describe('дневной бюджет и состав занятия',()=>{
 });
 
 describe('интервалы FSRS',()=>{
- const later=(rating:1|2|3|4)=>nextState(undefined,'w0',rating as never,now).card;
+ const later=(rating:1|2|3|4)=>nextState(undefined,wordRef('w0'),rating as never,now).card;
  it('сохраняет состояние и даёт больший интервал за Легко, чем за Хорошо',()=>{
   expect(later(Rating.Again).state).toBe(State.Learning);
   expect(later(Rating.Easy).due.getTime()).toBeGreaterThan(later(Rating.Good).due.getTime());
@@ -247,39 +248,40 @@ describe('интервалы FSRS',()=>{
   expect(later(Rating.Hard).stability).toBeGreaterThan(0);
  });
  it('после Again слово возвращается позже, а не бесконечно в этой же сессии',()=>{
-  const state=nextState(undefined,'w0',Rating.Again,now);
+  const state=nextState(undefined,wordRef('w0'),Rating.Again,now);
   expect(state.card.due.getTime()).toBeGreaterThan(now.getTime());
   expect(state.version).toBe(1);
-  const repeated=nextState(state,'w0',Rating.Good,new Date('2026-09-15T09:10:00Z'));
+  const repeated=nextState(state,wordRef('w0'),Rating.Good,new Date('2026-09-15T09:10:00Z'));
   expect(repeated.version).toBe(2);
   expect(repeated.introducedAt).toBe(state.introducedAt);
  });
 });
 
 describe('выбор упражнения',()=>{
- const event=(type:ExerciseType,correct:boolean,at:string):ReviewEvent=>({
-  id:`${type}-${at}`,sessionId:'s',itemId:`${type}-${at}`,wordId:'w0',snapshot:{greek:'',russian:''},
+ const W0=wordKeyOf('w0');
+ const event=(type:ExerciseType,correct:boolean,at:string):ReviewEvent=>wordEvent('w0',{
+  id:`${type}-${at}`,sessionId:'s',itemId:`${type}-${at}`,snapshot:{greek:'',russian:''},
   type,mode:'scheduled',rating:correct?3:1,correct,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:1000,
  });
  it('сначала проверяет ещё не испытанные навыки в заданном порядке',()=>{
-  expect(chooseType('w0',[],{})).toBe('recognition');
-  expect(chooseType('w0',[event('recall',true,'2026-09-10T09:00:00Z')],{})).toBe('recognition');
-  expect(chooseType('w0',[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')],{})).toBe('spelling');
+  expect(chooseType(W0,[],{})).toBe('recognition');
+  expect(chooseType(W0,[event('recall',true,'2026-09-10T09:00:00Z')],{})).toBe('recognition');
+  expect(chooseType(W0,[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')],{})).toBe('spelling');
  });
  it('аудирование не предлагается без аудио, а варианты — без набора слов',()=>{
   const history=(['recall','recognition','spelling'] as ExerciseType[]).map((type,index)=>event(type,true,`2026-09-1${index}T09:00:00Z`));
-  expect(chooseType('w0',history,{})).not.toBe('listening');
-  expect(chooseType('w0',history,{hasAudio:true})).toBe('listening');
-  expect(chooseType('w0',history,{hasOptions:false})).not.toBe('recognition');
+  expect(chooseType(W0,history,{})).not.toBe('listening');
+  expect(chooseType(W0,history,{hasAudio:true})).toBe('listening');
+  expect(chooseType(W0,history,{hasOptions:false})).not.toBe('recognition');
  });
  it('сборка предлагается раньше написания, а написание ждёт двух чистых сборок',()=>{
   const tested=[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')];
-  expect(chooseType('w0',tested,{canAssemble:true})).toBe('assembly');
+  expect(chooseType(W0,tested,{canAssemble:true})).toBe('assembly');
   const one=[...tested,event('assembly',true,'2026-09-12T09:00:00Z')];
-  expect(chooseType('w0',one,{canAssemble:true})).not.toBe('spelling');
+  expect(chooseType(W0,one,{canAssemble:true})).not.toBe('spelling');
   const two=[...one,event('assembly',true,'2026-09-13T09:00:00Z')];
-  expect(spellingUnlocked('w0',two)).toBe(true);
-  expect(chooseType('w0',two,{canAssemble:true})).toBe('spelling');
+  expect(spellingUnlocked(W0,two)).toBe(true);
+  expect(chooseType(W0,two,{canAssemble:true})).toBe('spelling');
  });
  it('ошибка в написании возвращает слово к сборке',()=>{
   const history=[
@@ -287,21 +289,21 @@ describe('выбор упражнения',()=>{
    event('assembly',true,'2026-09-12T09:00:00Z'),event('assembly',true,'2026-09-13T09:00:00Z'),
    event('spelling',false,'2026-09-14T09:00:00Z'),
   ];
-  expect(spellingUnlocked('w0',history)).toBe(false);
-  expect(chooseType('w0',history,{canAssemble:true})).not.toBe('spelling');
+  expect(spellingUnlocked(W0,history)).toBe(false);
+  expect(chooseType(W0,history,{canAssemble:true})).not.toBe('spelling');
   const recovered=[...history,event('assembly',true,'2026-09-15T09:00:00Z'),event('assembly',true,'2026-09-15T10:00:00Z')];
-  expect(spellingUnlocked('w0',recovered)).toBe(true);
+  expect(spellingUnlocked(W0,recovered)).toBe(true);
  });
  it('без слогов написание не блокируется',()=>{
   const tested=[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')];
-  expect(chooseType('w0',tested,{canAssemble:false})).toBe('spelling');
+  expect(chooseType(W0,tested,{canAssemble:false})).toBe('spelling');
  });
  it('выбирает самый слабый навык по последним ответам',()=>{
   const history=[
    event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z'),
    event('spelling',false,'2026-09-12T09:00:00Z'),event('listening',true,'2026-09-13T09:00:00Z'),
   ];
-  expect(chooseType('w0',history,{hasAudio:true})).toBe('spelling');
+  expect(chooseType(W0,history,{hasAudio:true})).toBe('spelling');
  });
  it('не повторяет один тип три раза подряд',()=>{
   const history=[
@@ -309,7 +311,7 @@ describe('выбор упражнения',()=>{
    event('recall',false,'2026-09-12T09:00:00Z'),event('spelling',true,'2026-09-13T09:00:00Z'),
    event('spelling',true,'2026-09-14T09:00:00Z'),
   ];
-  expect(chooseType('w0',history,{hasAudio:true})).not.toBe('spelling');
+  expect(chooseType(W0,history,{hasAudio:true})).not.toBe('spelling');
  });
 });
 
@@ -350,11 +352,88 @@ describe('статистика',()=>{
  });
  it('считает дни по локальной полуночи выбранной зоны',async()=>{
   const pool=words(2);
-  const events:ReviewEvent[]=[{
-   id:'e1',sessionId:'s',itemId:'i1',wordId:pool[0].id,snapshot:{greek:'',russian:''},type:'recall',mode:'scheduled',
+  const events:ReviewEvent[]=[wordEvent(pool[0].id,{
+   id:'e1',sessionId:'s',itemId:'i1',snapshot:{greek:'',russian:''},type:'recall',mode:'scheduled',
    rating:3,correct:null,answer:'',createdAt:'2026-09-14T22:30:00Z',localDate:localDay(new Date('2026-09-14T22:30:00Z'),'Asia/Nicosia'),responseTimeMs:900,
-  }];
+  })];
   const stats=await progress(fromSnapshot(base({words:pool,events})),now);
   expect(stats.days.find(day=>day.date==='2026-09-15')!.answers).toBe(1);
+ });
+});
+
+/** Смешанные сценарии: карточки трёх видов в одном плане; словарные сценарии выше остаются эталоном. */
+describe('дневной план со смешанными карточками',()=>{
+ const pool=words(40);
+ const ids=(from:number,to:number)=>pool.slice(from,to).map(w=>w.id);
+ const phrase=(id:string,over:Partial<Phrase>={}):Phrase=>({id,text:`Φράση ${id}.`,translation:`Фраза ${id}.`,provenance:{sourceLabel:'тест',operation:'verbatim'},createdAt:iso,updatedAt:iso,...over});
+ const cloze=(id:string,over:Partial<Cloze>={}):Cloze=>({id,template:`Εγώ {{gap}} ${id}.`,answer:`κάνω${id}`,acceptedAnswers:[`κάνω${id}`],provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso,...over});
+ const P=(id:string):LearningRef=>({kind:'phrase',id}), C=(id:string):LearningRef=>({kind:'cloze',id}), W=wordRef;
+ const items=(lessonId:string,refs:LearningRef[]):LessonItem[]=>refs.map((ref,position)=>({lessonId,unitKey:unitKey(ref),ref,position}));
+ const stateOf=(ref:LearningRef,due:string,over:Partial<LearningState>={}):LearningState=>({unitKey:unitKey(ref),ref,introducedAt:'2026-09-01T09:00:00Z',version:1,card:{...createEmptyCard(new Date('2026-09-01')),due:new Date(due),state:State.Review,scheduled_days:3,reps:2},...over});
+ const phrases=['p1','p2','p3','p4','p5'].map(id=>phrase(id));
+ const clozes=['c1','c2','c3','c4'].map(id=>cloze(id));
+ it('смешанная квота: предел 5, введены 2 слова, дальше по порядку урока 2 фразы и 3 пропуска → 2 фразы и 1 пропуск',async()=>{
+  const introduced=ids(0,2).map(id=>stateOf(W(id),'2026-09-16T09:00:00Z',{introducedAt:'2026-09-15T08:00:00Z'}));
+  const refs=[W(pool[0].id),W(pool[1].id),P('p1'),P('p2'),C('c1'),C('c2'),C('c3')];
+  const data=base({words:pool,phrases,clozes,courses:[course('my',5,{origin:'local'})],lessons:[lesson('l1',[],'2026-09-18',{courseId:'my'})],items:items('l1',refs),states:introduced});
+  const plan=await planOf(data);
+  expect(plan.introducedToday).toBe(2);
+  expect(plan.budget).toBe(3);
+  expect(plan.newRefs).toEqual([P('p1'),P('p2'),C('c1')]);
+  expect(plan.courses[0].introducedToday+plan.newRefs.length).toBeLessThanOrEqual(5);
+  expect(plan.deadlines[0].newLeft).toBe(5); // 2 фразы + 3 пропуска к сроку
+ });
+ it('ближайший срок раньше хвоста; хвост состоит из карточек любого вида и добирает остаток бюджета',async()=>{
+  const data=base({words:pool.slice(0,3),phrases,clozes,lessons:[
+   lesson('done',[],'2026-09-08',{status:'completed'}),
+   lesson('next',[],'2026-09-18'),
+  ],items:[...items('done',[P('p1'),C('c1'),W(pool[0].id)]),...items('next',[C('c2'),P('p2'),W(pool[1].id),W(pool[2].id)])]});
+  const plan=await planOf(data);
+  expect(plan.newRefs).toEqual([C('c2'),P('p2'),W(pool[1].id),W(pool[2].id),P('p1'),C('c1'),W(pool[0].id)]);
+  expect(plan.backlog).toEqual({refs:[P('p1'),C('c1'),W(pool[0].id)],lessons:1});
+  expect(plan.deadlines[0].newLeft).toBe(4);
+  expect(plan.origins.get(unitKey(C('c1')))).toEqual({lessonId:'done',title:'done',past:true});
+ });
+ it('общая карточка двух курсов вводится один раз и списывается с обоих бюджетов',async()=>{
+  const shared=[P('p1'),C('c1')];
+  const lessons=[lesson('la',[],'2026-09-18',{courseId:'a'}),lesson('lb',[],'2026-09-19',{courseId:'b'})];
+  const linked=[...items('la',[...shared,W(pool[0].id)]),...items('lb',[...shared,W(pool[1].id)])];
+  const plan=await planOf(base({words:pool,phrases,clozes,courses:[course('a',3),course('b',3)],lessons,items:linked}));
+  expect(plan.newRefs).toEqual([P('p1'),C('c1'),W(pool[0].id),W(pool[1].id)]);
+  expect(plan.courses.map(item=>[item.courseId,item.newRefs.length])).toEqual([['a',3],['b',3]]);
+  const today=await planOf(base({words:pool,phrases,clozes,courses:[course('a',3),course('b',3)],lessons,items:linked,
+   states:shared.map(ref=>stateOf(ref,'2026-09-30T09:00:00Z',{introducedAt:'2026-09-15T08:00:00Z'}))}));
+  expect(today.courses.map(item=>[item.courseId,item.introducedToday,item.budget])).toEqual([['a',2,1],['b',2,1]]);
+ });
+ it('одинаковые ID разных видов — разные карточки с независимым прогрессом',async()=>{
+  const twin=[W('x'),P('x'),C('x')];
+  const data=base({words:[word('x',0)],phrases:[phrase('x')],clozes:[cloze('x')],lessons:[lesson('l1',[],'2026-09-18')],items:items('l1',twin),
+   states:[stateOf(W('x'),'2026-09-20T09:00:00Z')]});
+  const plan=await planOf(data);
+  expect(plan.newRefs).toEqual([P('x'),C('x')]); // слово уже введено, фраза и пропуск с тем же ID — новые
+  expect(new Set(twin.map(unitKey)).size).toBe(3);
+ });
+ it('фраза без перевода и голоса не расходует квоту и темп, но остаётся видимой отдельно; с голосом и пулом она проверяема',async()=>{
+  const silent=phrase('p-silent',{translation:undefined});
+  const data=base({words:[],phrases:[...phrases,silent],clozes,courses:[course('my',10,{origin:'local'})],lessons:[lesson('l1',[],'2026-09-18',{courseId:'my'})],
+   items:items('l1',[P('p-silent'),P('p1'),C('c1')])});
+  const plan=await planOf(data);
+  expect(plan.newRefs).toEqual([P('p1'),C('c1')]);
+  expect(plan.unavailable).toEqual([P('p-silent')]);
+  expect(plan.deadlines[0].newLeft).toBe(2);
+  expect(plan.deadlines[0].requiredPerDay).toBe(1);
+  // Системный голос и четыре различных фразы делают аудирование доступным: фраза входит в квоту.
+  const spoken=await makePlan(fromSnapshot(data),now,{hasVoice:true});
+  expect(spoken.newRefs).toEqual([P('p-silent'),P('p1'),C('c1')]);
+  expect(spoken.unavailable).toEqual([]);
+  // Голос есть, но фраз мало — вариантов для аудирования нет: остаётся справочной.
+  const few=base({words:[],phrases:[silent,phrases[0]],clozes,lessons:[lesson('l1',[],'2026-09-18')],items:items('l1',[P('p-silent'),P('p1')])});
+  expect((await makePlan(fromSnapshot(few),now,{hasVoice:true})).unavailable).toEqual([P('p-silent')]);
+ });
+ it('повторения смешанные и идут по общей очереди; удалённая карточка выпадает',async()=>{
+  const states=[stateOf(P('p1'),'2026-09-15T08:00:00Z'),stateOf(C('c1'),'2026-09-12T08:00:00Z'),stateOf(W(pool[0].id),'2026-09-14T08:00:00Z',{card:{...createEmptyCard(new Date('2026-09-01')),due:new Date('2026-09-14T08:00:00Z'),state:State.Relearning,scheduled_days:0,reps:2} as LearningState['card']}),stateOf(C('c2'),'2026-09-13T08:00:00Z')];
+  const data=base({words:pool,phrases,clozes:[clozes[0],{...clozes[1],deletedAt:iso},...clozes.slice(2)],states});
+  const plan=await planOf(data);
+  expect(plan.reviews.map(review=>review.ref)).toEqual([W(pool[0].id),C('c1'),P('p1')]);
  });
 });

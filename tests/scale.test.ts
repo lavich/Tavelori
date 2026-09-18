@@ -9,6 +9,7 @@ import {parseCatalog, SCHEMA_VERSION, type CatalogEntry} from '../src/content/sc
 import {refreshCatalog} from '../src/content/client';
 import {submitAnswer} from '../src/storage/ops';
 import {defaultSettings, type LearningState, type ReviewEvent, type Word} from '../src/domain/types';
+import {itemOfLink, wordEvent, wordState} from './helpers/cards';
 
 /**
  * Большая локальная база: 100 000 слов, 20 000 состояний, 60 000 ответов.
@@ -35,23 +36,30 @@ beforeAll(async()=>{
   });
   await db.words.bulkAdd(words.map(indexWord));
  }
- const states:LearningState[]=Array.from({length:STATES},(_,i)=>({
-  wordId:`w${pad(i*5)}`,introducedAt:i<3?iso:'2026-09-01T09:00:00Z',version:1,
+ const states:LearningState[]=Array.from({length:STATES},(_,i)=>wordState(`w${pad(i*5)}`,{
+  introducedAt:i<3?iso:'2026-09-01T09:00:00Z',version:1,
   card:{...createEmptyCard(new Date('2026-09-01')),due:new Date(i%3?'2026-09-14T08:00:00Z':'2026-09-20T08:00:00Z'),state:i%7===0?State.Relearning:State.Review,scheduled_days:i%2?3:30,reps:2},
  }));
- await db.states.bulkAdd(states);
+ await db.cardStates.bulkAdd(states);
  for(let start=0;start<EVENTS;start+=chunk){
   const events:ReviewEvent[]=Array.from({length:Math.min(chunk,EVENTS-start)},(_,i)=>{
    const index=start+i; const day=1+(index%14);
    const at=`2026-09-${String(day).padStart(2,'0')}T${String(index%24).padStart(2,'0')}:00:00.000Z`;
-   return {id:`e${pad(index)}`,sessionId:`s${index%500}`,itemId:`i${index}`,wordId:`w${pad((index%STATES)*5)}`,snapshot:{greek:'',russian:''},type:(['recognition','assembly','spelling','listening'] as const)[index%4],mode:'scheduled',rating:index%5?3:1,correct:index%5!==0,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:900};
+   return wordEvent(`w${pad((index%STATES)*5)}`,{id:`e${pad(index)}`,sessionId:`s${index%500}`,itemId:`i${index}`,snapshot:{greek:'',russian:''},type:(['recognition','assembly','spelling','listening'] as const)[index%4],mode:'scheduled',rating:index%5?3:1,correct:index%5!==0,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:900});
   });
   await db.events.bulkAdd(events);
  }
  await db.lessons.bulkAdd(Array.from({length:LESSONS},(_,i)=>({id:`lesson-${pad(i)}`,title:`Урок ${i}`,targetDate:i<3?`2026-09-${17+i}`:null,status:'upcoming' as const,createdAt:iso,updatedAt:iso})));
- await db.lessonWords.bulkAdd(Array.from({length:LESSONS*35},(_,i)=>({lessonId:`lesson-${pad(Math.floor(i/35))}`,wordId:`w${pad(i*3)}`,position:i%35})));
+ await db.lessonItems.bulkAdd(Array.from({length:LESSONS*35},(_,i)=>itemOfLink({lessonId:`lesson-${pad(Math.floor(i/35))}`,wordId:`w${pad(i*3)}`,position:i%35})));
+ // Смешанный урок на той же базе: фразы и пропуски в отдельных таблицах, связи типизированы.
+ const at=iso, provenance={sourceLabel:'тест',operation:'verbatim' as const};
+ await db.phrases.bulkAdd(Array.from({length:500},(_,i)=>({id:`p${pad(i)}`,text:`Φράση ${i}.`,translation:`Фраза ${i}.`,provenance,createdAt:at,updatedAt:at})));
+ await db.clozes.bulkAdd(Array.from({length:500},(_,i)=>({id:`c${pad(i)}`,template:`Εγώ {{gap}} ${i}.`,answer:`κάνω${i}`,acceptedAnswers:[`κάνω${i}`],provenance:{...provenance,operation:'cloze-from-source' as const},createdAt:at,updatedAt:at})));
+ await db.lessons.add({id:'lesson-mixed',title:'Смешанный',targetDate:'2026-09-16',status:'upcoming',createdAt:iso,updatedAt:iso});
+ const mixedRefs=Array.from({length:35},(_,i)=>i%3===0?{kind:'phrase' as const,id:`p${pad(i)}`}:i%3===1?{kind:'cloze' as const,id:`c${pad(i)}`}:{kind:'word' as const,id:`w${pad(i*7+1)}`});
+ await db.lessonItems.bulkAdd(mixedRefs.map((ref,position)=>({lessonId:'lesson-mixed',unitKey:JSON.stringify([ref.kind,ref.id]),ref,position})));
  await db.settings.put({...defaultSettings,sessionSize:20});
- await db.courses.put({id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:{startDate:null,weekdays:[]},newWordsPerDay:10,createdAt:iso,updatedAt:iso});
+ await db.courses.put({id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:{startDate:null,weekdays:[]},newItemsPerDay:10,createdAt:iso,updatedAt:iso});
 },180_000);
 afterAll(()=>db.close());
 
@@ -77,23 +85,28 @@ describe('ограниченные выборки на большой базе',
   expect(page.items).toHaveLength(50);
   expect(reads.words).toBeLessThanOrEqual(52);
  },60_000);
- it('план дня не читает таблицы слов, событий и сессий, а состояния — только по индексам и ключам',async()=>{
+ it('план дня не читает таблицы слов, событий и сессий, а состояния — только по индексам и ключам; тексты новых видов — только признаки кандидатов',async()=>{
   track();
   const plan=await makePlan(dexieSource(db),now);
   expect(plan.introducedToday).toBe(3);
-  expect(plan.newWordIds).toHaveLength(7);
+  expect(plan.newRefs).toHaveLength(7);
+  expect(plan.newRefs.some(ref=>ref.kind!=='word')).toBe(true); // смешанный урок с ближайшим сроком идёт первым
   expect(plan.reviews.length).toBeGreaterThan(1000);
-  expect(plan.deadlines).toHaveLength(3);
+  expect(plan.deadlines).toHaveLength(4);
   expect(reads.words).toBe(0);
   expect(reads.events).toBe(0);
   expect(reads.sessions).toBe(0);
-  expect(reads.states).toBeLessThan(STATES);
+  expect(reads.cardStates).toBeLessThan(STATES);
+  expect(reads.clozes).toBe(0); // признаки пропуска не требуют чтения записи
+  expect(reads.phrases).toBeLessThanOrEqual(12); // только фразы-кандидаты урока, не таблица целиком
  },60_000);
- it('сессия загружает полные карточки только для своих слов и пула вариантов, историю — только своих слов',async()=>{
+ it('сессия загружает полные карточки только для своих карточек и пула вариантов, историю — только своих карточек',async()=>{
   track();
   const session=await makeSession({source:dexieSource(db),now,random:()=>0.37});
   expect(session.items).toHaveLength(20);
   expect(reads.words).toBeLessThanOrEqual(20+48*2);
+  expect(reads.phrases).toBeLessThanOrEqual(20+48*2+12); // выбранные фразы, пул вариантов и признаки кандидатов
+  expect(reads.clozes).toBeLessThanOrEqual(20); // только выбранные пропуски: ключи ответов остальных не читаются
   const reviewed=session.items.filter(item=>!item.isNew).length;
   expect(reads.events).toBeLessThanOrEqual(reviewed*Math.ceil(EVENTS/STATES)+reviewed);
   expect(reads.sessions).toBe(0);
@@ -102,7 +115,7 @@ describe('ограниченные выборки на большой базе',
   await submitAnswer({session,item:session.items[0],correct:true,answer:'',responseTimeMs:800,activeTimeMs:800,timezone:'Asia/Nicosia',now,database:db});
   expect(reads.words).toBe(0);
   expect(reads.events).toBeLessThanOrEqual(1);
-  expect(reads.states).toBeLessThanOrEqual(1);
+  expect(reads.cardStates).toBeLessThanOrEqual(1);
   expect(reads.sessions).toBe(1);
  },60_000);
  it('статистика читает события периода и агрегаты, а не всю историю и словарь',async()=>{
@@ -114,17 +127,20 @@ describe('ограниченные выборки на большой базе',
   expect(reads.events).toBeLessThan(EVENTS/2+50);
   expect(reads.sessions).toBe(0);
  },60_000);
- it('список уроков с прогрессом читает связи и по одному состоянию на связь, а не карточки',async()=>{
+ it('список уроков с прогрессом читает связи и по одному состоянию на связь, а не карточки любого вида',async()=>{
   track();
   const views=await lessonViews(db,true);
-  expect(views).toHaveLength(LESSONS);
-  expect(views.every(view=>view.progress!.solid+view.progress!.review+view.progress!.fresh===view.wordCount)).toBe(true);
+  expect(views).toHaveLength(LESSONS+1);
+  expect(views.find(view=>view.id==='lesson-mixed')).toMatchObject({cardCount:35,phraseCount:12,clozeCount:12,wordCount:11});
+  expect(reads.phrases).toBe(0);
+  expect(reads.clozes).toBe(0);
+  expect(views.every(view=>view.progress!.solid+view.progress!.review+view.progress!.fresh===view.cardCount)).toBe(true);
   expect(reads.words).toBe(0);
   expect(reads.events).toBe(0);
-  expect(reads.states).toBeLessThanOrEqual(LESSONS*35);
+  expect(reads.cardStates).toBeLessThanOrEqual((LESSONS+1)*35);
  },60_000);
  it('каталог на 100 000 слов читается одним запросом и не создаёт ни слов, ни прогресса',async()=>{
-  const lessons:CatalogEntry[]=Array.from({length:3000},(_,i)=>({id:`cat-${pad(i)}`,courseId:'big',language:'el',title:`Урок ${i}`,wordCount:34,version:`v${i}`,url:`content/packages/cat-${pad(i)}@v${i}.json`,bytes:40000,media:{count:34,bytes:20000}}));
+  const lessons:CatalogEntry[]=Array.from({length:3000},(_,i)=>({id:`cat-${pad(i)}`,courseId:'big',language:'el',title:`Урок ${i}`,wordCount:34,phraseCount:0,clozeCount:0,cardCount:34,version:`v${i}`,url:`content/packages/cat-${pad(i)}@v${i}.json`,bytes:40000,media:{count:34,bytes:20000}}));
   const catalog=parseCatalog({schemaVersion:SCHEMA_VERSION,generatedAt:iso,lessons});
   expect(catalog.lessons.reduce((sum,l)=>sum+l.wordCount,0)).toBeGreaterThanOrEqual(100_000);
   const requests:string[]=[];

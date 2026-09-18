@@ -9,10 +9,10 @@ async function installSession(page:Page,type:string,isNew=false,count=1){
   request.onsuccess=()=>{
    const pool=request.result;
    const selected=count===1?[pool.find(word=>word.id==='w12-16')]:pool.slice(0,count);
-   const items=selected.map((word,index)=>({id:`objective-${index}`,wordId:word.id,word,type,isNew,mode:'scheduled',expectedVersion:0,
+   const items=selected.map((word,index)=>({id:`objective-${index}`,ref:{kind:'word',id:word.id},unitKey:JSON.stringify(['word',word.id]),card:{kind:'word',word},type,isNew,mode:'scheduled',expectedVersion:0,
     options:type==='assembly'?['τι','το','σπί']:type==='recognition'?[word.russian,'другой ответ','ещё ответ','неверно']:type==='listening'?[word.greek,'ναι','όχι','ευχαριστώ']:[]}));
    tx.objectStore('sessions').put({id:'objective',createdAt:new Date().toISOString(),planDate:'2026-09-16',items,index:0,status:'active',activeTimeMs:0,
-    objectiveVersion:type==='recall'?undefined:1,introducedWordIds:[]});
+    objectiveVersion:type==='recall'?undefined:1,introducedKeys:[]});
   };
   await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
   db.close();
@@ -25,7 +25,7 @@ async function stored(page:Page){
  return page.evaluate(async()=>{
   const db=await new Promise<IDBDatabase>(resolve=>{const r=indexedDB.open('lexi');r.onsuccess=()=>resolve(r.result)});
   const read=(name:string)=>new Promise<any[]>(resolve=>{const r=db.transaction(name).objectStore(name).getAll();r.onsuccess=()=>resolve(r.result)});
-  const [events,states,sessions]=await Promise.all([read('events'),read('states'),read('sessions')]);
+  const [events,states,sessions]=await Promise.all([read('events'),read('cardStates'),read('sessions')]);
   db.close();return {events,states,session:sessions.find(s=>s.id==='objective')};
  });
 }
@@ -66,7 +66,7 @@ test('знакомство идёт отдельным проходом и пе�
  const first=await stored(page);
  expect(first.events).toEqual([]);
  expect(first.states).toEqual([]);
- expect(first.session.introducedWordIds).toHaveLength(1);
+ expect(first.session.introducedKeys).toHaveLength(1);
  await page.reload();
  await expect(page.getByLabel('Знакомство 2 из 3')).toBeVisible();
  await page.getByRole('button',{name:'Далее',exact:true}).click();
@@ -75,7 +75,7 @@ test('знакомство идёт отдельным проходом и пе�
  await expect(page.getByTestId('prompt')).toHaveText('Что значит это слово?');
  const after=await stored(page);
  expect(after.events).toEqual([]);
- expect(after.session.introducedWordIds).toHaveLength(3);
+ expect(after.session.introducedKeys).toHaveLength(3);
  await page.getByTestId('option').first().click();
  await expect(page.locator('[data-answer="correct"]')).toContainText('Правильный ответ');
  await expect(page.getByTestId('feedback')).toHaveCount(0);

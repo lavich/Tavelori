@@ -6,6 +6,7 @@ import {Alert, AlertDescription} from '@/components/ui/alert';
 import {Badge} from '@/components/ui/badge';
 import {BackBar} from '../../app/TopBar';
 import {useNow} from '../../shared/clock';
+import {wordRef} from '../../domain/refs';
 import {shortTitle} from '../../shared/format';
 import {useWord, useWordLessons} from '../../shared/store';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from './WordCardView';
@@ -23,7 +24,7 @@ export function WordScreen(){
  const [problem,setProblem]=useState('');
  if(!word)return <><BackBar title="Слово"/><main className={ui.screen}><p className={ui.muted}>Слово не найдено.</p></main></>;
  const practice=async()=>{
-  const session=await startSession(now,{wordIds:[word.id],mode:'practice'});
+  const session=await startSession(now,{refs:[wordRef(word.id)],mode:'practice'});
   if(!session)return setProblem('Не удалось собрать тренировку для этого слова.');
   navigate('/session');
  };

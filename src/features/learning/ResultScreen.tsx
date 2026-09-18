@@ -5,13 +5,18 @@ import {Card, CardContent} from '@/components/ui/card';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useLiveQuery} from 'dexie-react-hooks';
 import {formatDay, localDay} from '../../domain/learning';
+import type {CardKind, LearningRef} from '../../domain/types';
 import {useNow} from '../../shared/clock';
-import {minutes, plural, withCount, WORDS} from '../../shared/format';
+import {CARDS, CLOZES, minutes, PHRASES, plural, withCount, WORDS} from '../../shared/format';
 import {useSettings} from '../../shared/store';
 import {statesOf} from '../../storage/queries';
 import {db} from '../../storage/db';
 import {startSession} from './session-actions';
 import ui from '../../shared/ui.module.css';
+
+/** Состав уникальных карточек по видам: «2 слова · 1 фраза · 1 пропуск», только непустые группы. */
+export const compositionText=(byKind:Record<CardKind,number>)=>([['word',WORDS],['phrase',PHRASES],['cloze',CLOZES]] as const)
+ .filter(([kind])=>byKind[kind]).map(([kind,forms])=>withCount(byKind[kind],forms)).join(' · ');
 
 export function ResultScreen(){
  const {id}=useParams();
@@ -22,20 +27,24 @@ export function ResultScreen(){
  const result=useLiveQuery(async()=>{
   const events=id?await db.events.where('sessionId').equals(id).toArray():[];
   const mistakes=events.filter(event=>event.correct===false||(event.correct===null&&event.rating===1));
-  const mistakeWords=[...new Set(mistakes.map(event=>event.wordId))];
-  return {events,mistakes,mistakeWords,states:await statesOf(mistakeWords)};
+  const mistakeRefs=[...new Map(mistakes.map(event=>[event.unitKey,event.ref])).values()];
+  return {events,mistakes,mistakeRefs,states:await statesOf(mistakeRefs)};
  },[id]);
- const events=result?.events??[], mistakes=result?.mistakes??[], mistakeWords=result?.mistakeWords??[];
- const words=new Set(events.map(event=>event.wordId));
+ const events=result?.events??[], mistakes=result?.mistakes??[], mistakeRefs=result?.mistakeRefs??[];
+ // Повторная попытка той же карточки не увеличивает число уникальных карточек.
+ const unique=new Map(events.map(event=>[event.unitKey,event.ref]));
+ const byKind:Record<CardKind,number>={word:0,phrase:0,cloze:0};
+ for(const ref of unique.values())byKind[ref.kind]++;
+ const mixed=byKind.phrase>0||byKind.cloze>0;
  const objective=events.filter(event=>event.correct!==null);
- const readyAgain=mistakeWords.filter(wordId=>{
-  const state=result?.states.get(wordId);
+ const readyAgain:LearningRef[]=mistakeRefs.filter(ref=>{
+  const state=result?.states.get(JSON.stringify([ref.kind,ref.id]));
   return state&&new Date(state.card.due).getTime()<=now.getTime();
  });
  const nextDue=[...(result?.states.values()??[])].map(state=>new Date(state.card.due)).sort((a,b)=>a.getTime()-b.getTime())[0];
 
  const repeat=async()=>{
-  const created=await startSession(now,{wordIds:readyAgain});
+  const created=await startSession(now,{refs:readyAgain});
   navigate(created?'/session':'/');
  };
  return (
@@ -43,8 +52,9 @@ export function ResultScreen(){
    <h1>Занятие завершено</h1>
    <div className={ui.tiles}>
     <Card size="sm"><CardContent>
-     <div className="text-[30px] leading-tight font-bold text-primary">{words.size}</div>
-     <div className="text-sm text-muted-foreground">{plural(words.size,WORDS)} в занятии</div>
+     <div className="text-[30px] leading-tight font-bold text-primary">{unique.size}</div>
+     <div className="text-sm text-muted-foreground">{plural(unique.size,mixed?CARDS:WORDS)} в занятии</div>
+     {mixed&&<div className="mt-1 text-sm text-muted-foreground" data-testid="composition">{compositionText(byKind)}</div>}
     </CardContent></Card>
     <Card size="sm"><CardContent>
      <div className="text-[30px] leading-tight font-bold text-primary">{events.length}</div>
@@ -55,15 +65,15 @@ export function ResultScreen(){
     <p className="m-0">Ошибок: <b>{mistakes.length}</b></p>
     <p className="m-0 text-sm text-muted-foreground">
      {objective.length
-      ?`Объективная точность (выбор, сборка, аудирование, написание): ${Math.round(objective.filter(event=>event.correct).length/objective.length*100)}% из ${withCount(objective.length,['ответа','ответов','ответов'])}`
-      :'Объективных проверок в этом занятии не было — только самооценка.'}
+      ?`Объективная точность (выбор, сборка, аудирование, написание, пропуск): ${Math.round(objective.filter(event=>event.correct).length/objective.length*100)}% из ${withCount(objective.length,['ответа','ответов','ответов'])}`
+      :'Объективных проверок в этом занятии не было — только самооценка. Точность: нет данных.'}
     </p>
     <p className="m-0 text-sm text-muted-foreground">Активное время: {minutes(session?.activeTimeMs??0)}</p>
    </CardContent></Card>
-   {mistakeWords.length>0&&(
+   {mistakeRefs.length>0&&(
     readyAgain.length>0
      ?<Button variant="soft" size="xl" onClick={repeat}>Повторить ошибки ({readyAgain.length})</Button>
-     :<Alert className="mb-3"><Info/><AlertDescription>Слова с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</AlertDescription></Alert>
+     :<Alert className="mb-3"><Info/><AlertDescription>Карточки с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</AlertDescription></Alert>
    )}
    <Button size="xl" style={{marginTop:12}} onClick={()=>navigate('/')}>Готово</Button>
   </main>

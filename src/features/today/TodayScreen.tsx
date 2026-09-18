@@ -8,7 +8,7 @@ import {ItemGroup} from '@/components/ui/item';
 import {BrandBar} from '../../app/TopBar';
 import {localDay} from '../../domain/learning';
 import {useNow} from '../../shared/clock';
-import {capitalize, dativeWeekday, dayMonth, DAYS, LESSONS, shortTitle, withCount, WORDS} from '../../shared/format';
+import {capitalize, CARDS, dativeWeekday, dayMonth, DAYS, LESSONS, shortTitle, withCount} from '../../shared/format';
 import {useActiveSession, useCatalog, useLessons, usePlan, useSettings} from '../../shared/store';
 import {startSession} from '../learning/session-actions';
 import {LessonRow} from '../lessons/LessonRow';
@@ -39,7 +39,7 @@ export function TodayScreen(){
   try{
    if(unfinished)return navigate('/session');
    const session=await startSession(now);
-   if(!session)return setProblem('На сегодня очередь пуста. Можно потренировать слова вручную в разделе «Слова».');
+   if(!session)return setProblem('На сегодня очередь пуста. Можно потренировать карточки вручную на экране урока или слово в разделе «Слова».');
    navigate('/session');
   }catch(error){setProblem(error instanceof Error?error.message:'Не удалось начать занятие');}
   finally{setBusy(false)}
@@ -62,13 +62,13 @@ export function TodayScreen(){
         </CardDescription>
         <CardTitle className="text-2xl font-bold">{lesson.title}</CardTitle>
         <CardDescription>
-         {withCount(next.newLeft,WORDS)} · {next.daysLeft===0?'сегодня день занятия':`${withCount(next.daysLeft,DAYS)} на подготовку`}
+         {withCount(next.newLeft,CARDS)} · {next.daysLeft===0?'сегодня день занятия':`${withCount(next.daysLeft,DAYS)} на подготовку`}
         </CardDescription>
        </>
       ):(
        <>
         <CardTitle className="text-xl font-bold">Занятие не назначено</CardTitle>
-        <CardDescription>Задайте расписание или дату набора на экране «Уроки», чтобы Lexi распределила слова по дням.</CardDescription>
+        <CardDescription>Задайте расписание или дату набора на экране «Уроки», чтобы Lexi распределила карточки по дням.</CardDescription>
        </>
       )}
      </CardHeader>
@@ -77,11 +77,11 @@ export function TodayScreen(){
     <div className={ui.tiles}>
      <Card size="sm">
       <CardContent>
-       <div className="text-[30px] leading-tight font-bold text-primary">{plan?.newWordIds.length??0}</div>
+       <div className="text-[30px] leading-tight font-bold text-primary">{plan?.newRefs.length??0}</div>
        <div className="text-sm text-muted-foreground">{plan?.budget?'новых сегодня':'новых на сегодня нет'}</div>
-       {(plan?.courses??[]).filter(item=>item.newWordIds.length).length>1&&(
+       {(plan?.courses??[]).filter(item=>item.newRefs.length).length>1&&(
         <div className="mt-1 text-sm text-muted-foreground" data-testid="new-by-course">
-         {plan!.courses.filter(item=>item.newWordIds.length).map(item=>`${shortTitle(item.title)}: ${item.newWordIds.length}`).join(' · ')}
+         {plan!.courses.filter(item=>item.newRefs.length).map(item=>`${shortTitle(item.title)}: ${item.newRefs.length}`).join(' · ')}
         </div>
        )}
       </CardContent>
@@ -99,9 +99,17 @@ export function TodayScreen(){
       <History/>
       <AlertTitle>Хвост прошедших занятий</AlertTitle>
       <AlertDescription>
-       {withCount(plan.backlog.wordIds.length,WORDS)} из {withCount(plan.backlog.lessons,LESSONS)} ещё ни разу не показывали.
-       Lexi добирает их в «Новые» после слов ближайшего занятия: подготовка к нему важнее долгов.
+       {withCount(plan.backlog.refs.length,CARDS)} из {withCount(plan.backlog.lessons,LESSONS)} ещё ни разу не показывали.
+       Lexi добирает их в «Новые» после карточек ближайшего занятия: подготовка к нему важнее долгов.
       </AlertDescription>
+     </Alert>
+    )}
+
+    {!!plan?.unavailable.length&&(
+     <Alert className="mb-3" data-testid="unavailable">
+      <History/>
+      <AlertTitle>Нет доступного упражнения</AlertTitle>
+      <AlertDescription>{withCount(plan.unavailable.length,CARDS)} без перевода и озвучки: они доступны для просмотра на экране урока, но не расходуют дневную квоту и не входят в темп.</AlertDescription>
      </Alert>
     )}
 
@@ -110,7 +118,7 @@ export function TodayScreen(){
       <TriangleAlert/>
       <AlertTitle>«{item.title}»: дневного предела не хватает</AlertTitle>
       <AlertDescription>
-       Чтобы успеть к сроку, нужно {withCount(item.requiredPerDay,WORDS)} в день, а предел курса — {item.newWordsPerDay}.
+       Чтобы успеть к сроку, нужно {withCount(item.requiredPerDay,CARDS)} в день, а предел курса — {item.newItemsPerDay}.
        Увеличьте предел в группе курса на экране «Уроки» или перенесите дату.
       </AlertDescription>
      </Alert>

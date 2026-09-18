@@ -8,18 +8,19 @@ import {decodeSnapshot, encodeSnapshot} from '../src/sync/codec';
 import {CLOUD_LIMITS} from '../src/sync/transport';
 import type {ExerciseType, ReviewEvent, Word} from '../src/domain/types';
 import {installLessons} from './helpers/content';
+import {wordEvent, wordState} from './helpers/cards';
 
 const TYPES:ExerciseType[]=['recognition','assembly','spelling','listening'];
 const now=new Date('2026-09-16T09:00:00Z');
 /** Полная история: у каждого слова по десять ответов каждого типа — верхняя граница сводки навыков. */
 async function fill(db:LexiDatabase,ids:string[],perType=10){
- const states=ids.map((wordId,index)=>({wordId,version:perType*TYPES.length,introducedAt:new Date(now.getTime()-index*60000).toISOString(),card:{...createEmptyCard(now),due:new Date(now.getTime()+index*3600000),reps:perType*TYPES.length,stability:12.3456789,difficulty:5.4321,scheduled_days:7,elapsed_days:3,state:2,last_review:now}}));
- await db.states.bulkPut(states);
+ const states=ids.map((wordId,index)=>wordState(wordId,{version:perType*TYPES.length,introducedAt:new Date(now.getTime()-index*60000).toISOString(),card:{...createEmptyCard(now),due:new Date(now.getTime()+index*3600000),reps:perType*TYPES.length,stability:12.3456789,difficulty:5.4321,scheduled_days:7,elapsed_days:3,state:2,last_review:now}}));
+ await db.cardStates.bulkPut(states);
  const events:ReviewEvent[]=[];
  let tick=0;
  for(const wordId of ids)for(const type of TYPES)for(let index=0;index<perType;index++){
   const at=new Date(now.getTime()-(10**7)+tick++*1000).toISOString();
-  events.push({id:`e-${wordId}-${type}-${index}`,sessionId:'s',itemId:`i-${tick}`,wordId,snapshot:{greek:'',russian:''},type,mode:'scheduled',rating:index%3?3:1,correct:index%3!==0,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:900});
+  events.push(wordEvent(wordId,{id:`e-${wordId}-${type}-${index}`,sessionId:'s',itemId:`i-${tick}`,snapshot:{greek:'',russian:''},type,mode:'scheduled',rating:index%3?3:1,correct:index%3!==0,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:900}));
  }
  await db.events.bulkPut(events);
 }

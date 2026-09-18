@@ -62,7 +62,7 @@ test.describe('навигация, тема и размеры',()=>{
   await page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
   await expect.poll(()=>bridge.backVisible()).toBe(true);
   await page.getByRole('link',{name:/1\.1/}).click();
-  await expect(page.getByRole('heading',{name:'Слова набора'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/^Слова · \d+$/})).toBeVisible();
   await expect(page.getByRole('button',{name:'Назад'})).toHaveCount(0); // внутренняя стрелка заменена нативной
   await bridge.back();
   await expect(page).toHaveURL(/\/lessons$/);
@@ -70,7 +70,7 @@ test.describe('навигация, тема и размеры',()=>{
   await page.getByRole('link',{name:/διαβάζω/}).click();
   await expect(page.getByRole('button',{name:'Потренировать слово'})).toBeVisible();
   await bridge.back();
-  await expect(page.getByRole('heading',{name:'Слова набора'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/^Слова · \d+$/})).toBeVisible();
   await bridge.back();await bridge.back();
   await expect(page).toHaveURL(/\/$/);
   await expect.poll(()=>bridge.backVisible()).toBe(false);
@@ -171,8 +171,8 @@ test.describe('навигация, тема и размеры',()=>{
    const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open(databaseName);request.onsuccess=()=>resolve(request.result)});
    const now=new Date().toISOString();
    const tx=database.transaction(['sessions','events'],'readwrite');
-   tx.objectStore('sessions').put({id:'done',createdAt:now,planDate:'2026-09-16',items:[],index:0,status:'done',activeTimeMs:60000,introducedWordIds:[]});
-   tx.objectStore('events').put({id:'e-done',sessionId:'done',itemId:'i-done',wordId:'w11-01',type:'recognition',mode:'scheduled',correct:true,rating:3,answer:'',localDate:'2026-09-16',createdAt:now});
+   tx.objectStore('sessions').put({id:'done',createdAt:now,planDate:'2026-09-16',items:[],index:0,status:'done',activeTimeMs:60000,introducedKeys:[]});
+   tx.objectStore('events').put({id:'e-done',sessionId:'done',itemId:'i-done',ref:{kind:'word',id:'w11-01'},unitKey:JSON.stringify(['word','w11-01']),snapshot:{greek:'',russian:''},type:'recognition',mode:'scheduled',correct:true,rating:3,answer:'',localDate:'2026-09-16',createdAt:now});
    await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
    database.close();
   },TG_DB);
@@ -276,8 +276,12 @@ test.describe('навигация, тема и размеры',()=>{
   expect(await alive()).toBe(true); // страница не перезагружалась
   expect(await reopened()).toBe(1);
   await expect(page.getByTestId('recovery-failed')).toHaveCount(0);
-  await breakStorage(page,true);
+  // Отказ навсегда: экран открыт заранее, чтобы момент падения задавал тест, а не гонка фоновых запросов.
   await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
+  await expect(page.getByRole('heading',{name:'Слова'})).toBeVisible();
+  await breakStorage(page,true);
+  // Любое чтение базы теперь падает: экран доходит до предела попыток сам, ввод в поиск — лишь подстраховка.
+  await page.getByRole('searchbox').fill('σπι',{timeout:5000}).catch(()=>undefined);
   await expect(page.getByTestId('recovery-failed')).toBeVisible({timeout:15000});
   await expect(page.getByTestId('recovery-failed')).toContainText('Данные на устройстве сохранены');
   expect(await reopened()).toBe(3); // предел три попытки за минуту: первое восстановление уже в счёте
@@ -375,7 +379,7 @@ test.describe('аудио, копии и облако',()=>{
   await expect.poll(()=>tablet.evaluate(async()=>{
    const request=indexedDB.open('lexi-tg-TaveloriBot-1001');
    const database=await new Promise<IDBDatabase>(resolve=>{request.onsuccess=()=>resolve(request.result)});
-   const count=database.transaction('states').objectStore('states').count();
+   const count=database.transaction('cardStates').objectStore('cardStates').count();
    return new Promise<number>(resolve=>{count.onsuccess=()=>resolve(count.result)});
   }),{timeout:20000}).toBe(2);
   await tablet.goto('/');

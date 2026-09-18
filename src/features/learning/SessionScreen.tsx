@@ -11,7 +11,7 @@ import {hapticsEnabled} from '../../platform/haptics';
 import {useBackHandler, useHaptics, usePlatform} from '../../platform/platform';
 import {db} from '../../storage/db';
 import {ConflictError, endSession, recordAnswer, markIntroduced, prepareObjectiveSession, skipItem} from '../../storage/ops';
-import {Assembly, Introduction, Listening, Recognition, Spelling, type Answer} from './exercises';
+import {Assembly, ClozeExercise, Introduction, Listening, Recognition, Spelling, type Answer} from './exercises';
 import ui from '../../shared/ui.module.css';
 import s from './session.module.css';
 
@@ -50,7 +50,8 @@ export function SessionScreen(){
  const [backHandler]=useState(()=>()=>leaveRef.current());
  useBackHandler(backHandler);
  const item=session&&position>=0?session.items[position]:undefined;
- const introduction=session?.items.find(entry=>entry.isNew&&!entry.eventId&&!entry.retryOf&&!session.introducedWordIds?.includes(entry.wordId));
+ // Общий проход знакомств всех новых видов завершается до проверок; пройденное знакомство хранится по ключу карточки.
+ const introduction=session?.items.find(entry=>entry.isNew&&!entry.eventId&&!entry.retryOf&&!session.introducedKeys?.includes(entry.unitKey));
 
  useEffect(()=>{
   shown.current=Date.now();
@@ -58,7 +59,7 @@ export function SessionScreen(){
   previous.current=item?.id;
   active.current.since=Date.now();
   stopAudio();
- },[item?.id,introduction?.wordId]);
+ },[item?.id,introduction?.unitKey]);
  useEffect(()=>{
   // Время скрытой вкладки не считается активным временем занятия.
   const change=()=>{
@@ -109,7 +110,7 @@ export function SessionScreen(){
  const introduce=async()=>{
   if(!introduction||introducing)return;
   setProblem('');setIntroducing(true);
-  try{await markIntroduced(session.id,introduction.wordId,activeMs());shown.current=Date.now()}
+  try{await markIntroduced(session.id,introduction.unitKey,activeMs());shown.current=Date.now()}
   catch{setProblem('Не удалось сохранить знакомство. Попробуйте ещё раз.')}
   finally{setIntroducing(false)}
  };
@@ -128,9 +129,10 @@ export function SessionScreen(){
   try{await skipItem(session.id,item.id,activeMs());next()}
   catch{setProblem('Не удалось пропустить упражнение. Попробуйте ещё раз.')}
  };
- // key по упражнению: иначе следующее слово успевает показаться с ответом предыдущего.
+ // key по упражнению: иначе следующая карточка успевает показаться с ответом предыдущей.
  const view=session.objectiveVersion!==1?null:introduction
   ?<Introduction key={introduction.id} item={introduction} onReady={introduce} saving={introducing}/>
+  :item.type==='cloze'?<ClozeExercise key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip}/>
   :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next}/>

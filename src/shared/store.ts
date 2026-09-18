@@ -6,7 +6,7 @@ import {makePlan} from '../domain/learning';
 import {progress} from '../domain/stats';
 import {defaultSettings, type Session} from '../domain/types';
 import {db} from '../storage/db';
-import {deletedWordIds, dexieSource, lessonDetail, lessonsOfWord, lessonViews, loadSettings, wordPage, type WordFilter, type WordPage} from '../storage/queries';
+import {dexieSource, lessonDetail, lessonsOfWord, lessonViews, loadSettings, wordPage, type WordFilter, type WordPage} from '../storage/queries';
 
 /**
  * Каждый экран подписывается только на свою выборку. Общего реактивного снимка базы больше нет:
@@ -25,13 +25,21 @@ export const usePlan=(now:Date)=>useLiveQuery(()=>makePlan(dexieSource(),now),[n
 export const useStats=(now:Date)=>useLiveQuery(()=>progress(dexieSource(),now),[now.getTime()]);
 export const useActiveSession=():Session|undefined|null=>useLiveQuery(()=>
  db.sessions.where('[status+createdAt]').between(['active',Dexie.minKey],['active',Dexie.maxKey]).reverse().first().then(session=>session??null),[]);
-export const useCounts=()=>useLiveQuery(async()=>({words:await db.words.count()-(await deletedWordIds()).size,answers:await db.events.count()}),[]);
+/** Счётчики экрана «Ещё»: только числа по индексам, без чтения самих карточек. */
+export const useCounts=()=>useLiveQuery(async()=>{
+ const live=async(table:{count():Promise<number>;where(index:string):{above(value:string):{count():Promise<number>}}})=>
+  await table.count()-await table.where('deletedAt').above('').count();
+ const [words,phrases,clozes,answers]=await Promise.all([live(db.words),live(db.phrases),live(db.clozes),db.events.count()]);
+ return {words,cards:words+phrases+clozes,answers};
+},[]);
 
 export const useCatalog=()=>useLiveQuery(async()=>({entries:await db.catalog.toArray(),packages:await db.packages.toArray()}),[]);
 export const useInstallPhase=(lessonId:string|undefined)=>useSyncExternalStore(subscribeInstall,()=>installPhase(lessonId??''));
 export const useCourses=()=>useLiveQuery(()=>db.courses.toArray(),[]);
 export const useCoursePhase=(courseId:string|undefined)=>useSyncExternalStore(subscribeInstall,()=>coursePhase(courseId??''));
 export const useReadiness=(lessonId:string|undefined)=>useLiveQuery(()=>lessonId?lessonReadiness(lessonId):undefined,[lessonId]);
+/** Число живых фраз: достаточность пула вариантов для аудирования фраз без перевода. */
+export const usePhraseCount=()=>useLiveQuery(async()=>await db.phrases.count()-await db.phrases.where('deletedAt').above('').count(),[]);
 
 export function useAssetUrl(id:string|undefined):string|null{
  const [url,setUrl]=useState<string|null>(null);
