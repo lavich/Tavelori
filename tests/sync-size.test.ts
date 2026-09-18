@@ -44,8 +44,10 @@ describe('размер компактного снимка (задача 0.4)',(
   console.log(`каталог: ${ids.length} слов, ${chars} символов, ${parts} частей, ${keysFor(parts)} ключей с резервом`);
   expect(snapshot.states).toHaveLength(ids.length);
   expect(snapshot.skills).toHaveLength(ids.length);
-  expect(parts).toBeLessThanOrEqual(10);
+  // Потолок — ключи облака, а не число частей: расти каталогу можно, выходить за лимит переноса — нет.
   expect(keysFor(parts)).toBeLessThan(CLOUD_LIMITS.maxKeys);
+  // Цена одного слова с полной историей навыков: сводка, а не список ответов.
+  expect(chars/ids.length).toBeLessThan(320);
  });
  it('растущий набор: границы вместимости с резервом на две версии и конфликт',async()=>{
   const results:{words:number;chars:number;parts:number;keys:number}[]=[];

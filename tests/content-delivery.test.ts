@@ -9,7 +9,7 @@ import {lessonItems} from '../src/storage/queries';
 import {indexWord} from '../src/storage/db';
 import {linkWords} from '../src/storage/ops';
 import {wordKeyOf, wordRef, wordState} from './helpers/cards';
-import {content, installLessons, memoryFetcher, packageOf} from './helpers/content';
+import {content, installLessons, itemCountOf, memoryFetcher, packageOf, wordCountOf} from './helpers/content';
 import {buildMixed, installMixed, MIXED_CLOZES, MIXED_LESSON, MIXED_PHRASES, mixedContent, mixedPackage} from './helpers/mixed';
 import {unitKey} from './helpers/cards';
 import {clozeRevisionOf} from '../content/build';
@@ -169,9 +169,9 @@ describe('установка урока',()=>{
   expect(word).toMatchObject({greek:'το σπίτι',revision:packageOf('lesson-1-2').words.find(w=>w.id==='w12-16')!.revision});
   expect(word.tokens).toContain('σπιτι');
  });
- it('пакеты 1.1 и 1.2 дают 68 слов и предстоящие уроки без дат',async()=>{
+ it('пакеты 1.1 и 1.2 дают все свои слова и предстоящие уроки без дат',async()=>{
   await installLessons(db,['lesson-1-1','lesson-1-2']);
-  expect(await db.words.count()).toBe(68);
+  expect(await db.words.count()).toBe(wordCountOf('lesson-1-1','lesson-1-2'));
   // Положение урока во времени не поставляется: оба урока предстоящие и без дат, дальше ими распоряжается пользователь.
   expect(await db.lessons.get('lesson-1-1')).toMatchObject({status:'upcoming',targetDate:null});
   expect(await db.lessons.get('lesson-1-2')).toMatchObject({status:'upcoming',targetDate:null});
@@ -191,8 +191,8 @@ describe('установка урока',()=>{
   expect(a).toBe(b);
   expect(fetcher.requests.filter(url=>url.includes('lesson-1-1'))).toHaveLength(1);
   expect(await installLesson('lesson-1-1',db,fetcher)).toMatchObject({status:'current'});
-  expect(await db.words.count()).toBe(38);
-  expect(await db.lessonItems.count()).toBe(38);
+  expect(await db.words.count()).toBe(wordCountOf('lesson-1-1'));
+  expect(await db.lessonItems.count()).toBe(itemCountOf('lesson-1-1'));
   expect(await db.packages.count()).toBe(1);
  });
  it('повреждённый, чужой и несовместимый пакет отклоняются без частичного урока',async()=>{
@@ -228,7 +228,7 @@ describe('установка урока',()=>{
   const fetcher=await installLessons(db,['lesson-1-1']);
   fetcher.json=async url=>{if(url.endsWith('catalog.json'))return content.catalog;throw new ContentError('Нет сети: пакет урока ещё не загружен на это устройство.','network')};
   await expect(installLesson('lesson-1-2',db,fetcher)).rejects.toMatchObject({kind:'network'});
-  expect(await db.words.count()).toBe(38);
+  expect(await db.words.count()).toBe(wordCountOf('lesson-1-1'));
   expect(await db.lessons.count()).toBe(1);
  });
 });

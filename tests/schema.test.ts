@@ -92,7 +92,7 @@ describe('совместимость со схемой 2',()=>{
   const pack=parsePackage(legacy());
   expect(pack.schemaVersion).toBe(2);
   expect(pack.items.map(item=>item.kind)).toEqual(pack.items.map(()=>'word'));
-  expect(pack.items.map(item=>item.id)).toEqual(v2.items.map(item=>item.id));
+  expect(pack.items.map(item=>item.id)).toEqual(v2.items.filter(item=>item.kind==='word').map(item=>item.id));
   expect(pack.phrases).toEqual([]);
   expect(pack.clozes).toEqual([]);
  });

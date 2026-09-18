@@ -17,7 +17,8 @@ const norm=(text:string)=>text.normalize('NFC').replace(/\s+/g,' ').trim();
 describe('шаблоны инструкции',()=>{
  it('слово, фраза, пропуск и смешанный урок из docs/ проходят тот же валидатор, что и каталог',()=>{
   const root=mkdtempSync(join(tmpdir(),'lexi-doc-'));
-  for(const dir of ['words','lessons','art','courses','audio']) if(existsSync(join('content',dir)))cpSync(join('content',dir),join(root,dir),{recursive:true});
+  // Копируются все папки контента: шаблон проверяется рядом с настоящим каталогом, каким бы он ни стал.
+  for(const entry of readdirSync('content',{withFileTypes:true}))if(entry.isDirectory())cpSync(join('content',entry.name),join(root,entry.name),{recursive:true});
   for(const dir of ['phrases','clozes'])mkdirSync(join(root,dir),{recursive:true});
   const copy=(from:string,to:string)=>writeFileSync(join(root,to),readFileSync(join(TEMPLATES,from),'utf8'));
   copy('word.yaml','words/w-example.yaml');
@@ -136,9 +137,11 @@ describe('прогон инструкции на существующем мат
    expect(same.items,pack.id).toEqual(pack.items);
    expect(same.version,pack.id).toBe(pack.version); // ревизии и версии прежних пакетов не сдвинулись
   }
-  expect(real.phrases).toEqual([]);
-  expect(real.clozes).toEqual([]);
-  expect(existsSync('content/phrases')).toBe(false); // настоящих фраз в каталоге ещё нет
-  expect(existsSync('content/clozes')).toBe(false);
+  // Фикстура добавляет только свои карточки: карточки каталога остаются ровно теми же записями.
+  const own=(built:typeof real,kind:'phrases'|'clozes')=>built[kind].filter(item=>real[kind].some(card=>card.id===item.id));
+  expect(own(withFixture,'phrases')).toEqual(real.phrases);
+  expect(own(withFixture,'clozes')).toEqual(real.clozes);
+  expect(withFixture.phrases.length-real.phrases.length).toBe(Object.keys(MIXED_PHRASES).length);
+  expect(withFixture.clozes.length-real.clozes.length).toBe(Object.keys(MIXED_CLOZES).length);
  });
 });

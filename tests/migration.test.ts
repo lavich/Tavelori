@@ -9,7 +9,7 @@ import {exportFull, inspectBackup, restoreBackup} from '../src/features/backup/b
 import {lessonItems, searchWordIds} from '../src/storage/queries';
 import {wordKeyOf, wordRef} from './helpers/cards';
 import {saveWord} from '../src/storage/ops';
-import {content, installLessons, memoryFetcher, packageOf, wordsOf} from './helpers/content';
+import {content, installLessons, itemCountOf, memoryFetcher, packageOf, wordsOf} from './helpers/content';
 
 /** Схема первой версии: так выглядит база пользователя до обновления приложения. */
 class LegacyDatabase extends Dexie {
@@ -197,6 +197,6 @@ describe('резервная копия',()=>{
   links.rows.push({lessonId:'lesson-1-1',unitKey:wordKeyOf('нет-такого'),ref:wordRef('нет-такого'),position:99});
   await expect(restoreBackup(asLexi(good),db)).rejects.toThrow(/несуществующую запись/);
   expect(await db.words.count()).toBe(before);
-  expect(await db.lessonItems.count()).toBe(38);
+  expect(await db.lessonItems.count()).toBe(itemCountOf('lesson-1-1'));
  });
 });

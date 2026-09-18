@@ -31,7 +31,8 @@ describe('сборка смешанного урока',()=>{
   const built=mixed({lesson:{title:'Без слов',items:[{kind:'phrase',id:'p-grafo'},{kind:'cloze',id:'c-grafo'}]}});
   expect(pack(built).words).toEqual([]);
   expect(pack(built).items).toHaveLength(2);
-  for(const p of built.packages.filter(p=>p.id!=='lesson-mixed'))expect(p.items.every(item=>item.kind==='word'),p.id).toBe(true);
+  // Уроки, объявленные списком words, дают только слова — независимо от того, какие уроки смешанные.
+  for(const p of built.packages.filter(p=>built.sources.lessons.get(p.id)?.words))expect(p.items.every(item=>item.kind==='word'),p.id).toBe(true);
   expect(()=>mixed({lesson:{title:'Оба',words:['w11-27'],items:[{kind:'phrase',id:'p-grafo'}]}})).toThrow(/либо words, либо items/);
   expect(()=>mixed({lesson:{title:'Пусто'}})).toThrow(/нужен непустой список/);
  });
