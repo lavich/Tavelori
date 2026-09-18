@@ -291,9 +291,12 @@ test('полная копия переносит смешанный урок с 
  writeFileSync(file,readFileSync(await download.path()));
  const parsed=JSON.parse(readFileSync(file,'utf8'));
  const rows=(name:string)=>parsed.data.data.find((table:{tableName:string})=>table.tableName===name).rows;
- expect(rows('phrases')).toHaveLength(5);
- expect(rows('clozes')).toHaveLength(5);
- expect(rows('lessonItems').filter((row:{lessonId:string})=>row.lessonId==='lesson-mixed')).toHaveLength(11);
+ // Считаем карточки самого смешанного урока, а не всю базу: в каталоге могут быть и свои фразы с пропусками.
+ const linked=rows('lessonItems').filter((row:{lessonId:string})=>row.lessonId==='lesson-mixed') as {ref:{kind:string;id:string}}[];
+ const ofMixed=(name:string,kind:string)=>rows(name).filter((row:{id:string})=>linked.some(link=>link.ref.kind===kind&&link.ref.id===row.id));
+ expect(linked).toHaveLength(11);
+ expect(ofMixed('phrases','phrase')).toHaveLength(5);
+ expect(ofMixed('clozes','cloze')).toHaveLength(5);
  expect(rows('sessions').some((row:{status:string})=>row.status==='active')).toBe(true);
  await source.close();
 

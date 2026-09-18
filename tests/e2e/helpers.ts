@@ -150,6 +150,16 @@ export async function setCourseLimit(page:Page,courseId:string,newItemsPerDay:nu
  },[courseId,newItemsPerDay,databaseName] as const);
 }
 /** Чтение таблицы IndexedDB целиком: только для проверок в тестах. */
+/**
+ * Карточки установленных уроков из базы: ожидания интерфейса считаются от каталога,
+ * а не вписываются числом — иначе каждое пополнение контента правит e2e.
+ */
+export async function lessonCards(page:Page):Promise<Record<string,string[]>>{
+ const rows=await readTable(page,'lessonItems') as {lessonId:string;unitKey:string}[];
+ const map:Record<string,string[]>={};
+ for(const row of rows)(map[row.lessonId]??=[]).push(row.unitKey);
+ return map;
+}
 export const readTable=(page:Page,name:string,databaseName='lexi')=>page.evaluate(async([name,databaseName])=>{
  const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open(databaseName);request.onsuccess=()=>resolve(request.result)});
  const rows=await new Promise<any[]>(resolve=>{const request=database.transaction(name).objectStore(name).getAll();request.onsuccess=()=>resolve(request.result)});

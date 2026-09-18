@@ -31,3 +31,7 @@ export async function installLessons(db:LexiDatabase,ids:string[],fetcher=memory
 }
 export const packageOf=(id:string)=>content.packages.find(pack=>pack.id===id)!;
 export const wordsOf=(id:string)=>{const pack=packageOf(id);return pack.links.map(link=>pack.words.find(word=>word.id===link.wordId)!)};
+/** Сколько уникальных слов дают перечисленные уроки: одно слово в двух уроках считается один раз. */
+export const wordCountOf=(...ids:string[])=>new Set(ids.flatMap(id=>packageOf(id).words.map(word=>word.id))).size;
+/** Сколько связей «урок — карточка» дают перечисленные уроки: карточки всех видов. */
+export const itemCountOf=(...ids:string[])=>ids.reduce((sum,id)=>sum+packageOf(id).items.length,0);

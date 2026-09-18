@@ -1,4 +1,4 @@
-import {cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
@@ -21,12 +21,15 @@ const prepared=content.words.filter(word=>word.verified);
 const packageOf=(id:string)=>content.packages.find(p=>p.id===id)!;
 const fileOf=(path:string)=>content.files.find(file=>file.path===path)!;
 const lessonSource=(id:string)=>content.sources.lessons.get(id)!;
+/** Слова урока по его объявлению: словарный урок перечисляет `words`, смешанный — `items`. */
+const wordIdsOf=(id:string)=>{const source=lessonSource(id);return source.items?source.items.filter(item=>item.kind==='word').map(item=>item.id):source.words!};
 const seedArt=(id:string)=>Buffer.from(content.sources.files.get(`art/${content.sources.words.get(id)!.image}`)!).toString('utf8');
 
 /** Копия исходников, в которой можно сломать один файл и проверить отказ публикации. */
 function brokenCopy(mutate:(root:string)=>void){
  const root=mkdtempSync(join(tmpdir(),'lexi-content-'));
- for(const dir of ['words','lessons','art','courses'])cpSync(join('content',dir),join(root,dir),{recursive:true});
+ // Копируются все папки контента: новый вид карточек не должен ломать фикстуру.
+ for(const entry of readdirSync('content',{withFileTypes:true}))if(entry.isDirectory())cpSync(join('content',entry.name),join(root,entry.name),{recursive:true});
  mutate(root);
  try{return buildContent(root)}finally{rmSync(root,{recursive:true,force:true})}
 }
@@ -52,15 +55,15 @@ describe('исходные наборы 1.1 и 1.2 сохранены в нач�
 });
 
 describe('наборы класса переносятся без потерь и без дублей',()=>{
- it.each([['lesson-1-3',35],['lesson-1-4',35]] as const)('%s',(lessonId,count)=>{
-  const source=lessonSource(lessonId);
-  expect(source.words).toHaveLength(count);
-  expect(packageOf(lessonId).links).toHaveLength(count);
-  expect(wordsOf(content,lessonId).map(word=>word.id)).toEqual(source.words);
+ it.each(['lesson-1-3','lesson-1-4'] as const)('%s',lessonId=>{
+  const declared=wordIdsOf(lessonId);
+  expect(declared.length).toBeGreaterThan(0);
+  expect(packageOf(lessonId).links).toHaveLength(declared.length);
+  expect(wordsOf(content,lessonId).map(word=>word.id)).toEqual(declared);
  });
 
  it('повторяющееся слово остаётся одной записью с общим идентификатором во всех пакетах',()=>{
-  const linked=new Set([...content.sources.lessons.values()].flatMap(lesson=>lesson.words));
+  const linked=new Set(content.packages.flatMap(pack=>pack.words.map(word=>word.id)));
   expect(seedWords).toHaveLength(linked.size);
   expect(new Set(seedWords.map(word=>wordKey(word.greek,word.russian))).size).toBe(seedWords.length);
   expect(new Set(seedWords.map(word=>word.id)).size).toBe(seedWords.length);
@@ -140,11 +143,12 @@ describe('уроки принадлежат курсам',()=>{
 describe('каталог и пакеты',()=>{
  it('каталог содержит только метаданные, без слов и медиа',()=>{
   const catalog=parseCatalog(JSON.parse(fileOf('content/catalog.json').body as string));
-  expect(catalog.lessons.map(l=>[l.id,l.wordCount,l.media.count])).toEqual([['lesson-1-1',38,38],['lesson-1-2',30,30],['lesson-1-3',35,35],['lesson-1-4',35,35],['lesson-2-1',36,36],['lesson-2-2',33,33]]);
+  expect(catalog.lessons.map(l=>[l.id,l.wordCount,l.media.count]))
+   .toEqual(content.packages.map(pack=>[pack.id,pack.words.length,pack.media.length]));
   const text=fileOf('content/catalog.json').body as string;
   expect(text).not.toContain('σπίτι');
   expect(text).not.toContain('<svg');
-  expect(text.length).toBeLessThan(2000);
+  expect(text.length).toBeLessThan(catalog.lessons.length*400); // метаданные урока — сотни символов, а не его содержимое
   for(const entry of catalog.lessons){
    expect(entry.url).toBe(`content/packages/${entry.id}@${entry.version}.json`);
    expect(entry.bytes).toBe(Buffer.byteLength(fileOf(entry.url).body as string));
@@ -208,8 +212,8 @@ describe('каталог и пакеты',()=>{
 });
 
 describe('карточка каждого подготовленного слова готова',()=>{
- it('у всех 194 слов есть IPA с ударением и распознанный ударный слог',()=>{
-  expect(prepared).toHaveLength(194);
+ it('у каждого подготовленного слова есть IPA с ударением и распознанный ударный слог',()=>{
+  expect(prepared.length).toBeGreaterThan(0);
   for(const word of prepared){
    expect(word.ipa,word.greek).toMatch(/^\/.+\/$/);
    const core=word.greek.replace(/^(ο|η|το|τα|οι) /,'');
@@ -259,7 +263,7 @@ describe('карточка каждого подготовленного сло�
   }).join('');
   mkdirSync('docs',{recursive:true});
   writeFileSync('docs/art-sheet.html',`<!doctype html><meta charset="utf-8"><title>Иллюстрации Lexi</title><style>body{font:14px system-ui;background:#f7f7f5;margin:0;padding:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}header{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px}.c i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:4px;border:1px solid #0002}figure{margin:0;background:#fff;border-radius:12px;overflow:hidden}figure.legacy{outline:2px solid #ef4444}.a svg{display:block;width:100%}figcaption{padding:6px 8px;color:#171717}figcaption small{display:block;color:#ef4444;font-family:monospace}</style><header>${legend}</header>${cards}`);
-  expect(prepared).toHaveLength(194);
+  expect(cards).toContain('<figure');
  });
 });
 
@@ -288,8 +292,8 @@ describe('иллюстрации подчиняются стандарту',()=>
   expect(foreignColors('<path fill="none" stroke="#2563eb" opacity="0.5" style="fill:#abcdef"/>')).toEqual(['#abcdef']);
   expect(foreignColors('<path fill="#2563eb80"/>')).toEqual(['#2563eb80']);
  });
- it('текущий контент: 194 иллюстрации, 187 из них вне палитры и все в legacy.txt',()=>{
-  expect(content.art).toEqual({files:194,legacy:187});
+ it('иллюстрация на каждое подготовленное слово, вне палитры — ровно список legacy.txt',()=>{
+  expect(content.art).toEqual({files:prepared.length,legacy:legacy.size});
   for(const word of prepared){
    const file=content.sources.words.get(word.id)!.image!;
    expect(legacy.has(file),file).toBe(foreignColors(seedArt(word.id)).length>0);
@@ -299,7 +303,7 @@ describe('иллюстрации подчиняются стандарту',()=>
  });
  it('новая картинка в палитре публикуется, служебные значения и прозрачность допустимы',()=>{
   const built=redrawn(svg('<path d="M10 10h20" fill="none" stroke="currentColor"/><circle cx="160" cy="110" r="40" fill="#2563EB" opacity="0.5"/><rect x="1" y="1" width="9" height="9" style="fill:#fbbf24;stroke:#1f2937"/>'));
-  expect(built.art).toEqual({files:194,legacy:186});
+  expect(built.art).toEqual({files:prepared.length,legacy:legacy.size-1});
  });
  it('отклоняет размер, холст, текст, заголовок, скрипт, стиль, анимацию, растр и внешние ссылки',()=>{
   expect(()=>redrawn(svg(`<path d="M${'0 '.repeat(1500)}"/>`))).toThrow(/потолок иллюстрации — 3072 байта/);
@@ -316,12 +320,12 @@ describe('иллюстрации подчиняются стандарту',()=>
   expect(()=>redrawn(svg('<rect fill="url(https://evil.example/p.png)"/>'))).toThrow(/url\(\) не на элемент/);
   expect(()=>redrawn(svg('<rect fill="url(data:image/png;base64,AAAA)"/>'))).toThrow(/встроенные данные/);
   // Ссылки внутри файла разрешены
-  expect(redrawn(svg('<defs><linearGradient id="g"><stop stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><rect width="9" height="9" fill="url(#g)"/><use href="#g"/>')).art.legacy).toBe(186);
+  expect(redrawn(svg('<defs><linearGradient id="g"><stop stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><rect width="9" height="9" fill="url(#g)"/><use href="#g"/>')).art.legacy).toBe(legacy.size-1);
  });
  it('цвет вне палитры: новая картинка отклоняется, унаследованная публикуется, список только сокращается',()=>{
   expect(()=>redrawn(svg('<circle r="9" fill="#fde68a" stroke="#ABCDEF"/>'))).toThrow(/art\/το-σπίτι.svg: цвета вне палитры #abcdef, #fde68a/);
   // Тот же файл в legacy.txt — публикуется и учтён в отчёте
-  expect(brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<circle r="9" fill="#fde68a"/>'))).art).toEqual({files:194,legacy:187});
+  expect(brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<circle r="9" fill="#fde68a"/>'))).art).toEqual({files:prepared.length,legacy:legacy.size});
   // Унаследованный файл, который уже в палитре, просят убрать из списка
   expect(()=>brokenCopy(root=>writeFileSync(join(root,'art','το-σπίτι.svg'),svg('<circle r="9" fill="#2563eb"/>')))).toThrow(/уже в палитре — уберите его из art\/legacy.txt/);
   // Имя без файла — мусор в списке
