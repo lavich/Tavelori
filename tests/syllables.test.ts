@@ -67,5 +67,7 @@ describe('деление на слоги',()=>{
   expect(assemblyOptions('η οικογένεια',['κο','η','νεια','οι','γέ'])).toEqual(['κο','νεια','οι','γέ']);
   expect(assemblyOptions('η οικογένεια',['κο','νεια','οι','γέ'])).toEqual(['κο','νεια','οι','γέ']);
   expect(assemblyOptions('διαβάζω',['βά','δια','ζω'])).toEqual(['βά','δια','ζω']);
+  expect(assemblyOptions('το φρούτο',['φρού','το'])).toEqual(['φρού','το']);
+  expect(assemblyOptions('το φρούτο',['το','φρού','το'])).toEqual(['φρού','το']);
  });
 });
