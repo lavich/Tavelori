@@ -1,9 +1,9 @@
 import {describe,expect,it} from 'vitest';
 import {createEmptyCard, Rating} from 'ts-fsrs';
-import {availableTypes,localDay,daysBetween,exerciseFor,isCheckable,makePlan as planOf,nextState,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise} from '../src/domain/learning';
+import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,exerciseFor,isCheckable,makePlan as planOf,nextState,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
 import {emptySkills, type SkillSummary} from '../src/domain/skills';
 import {fromSnapshot} from '../src/domain/snapshot-source';
-import {defaultSettings,type Cloze,type ExerciseType,type Phrase,type Word,type Lesson,type Snapshot} from '../src/domain/types';
+import {defaultSettings,type Cloze,type ExerciseType,type Phrase,type SessionCard,type Word,type Lesson,type Snapshot} from '../src/domain/types';
 import {idsOf, wordEvent, wordKeyOf, wordRef, wordState} from './helpers/cards';
 const now=new Date('2026-09-15T09:00:00Z');
 const words:Word[]=Array.from({length:30},(_,i)=>({id:`w${i}`,greek:`λέξη${i}`,russian:`слово${i}`,ipa:'',segments:[],examples:[],verified:false,createdAt:now.toISOString(),updatedAt:now.toISOString()}));
@@ -93,5 +93,49 @@ describe('упражнения для фраз и пропусков',()=>{
   expect(session.items.map(item=>[item.ref.kind,item.ref.id,item.type,item.isNew])).toEqual([['word',words[1].id,expect.any(String),false],['cloze','c','cloze',true]]);
   expect(session.items[1].card.kind==='cloze'&&session.items[1].card.cloze.acceptedAnswers).toEqual(['Γράφω']);
   expect(session.introducedKeys).toEqual([]);
+ });
+});
+
+describe('дополнительная попытка на ступень проще',()=>{
+ const iso=now.toISOString();
+ const word=(id:string,greek:string):Word=>({...words[0],id,greek,russian:`перевод ${id}`});
+ const cardOfWord=(w:Word):SessionCard=>({kind:'word',word:w});
+ const pool=['p1','p2','p3','p4','p5'].map((id,i)=>word(id,`λέξις${i}`));
+ const pools=(over:Partial<OptionPools>={}):OptionPools=>({words:pool,phrases:[],...over});
+ const family=word('family','η οικογένεια');
+ const light=word('light','το φως');
+ it('под написанием стоит сборка, а не повторный набор',()=>{
+  const step=easierExercise(cardOfWord(family),'spelling',pools(),()=>0)!;
+  expect(step.type).toBe('assembly');
+  expect([...step.options].sort()).toEqual(['γέ','κο','νεια','οι']); // артикль лишней плиткой не остаётся
+  expect(step.options.join('')).not.toBe('οικογένεια');
+ });
+ it('слову без слогов остаётся узнавание, а без вариантов — то же задание',()=>{
+  const step=easierExercise(cardOfWord(light),'spelling',pools(),()=>0.5)!;
+  expect(step.type).toBe('recognition');
+  expect(step.options).toHaveLength(4);
+  expect(step.options).toContain('перевод light');
+  expect(easierExercise(cardOfWord(light),'spelling',pools({words:pool.slice(0,2)}),()=>0.5)).toBeNull();
+ });
+ it('под сборкой стоит узнавание',()=>{
+  const step=easierExercise(cardOfWord(family),'assembly',pools(),()=>0.5)!;
+  expect(step.type).toBe('recognition');
+  expect(step.options).toHaveLength(4);
+  expect(easierExercise(cardOfWord(family),'assembly',pools({words:[]}),()=>0.5)).toBeNull();
+ });
+ it('у узнавания, аудирования и пропуска ступени ниже нет',()=>{
+  for(const type of ['recognition','listening','cloze'] as ExerciseType[])
+   expect(easierExercise(cardOfWord(family),type,pools(),()=>0.5)).toBeNull();
+  expect(hasEasierStep('spelling')).toBe(true);
+  expect(hasEasierStep('assembly')).toBe(true);
+  expect(['recognition','listening','cloze'].some(type=>hasEasierStep(type as ExerciseType))).toBe(false);
+ });
+ it('фразе сборка недоступна: под написанием сразу узнавание среди фраз',()=>{
+  const phrases:Phrase[]=['a','b','c','d','e'].map(id=>({id,text:`Φράση ${id}.`,translation:`Фраза ${id}.`,provenance:{sourceLabel:'тест',operation:'verbatim'},createdAt:iso,updatedAt:iso}));
+  const card:SessionCard={kind:'phrase',phrase:phrases[0]};
+  const step=easierExercise(card,'spelling',pools({phrases}),()=>0.5)!;
+  expect(step.type).toBe('recognition');
+  expect(step.options).toContain('Фраза a.');
+  expect(easierExercise(card,'spelling',pools({phrases:phrases.slice(0,2)}),()=>0.5)).toBeNull();
  });
 });

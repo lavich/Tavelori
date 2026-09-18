@@ -38,6 +38,14 @@ async function advance(page:Page){
  await expect(page.getByLabel(previous!,{exact:true})).toHaveCount(0);
 }
 
+/** Осталось ли одно незакрытое задание при хотя бы одном ответе: дальше занятие завершится и перестанет быть начатым. */
+async function lastUnanswered(page:Page){
+ const session=(await readTable(page,'sessions')).find(row=>row.status==='active');
+ if(!session)return false;
+ const open=session.items.filter((item:{eventId?:string;skipped?:boolean})=>!item.eventId&&!item.skipped);
+ return open.length<=1&&session.items.length>open.length;
+}
+
 /** Установленный урок 1.1 даёт слово фикстуры; смешанный урок получает ближайшую дату, поэтому его карточки идут первыми. */
 async function prepare(page:Page,limit:number,options:Parameters<typeof seedMixedLesson>[1]={}){
  await page.goto('/');
@@ -257,6 +265,8 @@ test('полная копия переносит смешанный урок с 
  for(let step=0;step<20;step++){
   const prompt=await promptOf(page);
   if(INTRO.includes(prompt)){await advance(page);continue}
+  // Копия должна содержать начатое занятие: последнее незакрытое задание остаётся без ответа.
+  if(await lastUnanswered(page))break;
   if(prompt==='Заполни пропуск'){
    const answer=answerFor(await page.getByTestId('cloze-template').innerText());
    await page.getByTestId('cloze-input').fill(answer);

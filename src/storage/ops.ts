@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import {db, ensureLocalCourse, indexWord, type LexiDatabase} from './db';
 import {optionPool, phrasePool} from './queries';
-import {exerciseFor, localDay, nextState, OPTION_POOL, spaceSingleIntroduction} from '../domain/learning';
+import {easierExercise, exerciseFor, hasEasierStep, localDay, nextState, OPTION_POOL, spaceSingleIntroduction} from '../domain/learning';
 import {normalize, wordKey, type ImportRow} from '../domain/import';
 import {snapshotOf, unitKey, wordRef} from '../domain/refs';
 import {emptySkills} from '../domain/skills';
@@ -34,6 +34,8 @@ export async function submitAnswer(input:AnswerInput):Promise<ReviewEvent>{
 export async function recordAnswer({session,item,correct,answer,responseTimeMs,activeTimeMs,timezone,now=new Date(),database=db}:AnswerInput):Promise<{event:ReviewEvent;created:boolean}>{
  if(typeof correct!=='boolean'||item.type==='recall')throw new Error('Нужен ответ на объективное задание');
  const rating=correct?3:1;
+ // Ступень проще считается до транзакции: иначе запись пришлось бы расширить на таблицы слов и фраз.
+ const easier=correct?null:await easierRetry(item,database);
  const eventId=`e-${item.id}`;
  const result=await database.transaction('rw',database.events,database.cardStates,database.sessions,database.meta,async()=>{
   const existing=await database.events.get(eventId);
@@ -56,7 +58,7 @@ export async function recordAnswer({session,item,correct,answer,responseTimeMs,a
   if(!correct&&!items.some(entry=>entry.retryOf&&entry.unitKey===item.unitKey)){
    const position=items.findIndex(entry=>entry.id===item.id);
    items.splice(Math.min(position+3,items.length),0,{
-    ...item,id:`${item.id}-retry`,isNew:false,mode:'practice',
+    ...item,...(easier??{}),id:`${item.id}-retry`,isNew:false,mode:'practice',
     expectedVersion:updated?.version??state?.version??0,eventId:undefined,retryOf:item.id,
    });
   }
@@ -68,6 +70,19 @@ export async function recordAnswer({session,item,correct,answer,responseTimeMs,a
  if(result.created)announceChange();
  return result;
 }
+/**
+ * Задание дополнительной попытки: ступень проще провалённой. Пул вариантов читается только на ошибке
+ * и только под заданием, у которого ступень есть; `null` — попытка повторяет то же задание.
+ */
+async function easierRetry(item:SessionItem,database:LexiDatabase):Promise<Pick<SessionItem,'type'|'options'>|null>{
+ if(!hasEasierStep(item.type))return null;
+ const pools={
+  words:item.card.kind==='word'?await optionPool(OPTION_POOL,database):[],
+  phrases:item.card.kind==='phrase'?await phrasePool(OPTION_POOL,database):[],
+ };
+ return easierExercise(item.card,item.type,pools);
+}
+
 /**
  * Пропуск без оценки знания: аудио недоступно или не воспроизвелось. События нет, интервалы не меняются,
  * упражнение считается пройденным для позиции занятия.
