@@ -6,6 +6,8 @@ import {ContentError, type ContentPackage} from '../src/content/schema';
 import {revisionOf} from '../content/build';
 import {deleteWord, removeFromLesson, saveWord} from '../src/storage/ops';
 import {lessonItems} from '../src/storage/queries';
+import {indexWord} from '../src/storage/db';
+import {linkWords} from '../src/storage/ops';
 import {wordKeyOf, wordRef, wordState} from './helpers/cards';
 import {content, installLessons, memoryFetcher, packageOf} from './helpers/content';
 import {buildMixed, installMixed, MIXED_CLOZES, MIXED_LESSON, MIXED_PHRASES, mixedContent, mixedPackage} from './helpers/mixed';
@@ -267,15 +269,47 @@ describe('обновление пакета',()=>{
   expect(await db.lessonItems.count()).toBe(29);
   expect(await db.words.get('w12-01')).toBeTruthy(); // само слово остаётся
  });
- it('исчезновение слова из пакета не удаляет его из словаря, личные название и дата урока не перезаписываются',async()=>{
+ it('автор убрал карточку из урока: связь исчезает, карточка с прогрессом остаётся в словаре, личные название и дата урока не перезаписываются',async()=>{
   await installLessons(db,['lesson-1-2']);
   await db.lessons.update('lesson-1-2',{title:'Мой урок',targetDate:'2026-10-01'});
   const pack=packageOf('lesson-1-2');
+  const dropped=pack.words[0].id;
+  await db.cardStates.add(wordState(dropped,{card:{due:new Date('2026-09-20')} as never,introducedAt:'2026-09-10T00:00:00Z',version:3}));
+  // Пользователь добавил в поставляемый урок своё слово: оно не из пакета и обновлением не трогается.
+  const own={id:'w-own',greek:'η καρέκλα',russian:'стул',ipa:'',segments:[],examples:[],verified:false,createdAt:'2026-09-16T10:00:00.000Z',updatedAt:'2026-09-16T10:00:00.000Z'};
+  await db.words.add(indexWord(own));
+  await linkWords('lesson-1-2',['w-own'],db);
   const next:ContentPackage={...pack,version:'trimmed',lesson:{...pack.lesson,title:'Другое название'},words:pack.words.slice(1),items:pack.items.slice(1).map((item,i)=>({...item,position:i})),links:pack.links.slice(1).map((l,i)=>({...l,position:i})),media:pack.media.slice(1)};
   await installLesson('lesson-1-2',db,await upgrade('lesson-1-2',next));
-  expect(await db.words.get(pack.words[0].id)).toBeTruthy();
-  expect(await db.lessonItems.get(['lesson-1-2',wordKeyOf(pack.words[0].id)])).toBeTruthy();
+  expect(await db.words.get(dropped)).toBeTruthy(); // из словаря слово не исчезает
+  expect((await db.cardStates.get(wordKeyOf(dropped)))!.version).toBe(3); // прогресс и история сохранены
+  expect(await db.lessonItems.get(['lesson-1-2',wordKeyOf(dropped)])).toBeUndefined(); // состав урока принадлежит автору
+  expect(await db.lessonItems.get(['lesson-1-2',wordKeyOf('w-own')])).toBeTruthy(); // добавленное пользователем осталось
+  expect((await lessonItems('lesson-1-2',db))).toHaveLength(pack.items.length); // минус убранная автором, плюс своя
   expect(await db.lessons.get('lesson-1-2')).toMatchObject({title:'Мой урок',targetDate:'2026-10-01'});
+ });
+ it('карточка, убранная автором из одного урока, остаётся в другом и возвращается вместе с новой версией',async()=>{
+  await installLessons(db,['lesson-1-2','lesson-1-3']);
+  const pack=packageOf('lesson-1-2');
+  const shared='w12-16'; // это слово входит и в урок 1.3
+  const without={...pack,version:'no-shared',words:pack.words.filter(word=>word.id!==shared),
+   items:pack.items.filter(item=>item.id!==shared).map((item,i)=>({...item,position:i})),
+   links:pack.links.filter(link=>link.wordId!==shared).map((link,i)=>({...link,position:i}))};
+  await installLesson('lesson-1-2',db,await upgrade('lesson-1-2',without));
+  expect(await db.lessonItems.get(['lesson-1-2',wordKeyOf(shared)])).toBeUndefined();
+  expect(await db.lessonItems.get(['lesson-1-3',wordKeyOf(shared)])).toBeTruthy(); // другой урок не затронут
+  // Автор вернул карточку — связь появляется снова.
+  const back={...pack,version:'shared-back'};
+  await installLesson('lesson-1-2',db,await upgrade('lesson-1-2',back));
+  expect(await db.lessonItems.get(['lesson-1-2',wordKeyOf(shared)])).toBeTruthy();
+ });
+ it('убранную пользователем связь обновление не восстанавливает, даже когда автор оставил карточку в составе',async()=>{
+  await installLessons(db,['lesson-1-2']);
+  await removeFromLesson('lesson-1-2',wordRef('w12-01'),db);
+  const pack=packageOf('lesson-1-2');
+  await installLesson('lesson-1-2',db,await upgrade('lesson-1-2',{...pack,version:'same-items'}));
+  expect(await db.lessonItems.get(['lesson-1-2',wordKeyOf('w12-01')])).toBeUndefined();
+  expect((await db.packages.get('lesson-1-2'))!.removed).toEqual([wordKeyOf('w12-01')]);
  });
  it('без базы (legacy) отредактированное слово сохраняется целиком, нетронутое — заменяется',async()=>{
   const pack=packageOf('lesson-1-2');
@@ -410,6 +444,26 @@ describe('установка и обновление смешанного пак
   expect(await db.lessonItems.get([MIXED_LESSON,unitKey({kind:'phrase',id:'p-vouno'})])).toBeUndefined(); // убранная связь не восстановлена
   expect(await db.phrases.get('p-vouno')).toBeTruthy(); // сама фраза остаётся
   expect((await db.packages.get(MIXED_LESSON))!.removed).toEqual([unitKey({kind:'phrase',id:'p-vouno'})]);
+ });
+ it('автор убрал пропуск из состава: связь исчезает, карточка и её прогресс остаются, пользовательские удаления не трогаются',async()=>{
+  await installMixed(db);
+  await removeFromLesson(MIXED_LESSON,{kind:'phrase',id:'p-vouno'},db);
+  await db.cardStates.add({unitKey:unitKey({kind:'cloze',id:'c-anoixi'}),ref:{kind:'cloze',id:'c-anoixi'},card:{due:new Date('2026-09-20')} as never,introducedAt:'2026-09-10T00:00:00Z',version:5});
+  const pack=mixedPackage();
+  const next={...pack,version:`${pack.version}-trim`,
+   clozes:pack.clozes.filter(cloze=>cloze.id!=='c-anoixi'),
+   items:pack.items.filter(item=>item.id!=='c-anoixi').map((item,index)=>({...item,position:index}))};
+  const url=`content/packages/${MIXED_LESSON}@${next.version}.json`;
+  const catalog={...mixedContent().catalog,lessons:mixedContent().catalog.lessons.map(l=>l.id===MIXED_LESSON?{...l,version:next.version,url}:l)};
+  const fetcher=memoryFetcher(mixedContent(),{'content/catalog.json':catalog,[url]:next});
+  await refreshCatalog(db,fetcher);
+  await installLesson(MIXED_LESSON,db,fetcher);
+  expect(await db.lessonItems.get([MIXED_LESSON,unitKey({kind:'cloze',id:'c-anoixi'})])).toBeUndefined();
+  expect(await db.clozes.get('c-anoixi')).toBeTruthy(); // карточка остаётся ради истории и прогресса
+  expect((await db.cardStates.get(unitKey({kind:'cloze',id:'c-anoixi'})))!.version).toBe(5);
+  expect(await db.lessonItems.where('lessonId').equals(MIXED_LESSON).count()).toBe(9); // минус убранная автором и убранная пользователем
+  expect((await db.packages.get(MIXED_LESSON))!.removed).toEqual([unitKey({kind:'phrase',id:'p-vouno'})]);
+  expect((await db.packages.get(MIXED_LESSON))!.items.map(item=>item.id)).not.toContain('c-anoixi');
  });
  it('урок только из текстовых заданий готов офлайн без обязательных медиа',async()=>{
   await installMixed(db);

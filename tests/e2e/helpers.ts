@@ -129,7 +129,7 @@ export async function seedMixedLesson(page:Page,options:{lessonId?:string;title?
   for(const item of payload.items)tx.objectStore('lessonItems').put({lessonId:payload.lessonId,unitKey:JSON.stringify([item.kind,item.id]),ref:{kind:item.kind,id:item.id},position:item.position});
   for(const phrase of payload.phrases)tx.objectStore('phrases').put({...phrase,createdAt:now,updatedAt:now});
   for(const cloze of payload.clozes)tx.objectStore('clozes').put({...cloze,createdAt:now,updatedAt:now});
-  tx.objectStore('packages').put({lessonId:payload.lessonId,courseId:payload.courseId,version:payload.version,schemaVersion:payload.schemaVersion,installedAt:now,words:[],phrases:payload.phrases,clozes:payload.clozes,media:[],removed:[]});
+  tx.objectStore('packages').put({lessonId:payload.lessonId,courseId:payload.courseId,version:payload.version,schemaVersion:payload.schemaVersion,installedAt:now,words:[],phrases:payload.phrases,clozes:payload.clozes,items:payload.items,media:[],removed:[]});
   await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
   database.close();
  },[payload,options.databaseName??'lexi'] as const);

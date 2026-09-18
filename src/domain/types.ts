@@ -1,5 +1,5 @@
 import type {Card, Grade} from 'ts-fsrs';
-import type {PackageMedia, PackageWord, PackagePhrase, PackageCloze} from '../content/schema';
+import type {PackageItem, PackageMedia, PackageWord, PackagePhrase, PackageCloze} from '../content/schema';
 /** Типы проверки. `cloze` — ввод скрытого текста для карточки пропуска; `recall` остался только в старой истории. */
 export type ExerciseType='recall'|'recognition'|'assembly'|'spelling'|'listening'|'cloze';
 export interface Example {greek:string;russian:string;target:string;source?:string}
@@ -64,11 +64,12 @@ export interface Asset {id:string;kind:'image'|'audio';blob:Blob;mimeType:string
 /** Описание медиа из пакета без самого файла: по нему ресурс догружается при использовании. */
 export type MediaRef=PackageMedia;
 /**
- * Установленный пакет: версия, база поставленных карточек для слияния при обновлении и связи,
- * которые пользователь убрал сам (ключи карточек), чтобы обновление их не восстановило.
+ * Установленный пакет: версия, база поставленных карточек для слияния при обновлении, авторский состав урока
+ * (`items`) и связи, которые пользователь убрал сам (ключи карточек), чтобы обновление их не восстановило.
+ * По прежнему составу видно, какие связи поставил пакет: только их снимает обновление, убравшее карточку из урока.
  * `version:'legacy'` — контент установлен старой версией приложения, база карточек неизвестна.
  */
-export interface InstalledPackage {lessonId:string;courseId?:string;version:string;schemaVersion:number;installedAt:string;words:PackageWord[];phrases:PackagePhrase[];clozes:PackageCloze[];media:PackageMedia[];removed:string[]}
+export interface InstalledPackage {lessonId:string;courseId?:string;version:string;schemaVersion:number;installedAt:string;words:PackageWord[];phrases:PackagePhrase[];clozes:PackageCloze[];items:PackageItem[];media:PackageMedia[];removed:string[]}
 /** Состояние повторений одной карточки; ключ — сериализованная пара вида и идентификатора. */
 export interface LearningState {unitKey:string;ref:LearningRef;card:Card;introducedAt:string;version:number}
 export interface ReviewEvent {id:string;sessionId:string;itemId:string;ref:LearningRef;unitKey:string;snapshot:CardSnapshot;type:ExerciseType;mode:'scheduled'|'practice';rating:Grade;correct:boolean|null;answer:string;createdAt:string;localDate:string;responseTimeMs:number;before?:Card;after?:Card}

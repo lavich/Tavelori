@@ -174,7 +174,7 @@ export async function migrateLegacy(tx:Pick<Transaction,'table'>):Promise<void>{
    await lessons.put(lesson);
   }
   if(seeded&&SEED_LESSON.test(lesson.id)&&!(await packages.get(lesson.id)))
-   await packages.put({lessonId:lesson.id,version:'legacy',schemaVersion:0,installedAt:now,words:[],phrases:[],clozes:[],media:[],removed:[]});
+   await packages.put({lessonId:lesson.id,version:'legacy',schemaVersion:0,installedAt:now,words:[],phrases:[],clozes:[],items:[],media:[],removed:[]});
  }
  await words.toCollection().modify(word=>{
   Object.assign(word,indexWord(word));
@@ -244,6 +244,8 @@ export async function migrateCards(tx:Pick<Transaction,'table'>):Promise<void>{
  const packages=tx.table('packages') as Table<InstalledPackage,string>;
  await packages.toCollection().modify(pack=>{
   pack.phrases??=[]; pack.clozes??=[];
+  // Прежняя запись не хранила состав: у словарного пакета это его слова, у установки старой версии он неизвестен.
+  pack.items??=pack.words.map((word,position)=>({kind:'word' as const,id:word.id,position}));
   pack.removed=(pack.removed??[]).map(key=>isUnitKey(key)?key:unitKey(wordRef(key)));
  });
  const courses=tx.table('courses') as Table<Course&{newWordsPerDay?:number},string>;

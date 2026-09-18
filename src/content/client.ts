@@ -240,13 +240,24 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
   await applyCards<PackageCloze,Cloze>(pack.clozes,new Map((installed?.clozes??[]).map(cloze=>[cloze.id,cloze])),CLOZE_FIELDS,'cloze',card=>card.template,
    database.clozes,(card,at)=>{const {revision,...rest}=card;return {...rest,createdAt:at,updatedAt:at,revision}},row=>row,now,result);
   const removed=new Set(installed?.removed??[]);
+  const incoming=new Set<string>();
   for(const item of pack.items){
    const ref:LearningRef={kind:item.kind,id:item.id};
    const key=unitKey(ref);
+   incoming.add(key);
    if(!removed.has(key))await database.lessonItems.put({lessonId:pack.id,unitKey:key,ref,position:item.position});
   }
+  /**
+   * Состав урока принадлежит автору: карточка, исчезнувшая из новой версии, теряет связь с уроком.
+   * Сама карточка, её прогресс и история остаются — она может жить в других уроках и в словаре.
+   * Снимаются только связи прежнего авторского состава: добавленное пользователем в этот урок не трогается.
+   */
+  for(const item of installed?.items??[]){
+   const key=unitKey({kind:item.kind,id:item.id});
+   if(!incoming.has(key))await database.lessonItems.delete([pack.id,key]);
+  }
   await database.media.bulkPut(pack.media);
-  const record:InstalledPackage={lessonId:pack.id,courseId:pack.courseId||undefined,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,phrases:pack.phrases,clozes:pack.clozes,media:pack.media,removed:[...removed]};
+  const record:InstalledPackage={lessonId:pack.id,courseId:pack.courseId||undefined,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,phrases:pack.phrases,clozes:pack.clozes,items:pack.items,media:pack.media,removed:[...removed]};
   await database.packages.put(record);
   // Полученный из облака прогресс карточек этого пакета ждал установки: теперь он становится обычным состоянием.
   await adoptStash(database,pack.id,[...pack.words.map(word=>wordRef(word.id)),...pack.phrases.map(p=>({kind:'phrase' as const,id:p.id})),...pack.clozes.map(c=>({kind:'cloze' as const,id:c.id}))]);

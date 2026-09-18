@@ -280,7 +280,8 @@ test.describe('навигация, тема и размеры',()=>{
   await page.getByRole('navigation').getByRole('link',{name:'Слова'}).click();
   await expect(page.getByRole('heading',{name:'Слова'})).toBeVisible();
   await breakStorage(page,true);
-  await page.getByRole('searchbox').fill('σπι'); // любое чтение базы теперь падает
+  // Любое чтение базы теперь падает: экран доходит до предела попыток сам, ввод в поиск — лишь подстраховка.
+  await page.getByRole('searchbox').fill('σπι',{timeout:5000}).catch(()=>undefined);
   await expect(page.getByTestId('recovery-failed')).toBeVisible({timeout:15000});
   await expect(page.getByTestId('recovery-failed')).toContainText('Данные на устройстве сохранены');
   expect(await reopened()).toBe(3); // предел три попытки за минуту: первое восстановление уже в счёте
