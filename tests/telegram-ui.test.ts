@@ -30,14 +30,14 @@ describe('жизненный цикл ответа',()=>{
   const session=await makeSession({source:dexieSource(db),now,random:()=>0.3});
   await db.sessions.add(session);
   const item=session.items[1];
-  const before=await db.states.get(item.wordId);
+  const before=await db.cardStates.get(item.unitKey);
   await skipItem(session.id,item.id,500,db);
   const stored=(await db.sessions.get(session.id))!;
   expect(stored.items[1].skipped).toBe(true);
   expect(stored.index).toBe(1);
   expect(stored.status).toBe('active');
   expect(await db.events.count()).toBe(0);
-  expect(await db.states.get(item.wordId)).toEqual(before);
+  expect(await db.cardStates.get(item.unitKey)).toEqual(before);
   // Ответ на следующий элемент считает пропущенный пройденным при подсчёте позиции.
   const next=stored.items.find(entry=>!entry.eventId&&!entry.skipped)!;
   await recordAnswer({session:stored,item:next,correct:false,answer:'',responseTimeMs:1,activeTimeMs:1,timezone:'UTC',now,database:db});

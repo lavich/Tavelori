@@ -1,7 +1,11 @@
 import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {indexWord, LexiDatabase} from '../src/storage/db';
-import {dexieSource, importPreview, lessonViews, searchWordIds, wordPage, type WordCursor} from '../src/storage/queries';
+import {dexieSource, importPreview, lessonDetail, lessonsOfCard, lessonViews, searchWordIds, wordPage, type WordCursor} from '../src/storage/queries';
+import {removeFromLesson} from '../src/storage/ops';
+import {makePlan, makeSession} from '../src/domain/learning';
+import {installMixed, MIXED_LESSON, mixedPackage} from './helpers/mixed';
+import {mulberry32} from './plan-golden.test';
 import {commitImport, saveWord} from '../src/storage/ops';
 import {fromSnapshot} from '../src/domain/snapshot-source';
 import {lessonProgress, progress, wordMaturity} from '../src/domain/stats';
@@ -9,6 +13,7 @@ import {progressFill} from '../src/features/lessons/LessonRow';
 import {State} from 'ts-fsrs';
 import {parseImport} from '../src/domain/import';
 import {defaultSettings, type Snapshot, type Word} from '../src/domain/types';
+import {itemOfLink, unitKey, wordKeyOf, wordState} from './helpers/cards';
 import {recordFor, scenarios} from './plan-golden.test';
 import {content, installLessons} from './helpers/content';
 
@@ -29,8 +34,8 @@ async function load(data:Snapshot){
   await db.words.bulkAdd(data.words.map(indexWord));
   await db.lessons.bulkAdd(data.lessons);
   if(data.courses)await db.courses.bulkAdd(data.courses);
-  await db.lessonWords.bulkAdd(data.links);
-  await db.states.bulkAdd(data.states);
+  await db.lessonItems.bulkAdd(data.links.map(itemOfLink));
+  await db.cardStates.bulkAdd(data.states);
   await db.events.bulkAdd(data.events);
   await db.sessions.bulkAdd(data.sessions);
   await db.settings.put(data.settings);
@@ -59,10 +64,10 @@ describe('эквивалентность планирования на базе 
 });
 
 describe('прогресс урока',()=>{
- const state=(id:string,fsrs:State,days:number)=>[id,{wordId:id,introducedAt:iso,version:1,card:{due:now,state:fsrs,scheduled_days:days} as never}] as const;
+ const state=(id:string,fsrs:State,days:number)=>[wordKeyOf(id),wordState(id,{introducedAt:iso,version:1,card:{due:now,state:fsrs,scheduled_days:days} as never})] as const;
  it('группирует слова на устойчивые, в повторении и новые по границам статистики',()=>{
   const states=new Map([state('a',State.Review,21),state('b',State.Review,20),state('c',State.Learning,0),state('d',State.Relearning,1),state('e',State.New,0)]);
-  const groups=lessonProgress(['a','b','c','d','e','f','g'],states);
+  const groups=lessonProgress(['a','b','c','d','e','f','g'].map(wordKeyOf),states);
   expect(groups).toMatchObject({solid:1,review:4,fresh:2});
   // Зрелость: устойчивое слово — единица, двадцатидневное — почти единица, три едва начатых — по одной двадцать первой.
   expect(groups.mature).toBeCloseTo(1+20/21+3/21,10);
@@ -80,14 +85,15 @@ describe('прогресс урока',()=>{
   const words=Array.from({length:8},(_,i)=>word(i,i===6?{deletedAt:iso}:{}));
   await load({words,lessons:[{id:'l',title:'Урок 1.1',targetDate:null,status:'upcoming',createdAt:iso,updatedAt:iso},{id:'empty',title:'Пустой',targetDate:null,status:'upcoming',createdAt:iso,updatedAt:iso}],
    links:words.map((w,position)=>({lessonId:'l',wordId:w.id,position})),
-   states:[{wordId:words[0].id,introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:30} as never},
-    {wordId:words[1].id,introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:5} as never},
-    {wordId:words[2].id,introducedAt:iso,version:1,card:{due:now,state:State.Learning,scheduled_days:0} as never},
-    {wordId:words[6].id,introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:40} as never}],
+   states:[wordState(words[0].id,{introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:30} as never}),
+    wordState(words[1].id,{introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:5} as never}),
+    wordState(words[2].id,{introducedAt:iso,version:1,card:{due:now,state:State.Learning,scheduled_days:0} as never}),
+    wordState(words[6].id,{introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:40} as never})],
    events:[],sessions:[],settings:defaultSettings});
   const plain=await lessonViews(db);
-  expect(plain.map(view=>[view.wordCount,view.progress])).toEqual([[0,undefined],[8,undefined]]);
+  expect(plain.map(view=>[view.cardCount,view.progress])).toEqual([[0,undefined],[8,undefined]]);
   const [empty,lesson]=await lessonViews(db,true);
+  expect(lesson.cardCount).toBe(7);
   expect(lesson.wordCount).toBe(7);
   expect(lesson.progress).toMatchObject({solid:1,review:2,fresh:4}); // удалённое слово с устойчивым состоянием не считается
   expect(lesson.progress!.mature).toBeCloseTo(1+5/21+1/21,10);
@@ -141,7 +147,7 @@ describe('страницы словаря',()=>{
  });
  it('фильтр по состоянию заполняет страницу порциями, не читая всю таблицу за раз',async()=>{
   await populate();
-  await db.states.bulkAdd(words.slice(20,25).map(w=>({wordId:w.id,card:{due:new Date('2026-09-20'),state:2,scheduled_days:30} as never,introducedAt:iso,version:1})));
+  await db.cardStates.bulkAdd(words.slice(20,25).map(w=>wordState(w.id,{card:{due:new Date('2026-09-20'),state:2,scheduled_days:30} as never,introducedAt:iso,version:1})));
   const solid=await wordPage({query:'',filter:'solid',lessonId:null,cursor:null},db);
   expect(solid.items.map(item=>item.word.id)).toEqual(words.slice(20,25).map(w=>w.id));
   expect(solid.cursor).toBeNull();
@@ -196,5 +202,47 @@ describe('локальный поиск',()=>{
   await installLessons(db,['lesson-1-2']);
   const rows=parseImport('το σπίτι\nдом\nτο σπίτι\nздание\nη καρέκλα\nстул').rows;
   expect(await importPreview(rows,db)).toEqual({duplicates:1,conflicts:1});
+ });
+});
+
+describe('смешанный урок в выборках',()=>{
+ it('список уроков считает состав по видам и прогресс по ключам связей; урок без слов не пуст',async()=>{
+  await installMixed(db);
+  await db.cardStates.add({unitKey:unitKey({kind:'cloze',id:'c-grafo'}),ref:{kind:'cloze',id:'c-grafo'},introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:30} as never});
+  await db.cardStates.add({unitKey:unitKey({kind:'phrase',id:'p-grafo'}),ref:{kind:'phrase',id:'p-grafo'},introducedAt:iso,version:1,card:{due:now,state:State.Learning,scheduled_days:0} as never});
+  const [view]=(await lessonViews(db,true)).filter(v=>v.id===MIXED_LESSON);
+  expect(view).toMatchObject({cardCount:11,wordCount:1,phraseCount:5,clozeCount:5,progress:{solid:1,review:1,fresh:9}});
+  const detail=(await lessonDetail(MIXED_LESSON,db))!;
+  expect(detail.items.map(item=>item.ref.kind)).toEqual(mixedPackage().items.map(item=>item.kind));
+  expect(detail.words.map(w=>w.id)).toEqual(['w11-27']);
+  expect(detail.phrases.map(p=>p.id)).toEqual(['p-grafo','p-vouno','p-paidi','p-anoixi','p-silent']);
+  expect(detail.clozes.map(c=>c.id)).toEqual(['c-grafo','c-gramma','c-vouno','c-paidi','c-anoixi']);
+  expect(detail.states.size).toBe(2);
+  // Убранная фраза исчезает из состава, но не из базы; словарь остаётся словарём слов.
+  await removeFromLesson(MIXED_LESSON,{kind:'phrase',id:'p-silent'},db);
+  expect((await lessonDetail(MIXED_LESSON,db))!.phrases).toHaveLength(4);
+  expect(await db.phrases.get('p-silent')).toBeTruthy();
+  const page=await wordPage({query:'',filter:'all',lessonId:MIXED_LESSON,cursor:null},db);
+  expect(page.items.map(item=>item.word.id)).toEqual(['w11-27']);
+  expect(await lessonsOfCard({kind:'cloze',id:'c-grafo'},db)).toHaveLength(1);
+ });
+ it('план и сессия на базе совпадают со снимком для смешанного урока при том же источнике случайности',async()=>{
+  await installMixed(db);
+  const data:Snapshot={
+   words:await db.words.toArray(),phrases:await db.phrases.toArray(),clozes:await db.clozes.toArray(),
+   lessons:await db.lessons.toArray(),courses:await db.courses.toArray(),links:[],items:await db.lessonItems.toArray(),
+   states:[],events:[],sessions:[],settings:await db.settings.get('settings')??defaultSettings,
+  };
+  const refs=[{kind:'cloze' as const,id:'c-grafo'},{kind:'phrase' as const,id:'p-grafo'},{kind:'word' as const,id:'w11-27'}];
+  const record=async(source:ReturnType<typeof dexieSource>)=>({
+   plan:(({newRefs,unavailable,budget,deadlines})=>({newRefs,unavailable,budget,deadlines}))(await makePlan(source,now,{hasVoice:true})),
+   session:(await makeSession({source,now,random:mulberry32(5),hasVoice:true})).items.map(item=>({key:item.unitKey,type:item.type,options:item.options,isNew:item.isNew})),
+   practice:(await makeSession({source,now,random:mulberry32(9),mode:'practice',refs})).items.map(item=>({key:item.unitKey,type:item.type,options:item.options})),
+  });
+  const [fromDb,fromMemory]=await Promise.all([record(dexieSource(db)),record(fromSnapshot(data))]);
+  expect(fromDb).toEqual(fromMemory);
+  expect(fromDb.plan.unavailable).toEqual([]); // с голосом и пятью фразами фраза без перевода проверяема аудированием
+  expect((await makePlan(dexieSource(db),now)).unavailable).toEqual([{kind:'phrase',id:'p-silent'}]);
+  expect(fromDb.session.some(item=>item.type==='cloze')).toBe(true);
  });
 });

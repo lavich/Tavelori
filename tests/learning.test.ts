@@ -1,8 +1,10 @@
-import {expect,it} from 'vitest';
+import {describe,expect,it} from 'vitest';
 import {createEmptyCard, Rating} from 'ts-fsrs';
-import {localDay,daysBetween,makePlan as planOf,nextState,chooseType,makeSession as sessionOf,objectiveExercise} from '../src/domain/learning';
+import {availableTypes,localDay,daysBetween,exerciseFor,isCheckable,makePlan as planOf,nextState,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise} from '../src/domain/learning';
+import {emptySkills, type SkillSummary} from '../src/domain/skills';
 import {fromSnapshot} from '../src/domain/snapshot-source';
-import {defaultSettings,type Word,type Lesson,type Snapshot} from '../src/domain/types';
+import {defaultSettings,type Cloze,type ExerciseType,type Phrase,type Word,type Lesson,type Snapshot} from '../src/domain/types';
+import {idsOf, wordEvent, wordKeyOf, wordRef, wordState} from './helpers/cards';
 const now=new Date('2026-09-15T09:00:00Z');
 const words:Word[]=Array.from({length:30},(_,i)=>({id:`w${i}`,greek:`λέξη${i}`,russian:`слово${i}`,ipa:'',segments:[],examples:[],verified:false,createdAt:now.toISOString(),updatedAt:now.toISOString()}));
 type LessonSpec=Lesson&{wordIds:string[]};
@@ -11,17 +13,17 @@ type Spec=Omit<Snapshot,'lessons'|'links'>&{lessons:LessonSpec[]};
 const snapshot=(spec:Spec):Snapshot=>({...spec,lessons:spec.lessons.map(({wordIds:_,...rest})=>rest),links:spec.lessons.flatMap(l=>l.wordIds.map((wordId,position)=>({lessonId:l.id,wordId,position})))});
 const data:Spec={words,lessons:[lesson],events:[],states:[],sessions:[],settings:defaultSettings};
 const makePlan=(spec:Spec,at:Date)=>planOf(fromSnapshot(snapshot(spec)),at);
-const makeSession=(input:{data:Spec;now:Date;wordIds?:string[]})=>sessionOf({source:fromSnapshot(snapshot(input.data)),now:input.now,wordIds:input.wordIds});
-it('allocates ten new words for thirty due on Friday',async()=>{const plan=await makePlan(data,now);expect(plan.requiredPerDay).toBe(10);expect(plan.newWordIds).toHaveLength(10)});
-it('counts introduced words across sessions and avoids exceeding daily budget',async()=>{const states=words.slice(0,10).map(w=>({wordId:w.id,card:createEmptyCard(new Date('2026-09-16')),introducedAt:now.toISOString(),version:1}));expect((await makePlan({...data,states},now)).newWordIds).toHaveLength(0)});
+const makeSession=(input:{data:Spec;now:Date;wordIds?:string[]})=>sessionOf({source:fromSnapshot(snapshot(input.data)),now:input.now,refs:input.wordIds?.map(wordRef)});
+it('allocates ten new words for thirty due on Friday',async()=>{const plan=await makePlan(data,now);expect(plan.requiredPerDay).toBe(10);expect(plan.newRefs).toHaveLength(10)});
+it('counts introduced words across sessions and avoids exceeding daily budget',async()=>{const states=words.slice(0,10).map(w=>wordState(w.id,{card:createEmptyCard(new Date('2026-09-16')),introducedAt:now.toISOString(),version:1}));expect((await makePlan({...data,states},now)).newRefs).toHaveLength(0)});
 it('shares words across dates without double counting',async()=>{const plan=await makePlan({...data,lessons:[lesson,{...lesson,id:'l2',targetDate:'2026-09-19'}]},now);expect(plan.requiredPerDay).toBe(10)});
 it('handles multiple deadlines by cumulative demand',async()=>{const plan=await makePlan({...data,lessons:[{...lesson,wordIds:words.slice(0,10).map(w=>w.id),targetDate:'2026-09-17'},{...lesson,id:'l2',wordIds:words.slice(10).map(w=>w.id),targetDate:'2026-09-18'}]},now);expect(plan.requiredPerDay).toBe(10)});
 it('honors local calendar through DST and UTC midnight',()=>{expect(localDay(new Date('2026-09-15T22:30Z'),'Asia/Nicosia')).toBe('2026-09-16');expect(daysBetween('2026-10-24','2026-10-26')).toBe(2)});
-it('schedules a new word without losing FSRS fields',()=>{const state=nextState(undefined,'w0',Rating.Good,now);expect(state.card.due.getTime()).toBeGreaterThan(now.getTime());expect(state.card.reps).toBe(1);expect(state.version).toBe(1)});
-it('chooses recognition for an untested word',()=>expect(chooseType('w0',[],{})).toBe('recognition'));
+it('schedules a new word without losing FSRS fields',()=>{const state=nextState(undefined,wordRef('w0'),Rating.Good,now);expect(state.card.due.getTime()).toBeGreaterThan(now.getTime());expect(state.card.reps).toBe(1);expect(state.version).toBe(1)});
+it('chooses recognition for an untested word',()=>expect(chooseType(wordKeyOf('w0'),[],{})).toBe('recognition'));
 
 it('считает сборку по слогам без артикля и сохраняет только их',()=>{
- const history=[{id:'r',sessionId:'s',itemId:'i',wordId:'w',snapshot:{greek:'',russian:''},type:'recognition' as const,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',createdAt:now.toISOString(),localDate:'2026-09-15',responseTimeMs:100}];
+ const history=[wordEvent('w',{id:'r',sessionId:'s',itemId:'i',snapshot:{greek:'',russian:''},type:'recognition' as const,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',createdAt:now.toISOString(),localDate:'2026-09-15',responseTimeMs:100})];
  const skills={cleanAssemblies:0,lastTypes:['recognition' as const],types:{recognition:{recent:[true],lastAt:now.toISOString()}}};
  const family={...words[0],id:'family',greek:'η οικογένεια'};
  expect(objectiveExercise(family,[],skills,()=>0)).toEqual({type:'assembly',options:['κο','γέ','νεια','οι']});
@@ -40,7 +42,56 @@ it('never creates recall, including tiny dictionaries and duplicate translations
  expect(session.items[0].type).toBe('spelling');
 });
 it('puts the only new word after available reviews',async()=>{
- const state=nextState(undefined,words[1].id,3,new Date('2026-09-01'));
+ const state=nextState(undefined,wordRef(words[1].id),3,new Date('2026-09-01'));
  const session=await makeSession({data:{...data,words:words.slice(0,2),states:[state]},now,wordIds:[words[0].id,words[1].id]});
- expect(session.items.map(item=>item.wordId)).toEqual([words[1].id,words[0].id]);
+ expect(idsOf(session.items.map(item=>item.ref))).toEqual([words[1].id,words[0].id]);
+});
+
+describe('упражнения для фраз и пропусков',()=>{
+ const iso=now.toISOString();
+ const phrase=(id:string,over:Partial<Phrase>={}):Phrase=>({id,text:`Φράση ${id}.`,translation:`Фраза ${id}.`,provenance:{sourceLabel:'тест',operation:'verbatim'},createdAt:iso,updatedAt:iso,...over});
+ const pool=['a','b','c','d','e'].map(id=>phrase(id));
+ const skills=(types:Partial<Record<ExerciseType,boolean[]>>,lastTypes:ExerciseType[]=[]):SkillSummary=>({types:Object.fromEntries(Object.entries(types).map(([type,recent])=>[type,{recent,lastAt:iso}])),lastTypes,cleanAssemblies:0});
+ it('фраза с переводом: сначала узнавание среди фраз, слоговой сборки нет; при нехватке вариантов — написание',()=>{
+  const full=phraseExercise(pool[0],pool,emptySkills(),()=>0.5,false)!;
+  expect(full.type).toBe('recognition');
+  expect(full.options).toHaveLength(4);
+  expect(full.options).toContain('Фраза a.');
+  expect(full.options.every(option=>pool.some(p=>p.translation===option))).toBe(true); // варианты — только фразы
+  const few=phraseExercise(pool[0],pool.slice(0,3),emptySkills(),()=>0.5,false)!;
+  expect(few.type).toBe('spelling');
+  expect(few.options).toEqual([]);
+  expect(availableTypes(emptySkills(),{hasOptions:true,canAssemble:false})).not.toContain('assembly');
+ });
+ it('без перевода и голоса объективного упражнения нет; голос и четыре различных фразы дают аудирование',()=>{
+  const silent=phrase('s',{translation:undefined});
+  expect(phraseExercise(silent,pool,emptySkills(),()=>0.5,false)).toBeNull();
+  expect(phraseExercise(silent,pool.slice(0,2),emptySkills(),()=>0.5,true)).toBeNull();
+  const heard=phraseExercise(silent,pool,emptySkills(),()=>0.5,true)!;
+  expect(heard.type).toBe('listening');
+  expect(new Set(heard.options).size).toBe(4);
+  expect(heard.options).toContain('Φράση s.');
+  expect(isCheckable({kind:'phrase',hasTranslation:false,hasAudio:true},{hasVoice:false,phrasePool:4})).toBe(true);
+  expect(isCheckable({kind:'phrase',hasTranslation:false,hasAudio:false},{hasVoice:true,phrasePool:3})).toBe(false);
+  expect(isCheckable({kind:'cloze'},{hasVoice:false,phrasePool:0})).toBe(true);
+ });
+ it('слабый навык фразы выбирается чаще: ошибочное написание при удачном узнавании — написание',()=>{
+  const weakSpelling=skills({recognition:[true,true,true],spelling:[false,false],listening:[true]},['listening','recognition']);
+  expect(phraseExercise(pool[0],pool,weakSpelling,()=>0.5,true)!.type).toBe('spelling');
+  const weakRecognition=skills({recognition:[false,false,true],spelling:[true,true],listening:[true]},['spelling','listening']);
+  expect(phraseExercise(pool[0],pool,weakRecognition,()=>0.5,true)!.type).toBe('recognition');
+ });
+ it('пропуск всегда проверяется вводом текста без вариантов',()=>{
+  const cloze:Cloze={id:'c',template:'{{gap}} ένα γράμμα.',answer:'Γράφω',acceptedAnswers:['Γράφω'],provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso};
+  expect(exerciseFor({kind:'cloze',cloze},{words:[],phrases:[]},emptySkills(),()=>0.5,true)).toEqual({type:'cloze',options:[]});
+  expect(exerciseFor({kind:'cloze',cloze},{words:[],phrases:[]},skills({cloze:[false,false]}),()=>0.5,false)).toEqual({type:'cloze',options:[]});
+ });
+ it('единственная новая карточка любого вида идёт после доступных проверок; знакомство сохраняет основные места',async()=>{
+  const cloze:Cloze={id:'c',template:'{{gap}} ένα γράμμα.',answer:'Γράφω',acceptedAnswers:['Γράφω'],provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso};
+  const state=nextState(undefined,wordRef(words[1].id),3,new Date('2026-09-01'));
+  const session=await sessionOf({source:fromSnapshot(snapshot({...data,words:words.slice(0,2),clozes:[cloze],states:[state]})),now,refs:[{kind:'cloze',id:'c'},wordRef(words[1].id)]});
+  expect(session.items.map(item=>[item.ref.kind,item.ref.id,item.type,item.isNew])).toEqual([['word',words[1].id,expect.any(String),false],['cloze','c','cloze',true]]);
+  expect(session.items[1].card.kind==='cloze'&&session.items[1].card.cloze.acceptedAnswers).toEqual(['Γράφω']);
+  expect(session.introducedKeys).toEqual([]);
+ });
 });

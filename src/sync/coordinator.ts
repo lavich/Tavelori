@@ -4,7 +4,9 @@ import {concurrent, dominates, mergeClocks, sameClock} from './clock';
 import {syncEvents} from './events';
 import {applySnapshot, buildAndCommit, buildSnapshot, describeSnapshot, hasLocalProgress, META, parseClock, readMeta, SNAPSHOT_TABLES, writeMeta, type SnapshotDescription} from './snapshot';
 import {SyncError, type SyncErrorKind} from './transport';
-import {SNAPSHOT_FORMAT, type Clock, type CompactSnapshot, type SyncVersionRow, type VersionMeta} from './types';
+import {SNAPSHOT_FORMAT, SUPPORTED_SNAPSHOT_FORMATS, type Clock, type CompactSnapshot, type SyncVersionRow, type VersionMeta} from './types';
+/** Читаемые форматы: текущий и словарный формат 1; более новый или неизвестный — отказ без записи. */
+const readable=(format:number)=>(SUPPORTED_SNAPSHOT_FORMATS as readonly number[]).includes(format);
 
 export type SyncPhase='disabled'|'paused'|'idle'|'syncing'|'synced'|'error'|'conflict';
 export interface ConflictBranch {id:string;device:string;label:string;createdAt:string;local:boolean;description:SnapshotDescription;snapshot:CompactSnapshot;meta:VersionMeta|null}
@@ -137,7 +139,7 @@ export class SyncCoordinator {
    // Восстановленная копия при непустом облаке: выбор между восстановленным и последним облачным состоянием.
    if(flags.restored&&listing.pointers.length){
     const latest=listing.pointers.filter(pointer=>!listing.pointers.some(other=>other!==pointer&&dominates(other.clock,pointer.clock)&&!sameClock(other.clock,pointer.clock)));
-    if(latest.some(pointer=>pointer.format!==SNAPSHOT_FORMAT))throw new SyncError('format','В облаке версия другого формата. Обновите приложение; локальные данные не изменены.');
+    if(latest.some(pointer=>!readable(pointer.format)))throw new SyncError('format','В облаке версия другого формата. Обновите приложение; локальные данные не изменены.');
     const remote:ConflictBranch[]=[];
     for(const pointer of latest){
      const snapshot=await adapter.readVersion(pointer);
@@ -156,7 +158,7 @@ export class SyncCoordinator {
    await this.confirm();
    return;
   }
-  if(candidates.some(candidate=>candidate.format!==SNAPSHOT_FORMAT))
+  if(candidates.some(candidate=>!readable(candidate.format)))
    throw new SyncError('format','В облаке версия другого формата. Обновите приложение или повторите чтение позже; локальные данные не изменены.');
   const remote:ConflictBranch[]=[];
   for(const candidate of candidates){
@@ -178,7 +180,7 @@ export class SyncCoordinator {
   if(!flags.dirty){
    if(remote.length===1){
     const [branch]=remote;
-    await applySnapshot(database,branch.snapshot,branch.id,branch.meta!.clock,this.options.now());
+    await applySnapshot(database,branch.snapshot,branch.id,branch.meta!.clock,this.options.now(),branch.meta!.format);
     await this.confirm();
     await this.installMissing(branch.snapshot.packages);
     return;
@@ -266,7 +268,7 @@ export class SyncCoordinator {
    if(chosen.local){
     await this.publish(device,flags.clock,clocks,resolves,null,null);
    }else{
-    await applySnapshot(database,chosen.snapshot,chosen.id,chosen.meta!.clock,this.options.now());
+    await applySnapshot(database,chosen.snapshot,chosen.id,chosen.meta!.clock,this.options.now(),chosen.meta!.format);
     await this.publish(device,chosen.meta!.clock,clocks,resolves,chosen.snapshot,null);
     await this.installMissing(chosen.snapshot.packages);
    }

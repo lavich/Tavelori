@@ -66,12 +66,12 @@ export function ScheduleCard({course,today,first}:{course:Course;today:string;fi
      <>
       <Button size="md" variant="soft" onClick={open}>{active?'Изменить расписание':'Задать расписание'}</Button>
       <Field className="mt-3">
-       <FieldLabel htmlFor={`per-day-${course.id}`}>Новых слов в день</FieldLabel>
-       <Input id={`per-day-${course.id}`} type="number" inputMode="numeric" min={0} max={100} defaultValue={course.newWordsPerDay}
+       <FieldLabel htmlFor={`per-day-${course.id}`}>Новых карточек в день</FieldLabel>
+       <Input id={`per-day-${course.id}`} type="number" inputMode="numeric" min={0} max={100} defaultValue={course.newItemsPerDay}
         onBlur={event=>{
          const value=Number(event.target.value);
-         if(Number.isInteger(value)&&value>=0&&value<=100&&value!==course.newWordsPerDay)void saveCourseTempo(course.id,{newWordsPerDay:value},new Date());
-         else event.target.value=String(course.newWordsPerDay);
+         if(Number.isInteger(value)&&value>=0&&value<=100&&value!==course.newItemsPerDay)void saveCourseTempo(course.id,{newItemsPerDay:value},new Date());
+         else event.target.value=String(course.newItemsPerDay);
         }}/>
        <FieldDescription>Предел этого курса. У других курсов он свой.</FieldDescription>
       </Field>

@@ -2,7 +2,7 @@ import {ChevronRight, FileText} from 'lucide-react';
 import {Link} from 'react-router-dom';
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item';
 import type {LessonProgress} from '../../domain/stats';
-import {dativeWeekday, dayMonth, shortTitle, withCount, WORDS} from '../../shared/format';
+import {CARDS, dativeWeekday, dayMonth, shortTitle, withCount, WORDS} from '../../shared/format';
 import type {LessonView} from '../../storage/queries';
 import styles from './LessonRow.module.css';
 
@@ -15,7 +15,7 @@ const GROUPS=[
 export const progressText=(progress:LessonProgress)=>GROUPS.filter(([key])=>progress[key]).map(([key,forms])=>withCount(progress[key],[...forms])).join(' · ');
 
 /**
- * Полоса показывает освоенность, а не состав: закрашена средняя зрелость живых слов урока.
+ * Полоса показывает освоенность, а не состав: закрашена средняя зрелость живых карточек урока.
  * Закрашенное делится надвое — вклад устойчивых слов и вклад остальных введённых, — чтобы было
  * видно, чем урок держится. Остаток дорожки и есть недостающая зрелость.
  */
@@ -41,7 +41,9 @@ export const lessonLabels=(lesson:LessonView,next=false)=>({
 /** Строка урока: одна и та же в списках «Сегодня» и «Уроки», подписи считает сама, прогресс приходит из запроса. */
 export function LessonRow({lesson,next}:{lesson:LessonView;next?:boolean}){
  const {title,note}=lessonLabels(lesson,next);
- const progress=lesson.wordCount?lesson.progress:undefined;
+ const progress=lesson.cardCount?lesson.progress:undefined;
+ // «Карточки» — там, где объединяются виды; словарный урок по-прежнему считает слова.
+ const composition=lesson.phraseCount||lesson.clozeCount?withCount(lesson.cardCount,CARDS):withCount(lesson.wordCount,WORDS);
  const text=progress?progressText(progress):'';
  const fill=progress&&progressFill(progress);
  return (
@@ -49,7 +51,7 @@ export function LessonRow({lesson,next}:{lesson:LessonView;next?:boolean}){
    <ItemMedia variant="icon"><FileText/></ItemMedia>
    <ItemContent>
     <ItemTitle className="text-base">{title}</ItemTitle>
-    <ItemDescription>{withCount(lesson.wordCount,WORDS)} · {note}</ItemDescription>
+    <ItemDescription>{composition} · {note}</ItemDescription>
     {progress&&(
      <>
       <div role="img" aria-label={`Освоено ${fill!.percent}% · ${text}`} className={styles.bar}>

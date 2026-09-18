@@ -75,15 +75,15 @@ test('у курса своё расписание и свой предел; со
  await expect(mine.getByRole('link',{name:/Мой набор · Без даты/})).toBeVisible();
 
  // Предел тоже принадлежит курсу.
- await leeke.getByLabel('Новых слов в день').fill('3');
- await leeke.getByLabel('Новых слов в день').blur();
+ await leeke.getByLabel('Новых карточек в день').fill('3');
+ await leeke.getByLabel('Новых карточек в день').blur();
  await expect.poll(()=>page.evaluate(async()=>{
   const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open('lexi');request.onsuccess=()=>resolve(request.result)});
-  const rows=await new Promise<{id:string;newWordsPerDay:number}[]>(resolve=>{
+  const rows=await new Promise<{id:string;newItemsPerDay:number}[]>(resolve=>{
    const all=database.transaction('courses').objectStore('courses').getAll();
-   all.onsuccess=()=>resolve(all.result as {id:string;newWordsPerDay:number}[]);
+   all.onsuccess=()=>resolve(all.result as {id:string;newItemsPerDay:number}[]);
   });
   database.close();
-  return Object.fromEntries(rows.map(row=>[row.id,row.newWordsPerDay]));
+  return Object.fromEntries(rows.map(row=>[row.id,row.newItemsPerDay]));
  })).toEqual({leeke:3,my:10});
 });

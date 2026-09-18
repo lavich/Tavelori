@@ -5,8 +5,12 @@ import {applyPackage, coursePhase, downloadLessonMedia, ensureAsset, installCour
 import {ContentError, type ContentPackage} from '../src/content/schema';
 import {revisionOf} from '../content/build';
 import {deleteWord, removeFromLesson, saveWord} from '../src/storage/ops';
-import {lessonLinks} from '../src/storage/queries';
+import {lessonItems} from '../src/storage/queries';
+import {wordKeyOf, wordRef, wordState} from './helpers/cards';
 import {content, installLessons, memoryFetcher, packageOf} from './helpers/content';
+import {buildMixed, installMixed, MIXED_CLOZES, MIXED_LESSON, MIXED_PHRASES, mixedContent, mixedPackage} from './helpers/mixed';
+import {unitKey} from './helpers/cards';
+import {clozeRevisionOf} from '../content/build';
 
 let db:LexiDatabase;
 beforeEach(async()=>{
@@ -155,7 +159,7 @@ describe('установка урока',()=>{
   expect(result).toMatchObject({status:'installed',added:30,conflicts:[]});
   expect(fetcher.requests).toEqual(['content/catalog.json',entry('lesson-1-2').url]);
   expect(await db.words.count()).toBe(30);
-  expect((await lessonLinks('lesson-1-2',db)).map(l=>l.wordId)).toEqual(packageOf('lesson-1-2').links.map(l=>l.wordId));
+  expect((await lessonItems('lesson-1-2',db)).map(l=>l.ref.id)).toEqual(packageOf('lesson-1-2').links.map(l=>l.wordId));
   expect(await db.lessons.get('lesson-1-2')).toMatchObject({title:'Урок 1.2',targetDate:null,status:'upcoming'});
   expect(await db.assets.count()).toBe(0); // медиа не скачиваются вместе с пакетом
   expect(await db.media.count()).toBe(30);
@@ -170,12 +174,12 @@ describe('установка урока',()=>{
   expect(await db.lessons.get('lesson-1-1')).toMatchObject({status:'upcoming',targetDate:null});
   expect(await db.lessons.get('lesson-1-2')).toMatchObject({status:'upcoming',targetDate:null});
   expect(await db.events.count()).toBe(0);
-  expect(await db.states.count()).toBe(0);
+  expect(await db.cardStates.count()).toBe(0);
  });
  it('общее слово двух уроков — одна запись и две связи',async()=>{
   await installLessons(db,['lesson-1-2','lesson-1-3']);
   expect((await db.words.where('greek').equals('το σπίτι').toArray())).toHaveLength(1);
-  expect(await db.lessonWords.where('wordId').equals('w12-16').count()).toBe(2);
+  expect(await db.lessonItems.where('unitKey').equals(wordKeyOf('w12-16')).count()).toBe(2);
   expect(await db.words.count()).toBe(30+35-1);
  });
  it('одновременные запросы одного пакета объединяются, повторная установка ничего не дублирует',async()=>{
@@ -186,7 +190,7 @@ describe('установка урока',()=>{
   expect(fetcher.requests.filter(url=>url.includes('lesson-1-1'))).toHaveLength(1);
   expect(await installLesson('lesson-1-1',db,fetcher)).toMatchObject({status:'current'});
   expect(await db.words.count()).toBe(38);
-  expect(await db.lessonWords.count()).toBe(38);
+  expect(await db.lessonItems.count()).toBe(38);
   expect(await db.packages.count()).toBe(1);
  });
  it('повреждённый, чужой и несовместимый пакет отклоняются без частичного урока',async()=>{
@@ -194,7 +198,7 @@ describe('установка урока',()=>{
   const pack=packageOf('lesson-1-1');
   for(const [bad,pattern] of [
    [{...pack,schemaVersion:99},/не поддерживается/],
-   [{...pack,words:pack.words.slice(1)},/которого нет в пакете/],
+   [{...pack,words:pack.words.slice(1)},/которой нет в пакете/],
    [{...pack,version:'другая'},/не соответствует записи каталога/],
    [42,/ожидался объект/],
   ] as const){
@@ -202,7 +206,7 @@ describe('установка урока',()=>{
    await refreshCatalog(db,fetcher);
    await expect(installLesson('lesson-1-1',db,fetcher)).rejects.toThrow(pattern);
    expect(await db.words.count()).toBe(0);
-   expect(await db.lessonWords.count()).toBe(0);
+   expect(await db.lessonItems.count()).toBe(0);
    expect(await db.packages.count()).toBe(0);
    expect(await db.lessons.count()).toBe(0);
   }
@@ -230,7 +234,7 @@ describe('установка урока',()=>{
 describe('обновление пакета',()=>{
  it('нетронутое слово обновляется, ID и прогресс сохраняются',async()=>{
   const fetcher=await installLessons(db,['lesson-1-2']);
-  await db.states.add({wordId:'w12-16',card:{due:new Date('2026-09-20')} as never,introducedAt:'2026-09-10T00:00:00Z',version:3});
+  await db.cardStates.add(wordState('w12-16',{card:{due:new Date('2026-09-20')} as never,introducedAt:'2026-09-10T00:00:00Z',version:3}));
   const next=bump(packageOf('lesson-1-2'),words=>{words.find(w=>w.id==='w12-16')!.russian='дом, жилище'});
   const result=await installLesson('lesson-1-2',db,await upgrade('lesson-1-2',next));
   expect(result).toMatchObject({status:'updated',added:0,changed:1,conflicts:[]});
@@ -238,7 +242,7 @@ describe('обновление пакета',()=>{
   const updated=(await db.words.get('w12-16'))!;
   expect(updated.russian).toBe('дом, жилище');
   expect(updated.edited).toBeUndefined();
-  expect((await db.states.get('w12-16'))!.version).toBe(3);
+  expect((await db.cardStates.get(wordKeyOf('w12-16')))!.version).toBe(3);
   expect((await db.packages.get('lesson-1-2'))!.version).toBe(next.version);
  });
  it('локальная правка сохраняется, изменившееся в пакете поле сообщается как конфликт, остальные поля обновляются',async()=>{
@@ -247,30 +251,30 @@ describe('обновление пакета',()=>{
   await saveWord({...local,russian:'дом (моя правка)'},db);
   const next=bump(packageOf('lesson-1-2'),words=>{const w=words.find(w=>w.id==='w12-16')!;w.russian='жилище';w.note='новая заметка'});
   const result=await installLesson('lesson-1-2',db,await upgrade('lesson-1-2',next));
-  expect(result.conflicts).toEqual([{wordId:'w12-16',greek:'το σπίτι',fields:['russian']}]);
+  expect(result.conflicts).toEqual([{ref:wordRef('w12-16'),label:'το σπίτι',fields:['russian']}]);
   expect(await db.words.get('w12-16')).toMatchObject({russian:'дом (моя правка)',note:'новая заметка',edited:true});
  });
  it('удалённое слово не воскресает и убранная связь не восстанавливается',async()=>{
   await installLessons(db,['lesson-1-2']);
   await deleteWord('w12-16',db);
-  await removeFromLesson('lesson-1-2','w12-01',db);
-  expect((await db.packages.get('lesson-1-2'))!.removed).toEqual(['w12-01']);
+  await removeFromLesson('lesson-1-2',wordRef('w12-01'),db);
+  expect((await db.packages.get('lesson-1-2'))!.removed).toEqual([wordKeyOf('w12-01')]);
   const next=bump(packageOf('lesson-1-2'),words=>{words.find(w=>w.id==='w12-16')!.russian='жилище'});
   const result=await installLesson('lesson-1-2',db,await upgrade('lesson-1-2',next));
   expect((await db.words.get('w12-16'))!.deletedAt).toBeTruthy();
-  expect(result.conflicts).toEqual([{wordId:'w12-16',greek:'το σπίτι',fields:['deleted']}]);
-  expect(await db.lessonWords.get(['lesson-1-2','w12-01'])).toBeUndefined();
-  expect(await db.lessonWords.count()).toBe(29);
+  expect(result.conflicts).toEqual([{ref:wordRef('w12-16'),label:'το σπίτι',fields:['deleted']}]);
+  expect(await db.lessonItems.get(['lesson-1-2',wordKeyOf('w12-01')])).toBeUndefined();
+  expect(await db.lessonItems.count()).toBe(29);
   expect(await db.words.get('w12-01')).toBeTruthy(); // само слово остаётся
  });
  it('исчезновение слова из пакета не удаляет его из словаря, личные название и дата урока не перезаписываются',async()=>{
   await installLessons(db,['lesson-1-2']);
   await db.lessons.update('lesson-1-2',{title:'Мой урок',targetDate:'2026-10-01'});
   const pack=packageOf('lesson-1-2');
-  const next:ContentPackage={...pack,version:'trimmed',lesson:{...pack.lesson,title:'Другое название'},words:pack.words.slice(1),links:pack.links.slice(1).map((l,i)=>({...l,position:i})),media:pack.media.slice(1)};
+  const next:ContentPackage={...pack,version:'trimmed',lesson:{...pack.lesson,title:'Другое название'},words:pack.words.slice(1),items:pack.items.slice(1).map((item,i)=>({...item,position:i})),links:pack.links.slice(1).map((l,i)=>({...l,position:i})),media:pack.media.slice(1)};
   await installLesson('lesson-1-2',db,await upgrade('lesson-1-2',next));
   expect(await db.words.get(pack.words[0].id)).toBeTruthy();
-  expect(await db.lessonWords.get(['lesson-1-2',pack.words[0].id])).toBeTruthy();
+  expect(await db.lessonItems.get(['lesson-1-2',wordKeyOf(pack.words[0].id)])).toBeTruthy();
   expect(await db.lessons.get('lesson-1-2')).toMatchObject({title:'Мой урок',targetDate:'2026-10-01'});
  });
  it('без базы (legacy) отредактированное слово сохраняется целиком, нетронутое — заменяется',async()=>{
@@ -325,5 +329,99 @@ describe('медиа и готовность офлайн',()=>{
   await refreshCatalog(db,withUpdate('lesson-1-2',next));
   expect((await lessonReadiness('lesson-1-2',db)).updateAvailable).toBe(true);
   expect((await db.packages.get('lesson-1-2'))!.version).toBe(packageOf('lesson-1-2').version);
+ });
+});
+
+describe('установка и обновление смешанного пакета',()=>{
+ it('ставит слова, фразы, пропуски и связи атомарно в авторском порядке; повторный запрос объединяется',async()=>{
+  const fetcher=memoryFetcher(mixedContent());
+  await refreshCatalog(db,fetcher);
+  const [a,b]=await Promise.all([installLesson(MIXED_LESSON,db,fetcher),installLesson(MIXED_LESSON,db,fetcher)]);
+  expect(a).toBe(b);
+  expect(a).toMatchObject({status:'installed',added:11,conflicts:[]});
+  const pack=mixedPackage();
+  expect((await lessonItems(MIXED_LESSON,db)).map(item=>[item.ref.kind,item.ref.id])).toEqual(pack.items.map(item=>[item.kind,item.id]));
+  expect(await db.phrases.count()).toBe(5);
+  expect(await db.clozes.count()).toBe(5);
+  expect(await db.words.count()).toBe(1);
+  expect((await db.clozes.get('c-grafo'))!).toMatchObject({template:'{{gap}} ένα γράμμα.',acceptedAnswers:['Γράφω'],target:{kind:'verb-form',ref:'w11-27',features:{tense:'present',person:1,number:'singular'}},revision:pack.clozes[0].revision});
+  expect((await db.clozes.get('c-vouno'))!.target).toEqual({kind:'adjective-form',features:{gender:'neuter',number:'singular'}}); // неизвестный вид цели сохранён целиком
+  expect(await db.packages.get(MIXED_LESSON)).toMatchObject({version:pack.version,phrases:pack.phrases,clozes:pack.clozes,removed:[]});
+  expect(await db.catalog.get(MIXED_LESSON)).toMatchObject({wordCount:1,phraseCount:5,clozeCount:5,cardCount:11});
+  expect(await installLesson(MIXED_LESSON,db,fetcher)).toMatchObject({status:'current'});
+  expect(await db.lessonItems.count()).toBe(11);
+ });
+ it('повреждён только пропуск — отклоняется весь пакет, корректная часть не устанавливается отдельно',async()=>{
+  const pack=mixedPackage();
+  const url=mixedContent().catalog.lessons.find(l=>l.id===MIXED_LESSON)!.url;
+  for(const [bad,pattern] of [
+   [{...pack,clozes:pack.clozes.map(c=>c.id==='c-grafo'?{...c,answer:''}:c)},/пуст/],
+   [{...pack,items:[...pack.items,{kind:'cloze',id:'нет',position:99}]},/которой нет в пакете/],
+   [{...pack,clozes:pack.clozes.map(c=>c.id==='c-grafo'?{...c,target:{kind:'verbForm'}}:c)},/kebab-case/],
+  ] as const){
+   const fetcher=memoryFetcher(mixedContent(),{[url]:bad});
+   await refreshCatalog(db,fetcher);
+   await expect(installLesson(MIXED_LESSON,db,fetcher)).rejects.toThrow(pattern);
+   expect(await db.words.count()).toBe(0);
+   expect(await db.phrases.count()).toBe(0);
+   expect(await db.clozes.count()).toBe(0);
+   expect(await db.lessonItems.count()).toBe(0);
+   expect(await db.packages.count()).toBe(0);
+  }
+ });
+ it('нехватка места откатывает фразы, пропуски, связи и версию; прежняя установленная ревизия остаётся',async()=>{
+  await installMixed(db);
+  const before={pack:await db.packages.get(MIXED_LESSON),cloze:await db.clozes.get('c-grafo'),items:await db.lessonItems.count()};
+  const pack=mixedPackage();
+  const next={...pack,version:`${pack.version}-next`,clozes:pack.clozes.map(c=>c.id==='c-grafo'?{...c,context:'Иначе',revision:'r-next'}:c)};
+  const url=`content/packages/${MIXED_LESSON}@${next.version}.json`;
+  const catalog={...mixedContent().catalog,lessons:mixedContent().catalog.lessons.map(l=>l.id===MIXED_LESSON?{...l,version:next.version,url}:l)};
+  const fetcher=memoryFetcher(mixedContent(),{'content/catalog.json':catalog,[url]:next});
+  await refreshCatalog(db,fetcher);
+  const fail=()=>{throw Object.assign(new Error('QuotaExceededError'),{name:'QuotaExceededError'})};
+  db.packages.hook('updating',fail);
+  await expect(installLesson(MIXED_LESSON,db,fetcher)).rejects.toMatchObject({kind:'storage'});
+  db.packages.hook('updating').unsubscribe(fail);
+  expect(await db.packages.get(MIXED_LESSON)).toEqual(before.pack);
+  expect(await db.clozes.get('c-grafo')).toEqual(before.cloze);
+  expect(await db.lessonItems.count()).toBe(before.items);
+ });
+ it('обновление сохраняет ID, прогресс, дату пользователя и убранную связь фразы; цель обновляет только ревизию',async()=>{
+  await installMixed(db);
+  await db.lessons.update(MIXED_LESSON,{targetDate:'2026-10-01',title:'Мой смешанный'});
+  await db.cardStates.add({unitKey:unitKey({kind:'cloze',id:'c-gramma'}),ref:{kind:'cloze',id:'c-gramma'},card:{due:new Date('2026-09-20')} as never,introducedAt:'2026-09-10T00:00:00Z',version:2});
+  await removeFromLesson(MIXED_LESSON,{kind:'phrase',id:'p-vouno'},db);
+  const pack=mixedPackage();
+  const gramma=pack.clozes.find(c=>c.id==='c-gramma')!;
+  const {revision:_r,...fields}=gramma;
+  const retargeted={...fields,target:{kind:'noun-form',features:{case:'accusative',number:'singular'}}};
+  const next={...pack,version:`${pack.version}-next`,lesson:{title:'Другое название'},clozes:pack.clozes.map(c=>c.id==='c-gramma'?{...retargeted,revision:clozeRevisionOf(retargeted)}:c)};
+  const url=`content/packages/${MIXED_LESSON}@${next.version}.json`;
+  const catalog={...mixedContent().catalog,lessons:mixedContent().catalog.lessons.map(l=>l.id===MIXED_LESSON?{...l,version:next.version,url}:l)};
+  const fetcher=memoryFetcher(mixedContent(),{'content/catalog.json':catalog,[url]:next});
+  await refreshCatalog(db,fetcher);
+  const result=await installLesson(MIXED_LESSON,db,fetcher);
+  expect(result).toMatchObject({status:'updated',added:0,changed:1,conflicts:[]});
+  const stored=(await db.clozes.get('c-gramma'))!;
+  expect(stored.target).toEqual({kind:'noun-form',features:{case:'accusative',number:'singular'}});
+  expect(stored.revision).not.toBe(gramma.revision);
+  expect((await db.cardStates.get(unitKey({kind:'cloze',id:'c-gramma'})))!.version).toBe(2); // состояние и ключ не тронуты
+  expect(await db.lessons.get(MIXED_LESSON)).toMatchObject({title:'Мой смешанный',targetDate:'2026-10-01'});
+  expect(await db.lessonItems.get([MIXED_LESSON,unitKey({kind:'phrase',id:'p-vouno'})])).toBeUndefined(); // убранная связь не восстановлена
+  expect(await db.phrases.get('p-vouno')).toBeTruthy(); // сама фраза остаётся
+  expect((await db.packages.get(MIXED_LESSON))!.removed).toEqual([unitKey({kind:'phrase',id:'p-vouno'})]);
+ });
+ it('урок только из текстовых заданий готов офлайн без обязательных медиа',async()=>{
+  await installMixed(db);
+  const readiness=await lessonReadiness(MIXED_LESSON,db);
+  // Обязательное медиа даёт только слово с картинкой; у фраз и пропусков файлов нет — они не блокируют готовность.
+  expect(readiness.installed).toBe(true);
+  expect(readiness.required).toBe((await db.packages.get(MIXED_LESSON))!.media.filter(m=>m.required).length);
+  const noWords=buildMixed({phrases:{'p-grafo':MIXED_PHRASES['p-grafo']},clozes:{'c-gramma':MIXED_CLOZES['c-gramma']},lesson:{title:'Текст',language:'el',items:[{kind:'phrase',id:'p-grafo'},{kind:'cloze',id:'c-gramma'}]}});
+  const other=new LexiDatabase('lexi-content-text');
+  await other.delete();await other.open();
+  await installMixed(other,[MIXED_LESSON],noWords);
+  expect(await lessonReadiness(MIXED_LESSON,other)).toMatchObject({installed:true,required:0,present:0,missing:[]});
+  other.close();
  });
 });

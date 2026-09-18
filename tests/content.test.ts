@@ -197,7 +197,7 @@ describe('каталог и пакеты',()=>{
   const pack=JSON.parse(fileOf(content.catalog.lessons[0].url).body as string);
   expect(()=>parsePackage({...pack,schemaVersion:SCHEMA_VERSION+1})).toThrow(/не поддерживается/);
   try{parsePackage({...pack,schemaVersion:99})}catch(error){expect((error as ContentError).kind).toBe('unsupported')}
-  expect(()=>parsePackage({...pack,links:[...pack.links,{wordId:'нет',position:99}]})).toThrow(/которого нет в пакете/);
+  expect(()=>parsePackage({...pack,items:[...pack.items,{kind:'word',id:'нет',position:99}]})).toThrow(/которой нет в пакете/);
   expect(()=>parsePackage({...pack,words:[...pack.words,pack.words[0]]})).toThrow(/повторяются/);
   expect(()=>parsePackage({...pack,media:[{...pack.media[0],url:'https://evil.example/x.svg'}]})).toThrow(/относительной/);
   expect(()=>parsePackage({...pack,words:pack.words.map((w:{greek:string})=>({...w,greek:''}))})).toThrow(/нет написания/);

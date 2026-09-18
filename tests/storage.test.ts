@@ -2,12 +2,19 @@ import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {Rating} from 'ts-fsrs';
 import {LexiDatabase} from '../src/storage/db';
-import {dexieSource, lessonLinks, loadLessons} from '../src/storage/queries';
+import {dexieSource, lessonItems, loadLessons} from '../src/storage/queries';
+import {wordRef} from './helpers/cards';
 import {ConflictError, commitImport, createLesson, markIntroduced, prepareObjectiveSession, saveCourseTempo, saveSettings, saveWord, settleLessons, submitAnswer, updateLesson} from '../src/storage/ops';
 import {makePlan, makeSession} from '../src/domain/learning';
 import {defaultSettings, type Settings} from '../src/domain/types';
 import {parseImport} from '../src/domain/import';
 import {content, installLessons, wordsOf} from './helpers/content';
+import {installMixed, mixedPackage} from './helpers/mixed';
+import {unitKey} from './helpers/cards';
+import {applyPackage} from '../src/content/client';
+import {checkTextAnswer} from '../src/domain/cloze';
+import {clozeRevisionOf} from '../content/build';
+import type {Cloze} from '../src/domain/types';
 
 const now=new Date('2026-09-15T09:00:00Z');
 let db:LexiDatabase;
@@ -39,7 +46,7 @@ describe('запись ответа',()=>{
   const {session}=await prepare();
   await Promise.all([answer(session),answer(session)]);
   expect(await db.events.count()).toBe(1);
-  expect((await db.states.get(session.items[0].wordId))!.version).toBe(1);
+  expect((await db.cardStates.get(session.items[0].unitKey))!.version).toBe(1);
   expect((await db.sessions.get(session.id))!.index).toBe(1);
  });
  it('отклоняет ответ из другой вкладки и не теряет уже записанные данные',async()=>{
@@ -51,11 +58,11 @@ describe('запись ответа',()=>{
  });
  it('знакомство сохраняется без ответа и изменения расписания',async()=>{
   const {session}=await prepare();
-  await markIntroduced(session.id,session.items[0].wordId,3000,db);
-  await markIntroduced(session.id,session.items[0].wordId,4000,db);
+  await markIntroduced(session.id,session.items[0].unitKey,3000,db);
+  await markIntroduced(session.id,session.items[0].unitKey,4000,db);
   expect(await db.events.count()).toBe(0);
-  expect(await db.states.count()).toBe(0);
-  expect((await db.sessions.get(session.id))!.introducedWordIds).toEqual([session.items[0].wordId]);
+  expect(await db.cardStates.count()).toBe(0);
+  expect((await db.sessions.get(session.id))!.introducedKeys).toEqual([session.items[0].unitKey]);
   expect((await db.sessions.get(session.id))!.activeTimeMs).toBe(4000);
  });
  it('ошибка атомарно добавляет одну тренировку после двух заданий',async()=>{
@@ -66,25 +73,25 @@ describe('запись ответа',()=>{
   const stored=(await db.sessions.get(session.id))!;
   expect(stored.items).toHaveLength(session.items.length+1);
   expect(stored.items[3]).toMatchObject({retryOf:session.items[0].id,mode:'practice',isNew:false,expectedVersion:1});
-  const before=await db.states.get(session.items[0].wordId);
+  const before=await db.cardStates.get(session.items[0].unitKey);
   await answer(stored,stored.items[3],{correct:false});
-  expect(await db.states.get(session.items[0].wordId)).toEqual(before);
+  expect(await db.cardStates.get(session.items[0].unitKey)).toEqual(before);
   expect((await db.sessions.get(session.id))!.items).toHaveLength(stored.items.length);
   expect(await db.events.count()).toBe(2);
  });
  it('последняя ошибка не завершает занятие до дополнительной попытки',async()=>{
   await prepare();
-  const session=await makeSession({source:source(),now,wordIds:[seedWords[0].id],random:()=>0.7});
+  const session=await makeSession({source:source(),now,refs:[wordRef(seedWords[0].id)],random:()=>0.7});
   await db.sessions.add(session);
   await answer(session,session.items[0],{correct:false});
   const stored=(await db.sessions.get(session.id))!;
   expect(stored.status).toBe('active');
   expect(stored.items).toHaveLength(2);
-  const state=await db.states.get(session.items[0].wordId);
+  const state=await db.cardStates.get(session.items[0].unitKey);
   const event=await answer(stored,stored.items[1]);
   expect(event.rating).toBe(Rating.Good);
   expect((await db.sessions.get(session.id))!.status).toBe('done');
-  expect(await db.states.get(session.items[0].wordId)).toEqual(state);
+  expect(await db.cardStates.get(session.items[0].unitKey)).toEqual(state);
  });
  it('обновляет только неотвеченный recall и сохраняет старую историю',async()=>{
   const {session}=await prepare();
@@ -107,17 +114,17 @@ describe('запись ответа',()=>{
   await expect(answer(session,session.items[0],{correct:false})).rejects.toThrow('storage failed');
   db.sessions.hook('updating').unsubscribe(fail);
   expect(await db.events.count()).toBe(0);
-  expect(await db.states.count()).toBe(0);
+  expect(await db.cardStates.count()).toBe(0);
   expect(await db.sessions.get(session.id)).toEqual(session);
   await answer(session,session.items[0],{correct:false});
   expect(await db.events.count()).toBe(1);
  });
  it('practice не сдвигает интервалы, но сохраняет результат навыка',async()=>{
   await prepare();
-  const practice=await makeSession({source:source(),now,random:()=>0.3,mode:'practice',wordIds:[seedWords[0].id]});
+  const practice=await makeSession({source:source(),now,random:()=>0.3,mode:'practice',refs:[wordRef(seedWords[0].id)]});
   await db.sessions.add(practice);
   await answer(practice,practice.items[0]);
-  expect(await db.states.count()).toBe(0);
+  expect(await db.cardStates.count()).toBe(0);
   expect((await db.events.toArray())[0].mode).toBe('practice');
  });
 });
@@ -143,7 +150,7 @@ describe('импорт',()=>{
   expect(outcome).toMatchObject({added:1,linked:1});
   expect(await db.words.count()).toBe(seedWords.length+1);
   const lesson=await db.lessons.get(outcome.lessonId);
-  expect(await lessonLinks(outcome.lessonId,db)).toHaveLength(2);
+  expect(await lessonItems(outcome.lessonId,db)).toHaveLength(2);
   expect(lesson!.targetDate).toBeNull(); // дату назначит расписание
  });
  it('при ошибке не оставляет половину набора',async()=>{
@@ -257,5 +264,130 @@ describe('операции над уроками при расписании',()
   await updateLesson('lesson-1-3',{targetDate:null},db);
   expect(await shown('lesson-1-3')).toMatchObject({targetDate:'2026-09-21',dateSource:'schedule'});
   expect((await shown('lesson-1-4')).targetDate).toBe('2026-09-24');
+ });
+});
+
+/** Смешанный урок: карточки трёх видов в одной базе; каждая — своя единица повторения. */
+describe('запись ответа на смешанном уроке',()=>{
+ const K=(kind:'word'|'phrase'|'cloze',id:string)=>unitKey({kind,id});
+ const prepare=async(refs=[{kind:'cloze' as const,id:'c-grafo'},{kind:'word' as const,id:'w11-27'},{kind:'phrase' as const,id:'p-grafo'},{kind:'cloze' as const,id:'c-gramma'},{kind:'cloze' as const,id:'c-paidi'},{kind:'cloze' as const,id:'c-anoixi'}])=>{
+  await installMixed(db);
+  const session=await makeSession({source:source(),now,random:()=>0.42,refs});
+  await db.sessions.add(session);
+  const item=(id:string)=>session.items.find(entry=>entry.ref.id===id)!;
+  return {session,item};
+ };
+ const answer=(session:Awaited<ReturnType<typeof makeSession>>,item:Awaited<ReturnType<typeof makeSession>>['items'][number],extra={})=>submitAnswer({
+  session,item,correct:true,answer:'',responseTimeMs:1200,activeTimeMs:5000,timezone:'Asia/Nicosia',now,database:db,...extra,
+ });
+ it('слово, фраза и два пропуска одного предложения независимы; ошибка в пропуске не трогает слово',async()=>{
+  const {session,item}=await prepare();
+  expect(item('c-grafo').type).toBe('cloze');
+  expect(item('c-grafo').card.kind).toBe('cloze');
+  await answer(session,item('w11-27'));
+  const word=await db.cardStates.get(K('word','w11-27'));
+  expect(word!.version).toBe(1);
+  const event=await answer(session,item('c-grafo'),{correct:false,answer:'γραφω'});
+  expect(event.rating).toBe(Rating.Again);
+  expect(event).toMatchObject({ref:{kind:'cloze',id:'c-grafo'},unitKey:K('cloze','c-grafo'),snapshot:{template:'{{gap}} ένα γράμμα.',answer:'Γράφω',target:{kind:'verb-form'}}});
+  expect(await db.cardStates.get(K('word','w11-27'))).toEqual(word); // слово не изменилось
+  expect(await db.cardStates.get(K('cloze','c-gramma'))).toBeUndefined(); // другое скрытое место того же предложения
+  expect(await db.cardStates.get(K('phrase','p-grafo'))).toBeUndefined();
+  const good=await answer(session,item('c-gramma'));
+  expect(good.rating).toBe(Rating.Good);
+  expect(good.snapshot).toEqual({template:'Γράφω ένα {{gap}}.',answer:'γράμμα'}); // цели нет — поле отсутствует
+  // Again и Good дают разные интервалы; у каждого пропуска своё состояние.
+  const again=(await db.cardStates.get(K('cloze','c-grafo')))!, goodState=(await db.cardStates.get(K('cloze','c-gramma')))!;
+  expect(new Date(goodState.card.due).getTime()).toBeGreaterThan(new Date(again.card.due).getTime());
+  expect(again.version).toBe(1);
+  expect(goodState.version).toBe(1);
+ });
+ it('две карточки с одинаковой целью сохраняют независимые состояния',async()=>{
+  const {session,item}=await prepare();
+  await answer(session,item('c-paidi'));
+  expect(await db.cardStates.get(K('cloze','c-paidi'))).toBeTruthy();
+  expect(await db.cardStates.get(K('cloze','c-anoixi'))).toBeUndefined();
+  const first=(await db.cardStates.get(K('cloze','c-paidi')))!;
+  await answer(session,item('c-anoixi'),{correct:false});
+  expect(await db.cardStates.get(K('cloze','c-paidi'))).toEqual(first); // ответ на вторую карточку не тронул первую
+  const second=(await db.cardStates.get(K('cloze','c-anoixi')))!;
+  expect(second.unitKey).not.toBe(first.unitKey);
+  expect(new Date(second.card.due).getTime()).toBeLessThan(new Date(first.card.due).getTime());
+ });
+ it('двойное нажатие и вторая вкладка: одно событие, не более одной дополнительной попытки, конфликт версии',async()=>{
+  const {session,item}=await prepare();
+  const cloze=item('c-grafo');
+  await Promise.all([answer(session,cloze,{correct:false}),answer(session,cloze,{correct:false})]);
+  expect(await db.events.count()).toBe(1);
+  const stored=(await db.sessions.get(session.id))!;
+  expect(stored.items.filter(entry=>entry.retryOf===cloze.id)).toHaveLength(1);
+  expect(stored.items).toHaveLength(session.items.length+1);
+  const stale={...cloze,id:`${cloze.id}-copy`};
+  await expect(answer(session,stale)).rejects.toBeInstanceOf(ConflictError);
+  expect(await db.events.count()).toBe(1);
+  expect((await db.cardStates.get(K('cloze','c-grafo')))!.version).toBe(1);
+ });
+ it('дополнительная и ручная тренировки сохраняют результат без сдвига расписания',async()=>{
+  const {session,item}=await prepare();
+  await answer(session,item('c-grafo'),{correct:false});
+  const before=await db.cardStates.get(K('cloze','c-grafo'));
+  const stored=(await db.sessions.get(session.id))!;
+  const retry=stored.items.find(entry=>entry.retryOf===item('c-grafo').id)!;
+  expect(retry).toMatchObject({mode:'practice',isNew:false,expectedVersion:1,type:'cloze'});
+  await answer(stored,retry,{correct:false});
+  expect(await db.cardStates.get(K('cloze','c-grafo'))).toEqual(before);
+  expect((await db.sessions.get(session.id))!.items).toHaveLength(stored.items.length); // второй попытки нет
+  const practice=await makeSession({source:source(),now,random:()=>0.3,mode:'practice',refs:[{kind:'phrase',id:'p-grafo'}]});
+  await db.sessions.add(practice);
+  await answer(practice,practice.items[0]);
+  expect(await db.cardStates.get(K('phrase','p-grafo'))).toBeUndefined();
+  expect((await db.events.toArray()).filter(event=>event.ref.kind==='phrase')[0].mode).toBe('practice');
+ });
+ it('ошибка записи откатывает событие, состояние и попытку; упражнение остаётся доступным',async()=>{
+  const {session,item}=await prepare();
+  const fail=()=>{throw new Error('storage failed')};
+  db.sessions.hook('updating',fail);
+  await expect(answer(session,item('c-grafo'),{correct:false})).rejects.toThrow('storage failed');
+  db.sessions.hook('updating').unsubscribe(fail);
+  expect(await db.events.count()).toBe(0);
+  expect(await db.cardStates.count()).toBe(0);
+  expect(await db.sessions.get(session.id)).toEqual(session);
+  await answer(session,item('c-grafo'),{correct:false});
+  expect(await db.events.count()).toBe(1);
+ });
+ it('исправление пакета во время занятия: сессия проверяет снимок, событие хранит цель из снимка, новая сессия — обновлённый пакет',async()=>{
+  const {session,item}=await prepare([{kind:'cloze',id:'c-grafo'},{kind:'cloze',id:'c-gramma'}]);
+  const pack=mixedPackage();
+  const bump=(cloze:(typeof pack.clozes)[number],patch:Partial<(typeof pack.clozes)[number]>)=>{const {revision:_r,...rest}=cloze;const next={...rest,...patch};return {...next,revision:clozeRevisionOf(next)}};
+  const next={...pack,version:`${pack.version}-fix`,clozes:pack.clozes.map(c=>c.id==='c-grafo'?bump(c,{acceptedAnswers:['Γράφω','γράφω'],target:{kind:'verb-form',ref:'w11-27',features:{tense:'present',person:1,number:'plural'}}}):c.id==='c-gramma'?bump(c,{target:{kind:'noun-form'}}):c)};
+  await applyPackage(next,db);
+  // Активная сессия хранит прежние допустимые ответы и прежнюю цель.
+  const live=(await db.sessions.get(session.id))!;
+  const grafo=live.items.find(entry=>entry.ref.id==='c-grafo')!;
+  expect(grafo.card.kind==='cloze'&&grafo.card.cloze.acceptedAnswers).toEqual(['Γράφω']);
+  expect(checkTextAnswer('γραφω',(grafo.card as {cloze:Cloze}).cloze.acceptedAnswers).status).toBe('almost');
+  const event=await answer(live,grafo,{correct:false,answer:'γράφω'});
+  expect(event.snapshot).toEqual({template:'{{gap}} ένα γράμμα.',answer:'Γράφω',target:{kind:'verb-form',ref:'w11-27',features:{tense:'present',person:1,number:'singular'}}});
+  const late=await answer(live,live.items.find(entry=>entry.ref.id==='c-gramma')!);
+  expect(late.snapshot).toEqual({template:'Γράφω ένα {{gap}}.',answer:'γράμμα'}); // поздняя разметка не приписана прошлому снимку
+  // Новая сессия читает исправленный пакет: варианты и цель новые, состояние и история прежние.
+  const fresh=await makeSession({source:source(),now:new Date('2026-09-15T10:00:00Z'),random:()=>0.1,mode:'practice',refs:[{kind:'cloze',id:'c-grafo'},{kind:'cloze',id:'c-gramma'}]});
+  const updated=fresh.items.find(entry=>entry.ref.id==='c-grafo')!.card as {cloze:Cloze};
+  expect(updated.cloze.acceptedAnswers).toEqual(['Γράφω','γράφω']);
+  expect(updated.cloze.target?.features).toEqual({tense:'present',person:1,number:'plural'});
+  expect(fresh.items.find(entry=>entry.ref.id==='c-grafo')!.expectedVersion).toBe(1);
+  expect(await db.events.count()).toBe(2);
+  expect(item('c-grafo').expectedVersion).toBe(0);
+ });
+ it('знакомство сохраняется по ключу карточки любого вида без события и без сдвига интервала',async()=>{
+  const {session,item}=await prepare();
+  await markIntroduced(session.id,K('cloze','c-grafo'),3000,db);
+  await markIntroduced(session.id,K('phrase','p-grafo'),4000,db);
+  await markIntroduced(session.id,K('cloze','c-grafo'),5000,db);
+  expect((await db.sessions.get(session.id))!.introducedKeys).toEqual([K('cloze','c-grafo'),K('phrase','p-grafo')]);
+  expect(await db.events.count()).toBe(0);
+  expect(await db.cardStates.count()).toBe(0);
+  await expect(markIntroduced(session.id,K('cloze','нет'),1,db)).rejects.toThrow(/недоступна/);
+  expect(item('p-grafo').isNew).toBe(true);
  });
 });

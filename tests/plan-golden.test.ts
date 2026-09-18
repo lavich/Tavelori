@@ -4,6 +4,7 @@ import {createEmptyCard, State} from 'ts-fsrs';
 import {makePlan, makeSession, type SessionSource} from '../src/domain/learning';
 import {fromSnapshot} from '../src/domain/snapshot-source';
 import {defaultSchedule, defaultSettings, type Course, type ExerciseType, type LearningState, type Lesson, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
+import {idsOf, wordEvent, wordRef, wordState} from './helpers/cards';
 
 /**
  * Эталон планировщика: результаты зафиксированы на снимке до перехода на выборочные запросы.
@@ -23,12 +24,12 @@ const word=(index:number,over:Partial<Word>={}):Word=>({
 });
 type LessonSpec=Lesson&{wordIds:string[]};
 const lesson=(id:string,wordIds:string[],targetDate:string|null,over:Partial<Lesson>={}):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso,...over});
-const learned=(id:string,due:string,state=State.Review,introducedAt='2026-09-01T09:00:00Z'):LearningState=>({
- wordId:id,introducedAt,version:1,
+const learned=(id:string,due:string,state=State.Review,introducedAt='2026-09-01T09:00:00Z'):LearningState=>wordState(id,{
+ introducedAt,version:1,
  card:{...createEmptyCard(new Date('2026-09-01')),due:new Date(due),state,scheduled_days:3,reps:2},
 });
-const event=(wordId:string,type:ExerciseType,correct:boolean,at:string):ReviewEvent=>({
- id:`${wordId}-${type}-${at}`,sessionId:'s',itemId:`${wordId}-${type}-${at}`,wordId,snapshot:{greek:'',russian:''},
+const event=(wordId:string,type:ExerciseType,correct:boolean,at:string):ReviewEvent=>wordEvent(wordId,{
+ id:`${wordId}-${type}-${at}`,sessionId:'s',itemId:`${wordId}-${type}-${at}`,snapshot:{greek:'',russian:''},
  type,mode:'scheduled',rating:correct?3:1,correct,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:1000,
 });
 const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):Snapshot=>({
@@ -62,7 +63,7 @@ export const scenarios:Record<string,Snapshot>={
     event('w22','recognition',false,'2026-09-13T09:00:00Z'),event('w22','recognition',false,'2026-09-14T09:00:00Z'),
     event('w24','recognition',true,'2026-09-08T09:00:00Z'),event('w24','assembly',true,'2026-09-09T09:00:00Z'),event('w24','spelling',true,'2026-09-10T09:00:00Z'),event('w24','listening',false,'2026-09-11T09:00:00Z'),
    ],
-   courses:[{id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newWordsPerDay:10,createdAt:iso,updatedAt:iso}],
+   courses:[{id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newItemsPerDay:10,createdAt:iso,updatedAt:iso}],
    settings:{...defaultSettings,sessionSize:12},
   });
  })(),
@@ -77,14 +78,14 @@ export const scenarios:Record<string,Snapshot>={
  noDated:(()=>{
   const words=Array.from({length:12},(_,i)=>word(i));
   const ids=words.map(w=>w.id);
-  return base({words,lessons:[lesson('l1',ids.slice(4,8),null)],courses:[{id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newWordsPerDay:5,createdAt:iso,updatedAt:iso}],settings:{...defaultSettings,sessionSize:6}});
+  return base({words,lessons:[lesson('l1',ids.slice(4,8),null)],courses:[{id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newItemsPerDay:5,createdAt:iso,updatedAt:iso}],settings:{...defaultSettings,sessionSize:6}});
  })(),
  smallDict:base({words:[word(0),word(1),word(2)],states:[learned('w0','2026-09-14T08:00:00Z')],settings:{...defaultSettings,sessionSize:4}}),
  twoCourses:(()=>{
   const words=Array.from({length:40},(_,i)=>word(i));
   const ids=words.map(w=>w.id);
   const course=(id:string,perDay:number,weekdays:number[]):Course=>
-   ({id,title:id,origin:'content',subscribed:true,schedule:{startDate:'2026-09-15',weekdays},newWordsPerDay:perDay,createdAt:iso,updatedAt:iso});
+   ({id,title:id,origin:'content',subscribed:true,schedule:{startDate:'2026-09-15',weekdays},newItemsPerDay:perDay,createdAt:iso,updatedAt:iso});
   return base({
    words,
    courses:[course('near',6,[2,5]),course('far',3,[6])],
@@ -101,21 +102,21 @@ export const scenarios:Record<string,Snapshot>={
 
 const stripSession=(session:Awaited<ReturnType<typeof makeSession>>)=>({
  planDate:session.planDate,
- items:session.items.map(item=>({id:item.id.replace(session.id,'S'),wordId:item.wordId,type:item.type,options:item.options,isNew:item.isNew,mode:item.mode,expectedVersion:item.expectedVersion})),
+ items:session.items.map(item=>({id:item.id.replace(session.id,'S'),wordId:item.ref.id,type:item.type,options:item.options,isNew:item.isNew,mode:item.mode,expectedVersion:item.expectedVersion})),
 });
 const stripPlan=(plan:Awaited<ReturnType<typeof makePlan>>)=>({
  today:plan.today,requiredPerDay:plan.requiredPerDay,budget:plan.budget,introducedToday:plan.introducedToday,shortfall:plan.shortfall,
- newWords:plan.newWordIds,reviews:plan.reviews.map(r=>r.wordId),deadlines:plan.deadlines,backlog:plan.backlog,
- courses:plan.courses.map(({courseId,newWordsPerDay,budget,introducedToday,newWordIds,requiredPerDay,shortfall})=>({courseId,newWordsPerDay,budget,introducedToday,newWordIds,requiredPerDay,shortfall})),
+ newWords:idsOf(plan.newRefs),reviews:plan.reviews.map(r=>r.ref.id),deadlines:plan.deadlines,backlog:{wordIds:idsOf(plan.backlog.refs),lessons:plan.backlog.lessons},
+ courses:plan.courses.map(({courseId,newItemsPerDay,budget,introducedToday,newRefs,requiredPerDay,shortfall})=>({courseId,newWordsPerDay:newItemsPerDay,budget,introducedToday,newWordIds:idsOf(newRefs),requiredPerDay,shortfall})),
 });
 
-/** Результаты для одного источника; тот же набор проверок применяется к снимку и к базе. */
+/** Результаты для одного источника; тот же набор проверок применяется к снимку и к базе. Эталон записан до типизированных ссылок, поэтому ссылки словарных сценариев сворачиваются в прежние идентификаторы слов. */
 export async function recordFor(source:SessionSource,practiceIds:string[]){
  return {
   plan:stripPlan(await makePlan(source,now)),
   scheduled:stripSession(await makeSession({source,now,random:mulberry32(7)})),
   spoken:stripSession(await makeSession({source,now,random:mulberry32(7),hasVoice:true})),
-  practice:stripSession(await makeSession({source,now,random:mulberry32(11),mode:'practice',wordIds:practiceIds})),
+  practice:stripSession(await makeSession({source,now,random:mulberry32(11),mode:'practice',refs:practiceIds.map(wordRef)})),
  };
 }
 export async function recordGolden(){

@@ -1,8 +1,9 @@
 import {db, indexWord, type LexiDatabase} from '../storage/db';
 import {reportError} from '../reporting/reporting';
 import {adoptStash} from '../sync/snapshot';
-import {ContentError, parseCatalog, parsePackage, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackageWord, type ShippedField} from './schema';
-import {defaultSchedule, DEFAULT_NEW_WORDS_PER_DAY, type Asset, type Course, type InstalledPackage, type Word} from '../domain/types';
+import {CLOZE_FIELDS, ContentError, parseCatalog, parsePackage, PHRASE_FIELDS, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackageCloze, type PackagePhrase, type PackageWord, type ShippedField} from './schema';
+import {unitKey, wordRef} from '../domain/refs';
+import {defaultSchedule, DEFAULT_NEW_ITEMS_PER_DAY, type Asset, type Cloze, type Course, type InstalledPackage, type LearningRef, type Phrase, type Word} from '../domain/types';
 
 export interface ContentFetcher {json(url:string):Promise<unknown>;blob(url:string):Promise<Blob>}
 
@@ -54,7 +55,7 @@ async function adoptCourses(catalog:Catalog,database:LexiDatabase){
   const next:Course={
    id:item.id,title:item.title,origin:stored?.origin??'content',
    subscribed:stored?.subscribed||installed>0,
-   schedule:stored?.schedule??defaultSchedule,newWordsPerDay:stored?.newWordsPerDay??DEFAULT_NEW_WORDS_PER_DAY,
+   schedule:stored?.schedule??defaultSchedule,newItemsPerDay:stored?.newItemsPerDay??DEFAULT_NEW_ITEMS_PER_DAY,
    createdAt:stored?.createdAt??now,updatedAt:stored?.updatedAt??now,
   };
   if(item.source)next.source=item.source;
@@ -65,7 +66,8 @@ async function adoptCourses(catalog:Catalog,database:LexiDatabase){
  }
 }
 
-export interface Conflict {wordId:string;greek:string;fields:(ShippedField|'deleted')[]}
+/** Конфликт обновления: карточка любого вида, её подпись для сообщения и поля, где локальное значение сохранено. */
+export interface Conflict {ref:LearningRef;label:string;fields:string[]}
 export interface InstallResult {status:'installed'|'updated'|'current';added:number;changed:number;conflicts:Conflict[]}
 
 export type InstallPhase={phase:'idle'}|{phase:'loading'}|{phase:'error';message:string;kind:ContentError['kind']};
@@ -168,66 +170,89 @@ const shipped=(word:PackageWord)=>Object.fromEntries(SHIPPED_FIELDS.filter(field
  * если известна база установленной версии; без базы локальный вариант сохраняется, отличия сообщаются.
  */
 export function mergeWord(local:Word,base:PackageWord|undefined,next:PackageWord):{word:Word;conflicts:ShippedField[]}{
- const conflicts:ShippedField[]=[];
- const word:Word={...local};
- for(const field of SHIPPED_FIELDS){
+ return mergeFields(local as unknown as Record<string,unknown>&{edited?:boolean},base as Record<string,unknown>|undefined,next as unknown as Record<string,unknown>,SHIPPED_FIELDS) as unknown as {word:Word;conflicts:ShippedField[]};
+}
+function mergeFields<T extends Record<string,unknown>>(local:T&{edited?:boolean},base:Record<string,unknown>|undefined,next:Record<string,unknown>,fields:readonly string[]):{word:T;conflicts:string[]}{
+ const conflicts:string[]=[];
+ const merged:Record<string,unknown>={...local};
+ for(const field of fields){
   const incoming=next[field];
-  if(!local.edited){assign(word,field,incoming);continue}
+  if(!local.edited){assign(merged,field,incoming);continue}
   if(base){
-   if(same(local[field],base[field]))assign(word,field,incoming);
+   if(same(local[field],base[field]))assign(merged,field,incoming);
    else if(!same(incoming,base[field])&&!same(incoming,local[field]))conflicts.push(field);
   }else if(!same(local[field],incoming))conflicts.push(field);
  }
- return {word,conflicts};
+ return {word:merged as T,conflicts};
 }
-function assign(word:Word,field:ShippedField,value:unknown){
- const target=word as unknown as Record<string,unknown>;
+function assign(target:Record<string,unknown>,field:string,value:unknown){
  if(value===undefined)delete target[field]; else target[field]=value;
 }
 
+/**
+ * Общее слияние карточки любого вида: поставляемые поля берутся из пакета, локальные (`createdAt`, правки,
+ * удаление) остаются. Возвращает конфликт, если локальная правка расходится с новой версией.
+ */
+async function applyCards<P extends {id:string;revision:string},L extends {id:string;createdAt:string;updatedAt:string;deletedAt?:string;revision?:string;edited?:boolean}>(
+ incoming:P[],base:Map<string,P>,fields:readonly string[],kind:LearningRef['kind'],labelOf:(card:P|L)=>string,
+ table:{get(id:string):Promise<L|undefined>;add(row:L):Promise<unknown>;put(row:L):Promise<unknown>;update(id:string,patch:Partial<L>):Promise<unknown>},
+ build:(card:P,now:string)=>L,store:(row:L)=>L,now:string,result:InstallResult,
+){
+ const pickFields=(card:object)=>Object.fromEntries(fields.filter(field=>(card as Record<string,unknown>)[field]!==undefined).map(field=>[field,(card as Record<string,unknown>)[field]]));
+ for(const card of incoming){
+  const local=await table.get(card.id);
+  if(!local){await table.add(store(build(card,now)));result.added++;continue}
+  if(local.revision===card.revision)continue;
+  if(local.deletedAt){
+   const known=base.get(card.id);
+   if(!same(pickFields(card),pickFields(known??{...card,...pickFields(local)})))result.conflicts.push({ref:{kind,id:local.id},label:labelOf(local),fields:['deleted']});
+   await table.update(local.id,{revision:card.revision} as Partial<L>);
+   continue;
+  }
+  const merged=mergeFields(local as unknown as Record<string,unknown>&{edited?:boolean},base.get(card.id) as Record<string,unknown>|undefined,card as unknown as Record<string,unknown>,fields);
+  if(merged.conflicts.length)result.conflicts.push({ref:{kind,id:local.id},label:labelOf(local),fields:merged.conflicts});
+  const changed=!same(pickFields(merged.word),pickFields(local));
+  if(changed)result.changed++;
+  await table.put(store({...(merged.word as unknown as L),revision:card.revision,updatedAt:changed?now:local.updatedAt}));
+ }
+}
+
+/**
+ * Установка одной транзакцией: слова, фразы, пропуски, связи, медиа и запись пакета. Ошибка в любой карточке
+ * откатывает всё — корректная часть отдельно не устанавливается. Убранные пользователем связи не восстанавливаются.
+ */
 export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db):Promise<InstallResult>{
  const now=new Date().toISOString();
- return database.transaction('rw',[database.words,database.lessons,database.lessonWords,database.packages,database.media,database.states,database.syncStash,database.meta],async()=>{
+ return database.transaction('rw',[database.words,database.phrases,database.clozes,database.lessons,database.lessonItems,database.packages,database.media,database.cardStates,database.cardStash,database.meta],async()=>{
   const installed=await database.packages.get(pack.id);
   // Курс дописывается и на неизменной версии: у базы, пережившей переход на курсы, его ещё нет.
   const known=await database.lessons.get(pack.id);
   if(known&&!known.courseId&&pack.courseId)await database.lessons.put({...known,courseId:pack.courseId});
   if(installed&&installed.version===pack.version)return {status:'current',added:0,changed:0,conflicts:[]};
-  const base=new Map((installed?.words??[]).map(word=>[word.id,word]));
   const result:InstallResult={status:installed?'updated':'installed',added:0,changed:0,conflicts:[]};
   if(!known)
    // Урок приходит без положения во времени: он предстоящий и без собственной даты, дальше им распоряжается расписание курса.
    await database.lessons.add({id:pack.id,courseId:pack.courseId||undefined,title:pack.lesson.title,targetDate:null,status:'upcoming',createdAt:now,updatedAt:now});
-  for(const incoming of pack.words){
-   const local=await database.words.get(incoming.id);
-   if(!local){
-    await database.words.add(indexWord({...shipped(incoming),id:incoming.id,createdAt:now,updatedAt:now,revision:incoming.revision}));
-    result.added++;
-    continue;
-   }
-   if(local.revision===incoming.revision)continue;
-   if(local.deletedAt){
-    if(!same(shipped(incoming),shipped(base.get(incoming.id)??{...incoming,...pickShipped(local)})))result.conflicts.push({wordId:local.id,greek:local.greek,fields:['deleted']});
-    await database.words.update(local.id,{revision:incoming.revision});
-    continue;
-   }
-   const merged=mergeWord(local,base.get(incoming.id),incoming);
-   if(merged.conflicts.length)result.conflicts.push({wordId:local.id,greek:local.greek,fields:merged.conflicts});
-   const changed=!same(pickShipped(merged.word),pickShipped(local));
-   if(changed)result.changed++;
-   await database.words.put(indexWord({...merged.word,revision:incoming.revision,updatedAt:changed?now:local.updatedAt}));
-  }
+  await applyCards<PackageWord,Word>(pack.words,new Map((installed?.words??[]).map(word=>[word.id,word])),SHIPPED_FIELDS,'word',card=>card.greek,
+   database.words as never,(card,at)=>({...shipped(card),id:card.id,createdAt:at,updatedAt:at,revision:card.revision}),indexWord,now,result);
+  await applyCards<PackagePhrase,Phrase>(pack.phrases,new Map((installed?.phrases??[]).map(phrase=>[phrase.id,phrase])),PHRASE_FIELDS,'phrase',card=>card.text,
+   database.phrases,(card,at)=>{const {revision,...rest}=card;return {...rest,createdAt:at,updatedAt:at,revision}},row=>row,now,result);
+  await applyCards<PackageCloze,Cloze>(pack.clozes,new Map((installed?.clozes??[]).map(cloze=>[cloze.id,cloze])),CLOZE_FIELDS,'cloze',card=>card.template,
+   database.clozes,(card,at)=>{const {revision,...rest}=card;return {...rest,createdAt:at,updatedAt:at,revision}},row=>row,now,result);
   const removed=new Set(installed?.removed??[]);
-  for(const link of pack.links) if(!removed.has(link.wordId))await database.lessonWords.put({lessonId:pack.id,wordId:link.wordId,position:link.position});
+  for(const item of pack.items){
+   const ref:LearningRef={kind:item.kind,id:item.id};
+   const key=unitKey(ref);
+   if(!removed.has(key))await database.lessonItems.put({lessonId:pack.id,unitKey:key,ref,position:item.position});
+  }
   await database.media.bulkPut(pack.media);
-  const record:InstalledPackage={lessonId:pack.id,courseId:pack.courseId||undefined,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,media:pack.media,removed:[...removed]};
+  const record:InstalledPackage={lessonId:pack.id,courseId:pack.courseId||undefined,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,phrases:pack.phrases,clozes:pack.clozes,media:pack.media,removed:[...removed]};
   await database.packages.put(record);
-  // Полученный из облака прогресс слов этого пакета ждал установки: теперь он становится обычным состоянием.
-  await adoptStash(database,pack.id,pack.words.map(word=>word.id));
+  // Полученный из облака прогресс карточек этого пакета ждал установки: теперь он становится обычным состоянием.
+  await adoptStash(database,pack.id,[...pack.words.map(word=>wordRef(word.id)),...pack.phrases.map(p=>({kind:'phrase' as const,id:p.id})),...pack.clozes.map(c=>({kind:'cloze' as const,id:c.id}))]);
   return result;
  });
 }
-const pickShipped=(word:Word)=>Object.fromEntries(SHIPPED_FIELDS.filter(field=>word[field]!==undefined).map(field=>[field,word[field]]));
 
 const mediaInflight=new Map<string,Promise<Asset|null>>();
 export function ensureAsset(id:string,database:LexiDatabase=db,source:ContentFetcher=fetcher):Promise<Asset|null>{

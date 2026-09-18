@@ -6,9 +6,9 @@ import type {Course} from '../src/domain/types';
 import type {LessonView} from '../src/storage/queries';
 
 const iso='2026-09-16T09:00:00.000Z';
-const course=(id:string,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:false,schedule:{startDate:null,weekdays:[]},newWordsPerDay:10,createdAt:iso,updatedAt:iso,...over});
-const lesson=(id:string,courseId:string|undefined,wordCount=10,over:Partial<LessonView>={}):LessonView=>({id,courseId,title:id,targetDate:null,status:'upcoming',createdAt:iso,updatedAt:iso,wordCount,...over});
-const entry=(id:string,courseId:string):CatalogEntry=>({id,courseId,language:'el',title:id,wordCount:5,version:'v1',url:`content/packages/${id}@v1.json`,bytes:100,media:{count:0,bytes:0}});
+const course=(id:string,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:false,schedule:{startDate:null,weekdays:[]},newItemsPerDay:10,createdAt:iso,updatedAt:iso,...over});
+const lesson=(id:string,courseId:string|undefined,wordCount=10,over:Partial<LessonView>={}):LessonView=>({id,courseId,title:id,targetDate:null,status:'upcoming',createdAt:iso,updatedAt:iso,wordCount,cardCount:wordCount,phraseCount:0,clozeCount:0,...over});
+const entry=(id:string,courseId:string):CatalogEntry=>({id,courseId,language:'el',title:id,wordCount:5,phraseCount:0,clozeCount:0,cardCount:5,version:'v1',url:`content/packages/${id}@v1.json`,bytes:100,media:{count:0,bytes:0}});
 
 describe('группировка уроков по курсам',()=>{
  it('подписанные курсы идут первыми, локальный последним, неизвестный между ними',()=>{

@@ -1,20 +1,29 @@
 import Dexie from 'dexie';
 import {exportDB, importInto} from 'dexie-export-import';
-import {LexiDatabase, db, LEGACY_TABLES, migrateCourses, migrateCourseTempo, migrateLegacy, SCHEMA_VERSION, SYNC_META_PREFIX, TABLES, TABLES_V2} from '../../storage/db';
+import {LexiDatabase, db, LEGACY_STORES, LEGACY_TABLES, migrateCards, migrateCourses, migrateCourseTempo, migrateLegacy, SCHEMA_VERSION, SYNC_META_PREFIX, TABLES, TABLES_V2, TABLES_V3, TABLES_V5} from '../../storage/db';
 import {isLexiDatabaseName} from '../../storage/profile';
-import {fillSettings, type LessonWord, type Settings} from '../../domain/types';
+import {fillSettings, type LessonItem, type Settings} from '../../domain/types';
 import {syncEvents} from '../../sync/events';
 
-/** Версия формата копии совпадает с версией схемы; копии первой версии читаются через миграцию. */
+/** Версия формата копии совпадает с версией схемы; копии прежних версий читаются через ту же миграцию, что и база. */
 export const APP_MARKER=`lexi:${SCHEMA_VERSION}`;
-const KNOWN_MARKERS=['lexi:1','lexi:2',APP_MARKER];
+const KNOWN_MARKERS=Array.from({length:SCHEMA_VERSION},(_,index)=>`lexi:${index+1}`);
 export interface BackupReport {databaseName:string;tables:{name:string;rows:number}[];createdAt:string|null;bytes:number;legacy:boolean}
 
-/** Каталог — кеш, альтернативные версии облака и служебные ключи синхронизации — не данные пользователя: в копию не входят. */
+/** Обязательные таблицы копии по версии её схемы: старый файл не обязан знать новые таблицы. */
+export function requiredTables(version:number):readonly string[]{
+ if(version<2)return LEGACY_TABLES;
+ if(version<3)return TABLES_V2;
+ if(version<4)return TABLES_V3;
+ if(version<6)return TABLES_V5;
+ return TABLES;
+}
+
+/** Каталог — кеш, альтернативные версии облака, пустые площадки старых хранилищ и служебные ключи синхронизации — не данные пользователя: в копию не входят. */
 export async function exportFull(database:LexiDatabase=db):Promise<Blob>{
  await database.meta.put({key:'app',value:APP_MARKER});
  await database.meta.put({key:'exportedAt',value:new Date().toISOString()});
- const blob=await exportDB(database,{prettyJson:false,skipTables:['catalog','syncVersions'],filter:(table,value)=>!(table==='meta'&&String((value as {key?:string})?.key??'').startsWith(SYNC_META_PREFIX))});
+ const blob=await exportDB(database,{prettyJson:false,skipTables:['catalog','syncVersions',...LEGACY_STORES],filter:(table,value)=>!(table==='meta'&&String((value as {key?:string})?.key??'').startsWith(SYNC_META_PREFIX))});
  return new Blob([blob],{type:'application/json'});
 }
 export function download(blob:Blob,name:string){
@@ -64,6 +73,7 @@ export const TRANSFER_TEXT:Record<TransferOutcome,string>={
 };
 export const backupName=(now=new Date())=>`lexi-backup-${now.toISOString().slice(0,10)}.json`;
 
+/** TSV — только слова: фразы и пропуски в него не входят, и полной копией он не является. */
 export async function exportWordsTsv(database:LexiDatabase=db):Promise<Blob>{
  const rows:string[]=['Греческий\tРусский\tIPA'];
  await database.words.orderBy('[sortKey+id]').each(word=>{
@@ -81,10 +91,9 @@ export async function inspectBackup(file:Blob):Promise<{ok:true;report:BackupRep
  if(!isLexiDatabaseName(info.databaseName))return {ok:false,message:`Копия сделана другим приложением (база «${info.databaseName}»).`};
  const version=Number(info.databaseVersion);
  if(version>SCHEMA_VERSION)return {ok:false,message:`Копия сделана более новой версией Lexi (схема ${info.databaseVersion}). Обновите приложение.`};
- const legacy=version<2;
+ const legacy=version<SCHEMA_VERSION;
  const names=info.tables.map((table:{name:string})=>table.name);
- const required=version<2?LEGACY_TABLES:version<3?TABLES_V2:TABLES;
- const missing=required.filter(table=>!names.includes(table));
+ const missing=requiredTables(version).filter(table=>!names.includes(table));
  if(missing.length)return {ok:false,message:`В копии нет обязательных таблиц: ${missing.join(', ')}.`};
  const meta=(info.data??[]).find((entry:{tableName:string})=>entry.tableName==='meta');
  const marker=(meta?.rows??[]).find((row:{key:string})=>row.key==='app');
@@ -101,7 +110,8 @@ export async function inspectBackup(file:Blob):Promise<{ok:true;report:BackupRep
 
 /**
  * Копия сначала разворачивается в отдельной базе, мигрируется по тем же правилам, что и локальная схема,
- * и проверяется на целостность; только затем одной транзакцией заменяет данные.
+ * и проверяется на целостность; только затем одной транзакцией заменяет данные. Копия с фразами или пропусками
+ * без слов допустима; связь с отсутствующей карточкой любого вида отклоняет восстановление до замены.
  */
 export async function restoreBackup(file:Blob,database:LexiDatabase=db):Promise<void>{
  const check=await inspectBackup(file);
@@ -111,18 +121,24 @@ export async function restoreBackup(file:Blob,database:LexiDatabase=db):Promise<
  await staging.open();
  try{
   await importInto(staging,file,{acceptNameDiff:true,acceptVersionDiff:true,clearTablesBeforeImport:true,overwriteValues:true});
-  await staging.transaction('rw',TABLES.map(name=>staging.table(name)),()=>migrateLegacy(staging));
+  const all=[...TABLES,...LEGACY_STORES,'syncVersions'].map(name=>staging.table(name));
+  await staging.transaction('rw',all,()=>migrateLegacy(staging));
   // Копия прежнего формата курсов не знает: восстановленный профиль получает их тем же переходом, что и миграция базы.
-  await staging.transaction('rw',TABLES.map(name=>staging.table(name)),async()=>{await migrateCourses(staging);await migrateCourseTempo(staging)});
+  await staging.transaction('rw',all,async()=>{await migrateCourses(staging);await migrateCourseTempo(staging)});
+  // Словарные ключи старых копий переезжают в типизированные хранилища; для копии схемы 6 шаг ничего не делает.
+  await staging.transaction('rw',all,()=>migrateCards(staging));
   const payload=await Promise.all(TABLES.map(async name=>[name,await staging.table(name).toArray()] as const));
   const rows=<T,>(name:typeof TABLES[number])=>payload.find(([table])=>table===name)![1] as T[];
-  if(!rows('words').length)throw new Error('В копии нет ни одного слова — восстановление отменено.');
-  const wordIds=new Set(rows<{id:string}>('words').map(word=>word.id)), lessonIds=new Set(rows<{id:string}>('lessons').map(lesson=>lesson.id));
-  const broken=rows<LessonWord>('lessonWords').find(link=>!wordIds.has(link.wordId)||!lessonIds.has(link.lessonId));
+  const ids=(name:'words'|'phrases'|'clozes')=>new Set(rows<{id:string}>(name).map(row=>row.id));
+  const cards={word:ids('words'),phrase:ids('phrases'),cloze:ids('clozes')};
+  if(!cards.word.size&&!cards.phrase.size&&!cards.cloze.size)throw new Error('В копии нет ни одной карточки — восстановление отменено.');
+  const lessonIds=new Set(rows<{id:string}>('lessons').map(lesson=>lesson.id));
+  const broken=rows<LessonItem>('lessonItems').find(link=>!link.ref||!cards[link.ref.kind]?.has(link.ref.id)||!lessonIds.has(link.lessonId));
   if(broken)throw new Error(`Копия повреждена: связь урока ${broken.lessonId} указывает на несуществующую запись.`);
-  await database.transaction('rw',TABLES.map(name=>database.table(name)),async()=>{
+  await database.transaction('rw',[...TABLES,...LEGACY_STORES].map(name=>database.table(name)),async()=>{
    // Идентификатор устройства и очередь публикации принадлежат этой установке, а не копии.
    const own=await database.meta.where('key').startsWith(SYNC_META_PREFIX).toArray();
+   for(const name of LEGACY_STORES)await database.table(name).clear();
    for(const [name,items] of payload){
     await database.table(name).clear();
     const rows=name==='settings'?(items as Settings[]).map(fillSettings)

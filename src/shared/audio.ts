@@ -95,3 +95,37 @@ export function useAudioKind(word:Word|undefined):AudioKind{
  },[word?.id,word?.audioAssetId]);
  return kind;
 }
+
+/** Файл, если он обещан записью, иначе системный голос: общий путь для слова, фразы и полного предложения пропуска. */
+export async function playText(text:string,audioAssetId?:string):Promise<PlayResult>{
+ stopAudio();
+ if(audioAssetId){
+  const asset=await ensureAsset(audioAssetId).catch(()=>null);
+  if(asset){
+   const url=URL.createObjectURL(asset.blob);
+   const audio=new Audio(url);
+   current=audio;
+   const release=()=>URL.revokeObjectURL(url);
+   audio.addEventListener('ended',release,{once:true});
+   try{await audio.play();return 'file'}
+   catch{release();if(current===audio)current=null;return 'error'}
+  }
+  if(!greekVoice())return 'error';
+ }
+ const voice=greekVoice();
+ if(!voice)return 'none';
+ return speak(text,voice,0.85);
+}
+export const textAudioKind=(audioAssetId:string|undefined):AudioKind=>audioAssetId?'file':greekVoice()?'voice':'none';
+/** Доступность озвучки текста; голос появляется асинхронно. */
+export function useTextAudioKind(audioAssetId:string|undefined):AudioKind{
+ const [kind,setKind]=useState<AudioKind>(()=>textAudioKind(audioAssetId));
+ useEffect(()=>{
+  setKind(textAudioKind(audioAssetId));
+  if(typeof speechSynthesis==='undefined')return;
+  const update=()=>{cachedVoice=undefined;setKind(textAudioKind(audioAssetId))};
+  speechSynthesis.addEventListener('voiceschanged',update);
+  return()=>speechSynthesis.removeEventListener('voiceschanged',update);
+ },[audioAssetId]);
+ return kind;
+}

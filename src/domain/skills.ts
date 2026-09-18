@@ -1,9 +1,10 @@
 import type {ExerciseType, ReviewEvent} from './types';
 
 /**
- * Компактное состояние навыков слова: всё, что нужно выбору упражнения, без полной истории ответов.
+ * Компактное состояние навыков карточки: всё, что нужно выбору упражнения, без полной истории ответов.
  * `recent` — исходы последних десяти ответов данного типа (старые → новые), `lastAt` — время последнего,
  * `lastTypes` — типы двух последних ответов, `cleanAssemblies` — чистые сборки после последней ошибки в написании.
+ * Сводка описывает типы проверки, а не семантические навыки: совпадение имени с упражнением не делает её моделью знания.
  */
 export interface TypeSkill {recent:boolean[];lastAt:string}
 export interface SkillSummary {types:Partial<Record<ExerciseType,TypeSkill>>;lastTypes:ExerciseType[];cleanAssemblies:number}
@@ -23,24 +24,24 @@ export function foldSkill(summary:SkillSummary,event:Pick<ReviewEvent,'type'|'co
  };
 }
 export const byTime=<T extends {createdAt:string}>(events:T[])=>[...events].sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
-/** Сводка из полной истории слова; события других слов отбрасываются. */
-export function summarizeEvents(wordId:string,events:ReviewEvent[],base:SkillSummary=emptySkills()):SkillSummary{
- return byTime(events.filter(event=>event.wordId===wordId)).reduce(foldSkill,base);
+/** Сводка из полной истории карточки; события других карточек отбрасываются. */
+export function summarizeEvents(unitKey:string,events:ReviewEvent[],base:SkillSummary=emptySkills()):SkillSummary{
+ return byTime(events.filter(event=>event.unitKey===unitKey)).reduce(foldSkill,base);
 }
 
-/** Сводные показатели статистики: дни, последние исходы по типам и итоги — тоже без полной истории. */
-export interface DaySummary {date:string;answers:number;wordIds:string[]}
-export interface StatsSummary {days:DaySummary[];recentByType:Partial<Record<ExerciseType,boolean[]>>;answers:number;answeredWordIds:string[]}
-export const emptyStats=():StatsSummary=>({days:[],recentByType:{},answers:0,answeredWordIds:[]});
-export function foldStats(summary:StatsSummary,event:Pick<ReviewEvent,'type'|'correct'|'rating'|'wordId'|'localDate'>,keepDays=14):StatsSummary{
+/** Сводные показатели статистики: дни, последние исходы по типам и итоги — тоже без полной истории. `keys` — ключи карточек. */
+export interface DaySummary {date:string;answers:number;keys:string[]}
+export interface StatsSummary {days:DaySummary[];recentByType:Partial<Record<ExerciseType,boolean[]>>;answers:number;answeredKeys:string[]}
+export const emptyStats=():StatsSummary=>({days:[],recentByType:{},answers:0,answeredKeys:[]});
+export function foldStats(summary:StatsSummary,event:Pick<ReviewEvent,'type'|'correct'|'rating'|'unitKey'|'localDate'>,keepDays=14):StatsSummary{
  const days=summary.days.some(day=>day.date===event.localDate)
-  ?summary.days.map(day=>day.date===event.localDate?{...day,answers:day.answers+1,wordIds:day.wordIds.includes(event.wordId)?day.wordIds:[...day.wordIds,event.wordId]}:day)
-  :[...summary.days,{date:event.localDate,answers:1,wordIds:[event.wordId]}];
+  ?summary.days.map(day=>day.date===event.localDate?{...day,answers:day.answers+1,keys:day.keys.includes(event.unitKey)?day.keys:[...day.keys,event.unitKey]}:day)
+  :[...summary.days,{date:event.localDate,answers:1,keys:[event.unitKey]}];
  const sorted=days.sort((a,b)=>a.date.localeCompare(b.date));
  return {
   days:sorted.slice(-keepDays),
   recentByType:{...summary.recentByType,[event.type]:[...(summary.recentByType[event.type]??[]),succeeded(event)].slice(-RECENT)},
   answers:summary.answers+1,
-  answeredWordIds:summary.answeredWordIds.includes(event.wordId)?summary.answeredWordIds:[...summary.answeredWordIds,event.wordId],
+  answeredKeys:summary.answeredKeys.includes(event.unitKey)?summary.answeredKeys:[...summary.answeredKeys,event.unitKey],
  };
 }

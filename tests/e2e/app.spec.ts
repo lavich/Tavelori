@@ -27,24 +27,24 @@ test('хвост пройденного урока виден на «Сегод�
  await useSchedule(page); // урок 1.1 закрепляется проведённым, 1.2 становится ближайшим
  await expect(page.getByTestId('backlog')).toContainText('Хвост прошедших занятий');
  // Пять слов урока 1.1 повторяются в 1.3, которому расписание тоже дало дату: они готовятся к сроку, а не висят в хвосте.
- await expect(page.getByTestId('backlog')).toContainText('33 слова из 1 занятия');
+ await expect(page.getByTestId('backlog')).toContainText('33 карточки из 1 занятия');
  await page.getByRole('button',{name:'Начать занятие'}).click();
  await page.waitForURL('**/session');
  await expect(page.getByTestId('lesson-label')).toHaveText('К уроку 1.2');
  const counts=await page.evaluate(async()=>{
   const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open('lexi');request.onsuccess=()=>resolve(request.result)});
-  const session=await new Promise<{items:{wordId:string}[]}>(resolve=>{
+  const session=await new Promise<{items:{unitKey:string}[]}>(resolve=>{
    const all=database.transaction('sessions').objectStore('sessions').getAll();
-   all.onsuccess=()=>resolve((all.result as {items:{wordId:string}[];status:string}[]).find(item=>item.status==='active')!);
+   all.onsuccess=()=>resolve((all.result as {items:{unitKey:string}[];status:string}[]).find(item=>item.status==='active')!);
   });
-  const links=await new Promise<{lessonId:string;wordId:string}[]>(resolve=>{
-   const all=database.transaction('lessonWords').objectStore('lessonWords').getAll();
-   all.onsuccess=()=>resolve(all.result as {lessonId:string;wordId:string}[]);
+  const links=await new Promise<{lessonId:string;unitKey:string}[]>(resolve=>{
+   const all=database.transaction('lessonItems').objectStore('lessonItems').getAll();
+   all.onsuccess=()=>resolve(all.result as {lessonId:string;unitKey:string}[]);
   });
   database.close();
   const count=(lessonId:string)=>{
-   const own=new Set(links.filter(link=>link.lessonId===lessonId).map(link=>link.wordId));
-   return session.items.filter(item=>own.has(item.wordId)).length;
+   const own=new Set(links.filter(link=>link.lessonId===lessonId).map(link=>link.unitKey));
+   return session.items.filter(item=>own.has(item.unitKey)).length;
   };
   return {past:count('lesson-1-1'),next:count('lesson-1-2')};
  });

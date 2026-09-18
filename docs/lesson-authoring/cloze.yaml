@@ -1,0 +1,31 @@
+# Шаблон задания с пропуском: content/clozes/<id>.yaml
+# Ровно один маркер {{gap}}; скрывается целое слово или сочетание целых слов.
+id: c-example
+template: Το δείγμα {{gap}} απλό.
+answer: είναι
+# Канонический ответ обязан входить в список допустимых.
+acceptedAnswers:
+  - είναι
+# Подсказка на языке перевода и объяснение — необязательны и берутся только из материала.
+context: Образец простой.
+explanation: Связка «быть» в третьем лице единственного числа.
+# Необязательная учебная цель: kind и ключи features — идентификаторы в kebab-case.
+# Заполняется, только если цель названа в материале или её разметку попросили.
+target:
+  kind: verb-form
+  ref: w-example
+  features:
+    tense: present
+    person: 3
+    number: singular
+# Восстановленное предложение (template с подставленным answer) обязано находиться в excerpt.
+provenance:
+  sourceLabel: Шаблон документации Lexi
+  locator: docs/lesson-authoring/phrase.yaml
+  excerpt: Το δείγμα είναι απλό.
+  operation: cloze-from-source
+  parts:
+    target:
+      sourceLabel: Разметка по запросу
+      operation: requested-transform
+      request: Отметить, что тренирует карточка
