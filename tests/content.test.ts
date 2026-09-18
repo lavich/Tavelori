@@ -43,8 +43,14 @@ describe('исходные наборы 1.1 и 1.2 сохранены в нач�
   expect(words.slice(0,count).map(w=>[w.greek,w.russian])).toEqual(expected);
  });
  it('урок 1.1 дополнен пятью служебными словами после исходного набора',()=>{
-  expect(wordsOf(content,'lesson-1-1').slice(33).map(w=>[w.greek,w.russian]))
+  expect(wordsOf(content,'lesson-1-1').slice(33,38).map(w=>[w.greek,w.russian]))
    .toEqual([['Σωστό','верно'],['Λάθος','неверно'],['και','и'],['ένα','один'],['στο','в']]);
+ });
+ /** Материал занятия — приветствия, слова текстов и примеры правил чтения — дописан после прежнего набора. */
+ it('урок 1.1 продолжен словами занятия и не переставляет прежние',()=>{
+  const words=wordsOf(content,'lesson-1-1');
+  expect(words.slice(38).map(w=>w.greek).slice(0,5)).toEqual(['Γεια','Καλημέρα','Καλησπέρα','Χαίρετε','Ευχαριστώ']);
+  expect(words.slice(38).every(word=>/^w11-\d\d$/.test(word.id))).toBe(true);
  });
  /** Пакет описывает урок, а не занятие: статус и дата принадлежат пользователю и в поставку не попадают. */
  it('пакет несёт только название урока',()=>{
@@ -82,7 +88,7 @@ describe('наборы класса переносятся без потерь �
    expect(restoreWriting(word.greek,tiles(word.greek)),word.greek).toBe(word.greek.normalize('NFC').trim());
    expect(word.id).toMatch(/^w\d{2}-\d{2}$/);
   }
-  expect(seedWords.filter(word=>tiles(word.greek).length<2).map(word=>word.greek)).toEqual(['η γη','και','ο γιος','στο','το φως']);
+  expect(seedWords.filter(word=>tiles(word.greek).length<2).map(word=>word.greek)).toEqual(['Γεια','η γη','και','ο γιος','πού','στο','το φως']);
  });
 
  it('множественное число живёт в заметке, а не в самом слове',()=>{
