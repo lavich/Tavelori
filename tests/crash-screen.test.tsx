@@ -30,6 +30,7 @@ describe('экран сбоя',()=>{
   const reports=pendingReports();
   expect(reports).toHaveLength(1);
   expect(reports[0].category).toBe('ui');
+  expect(reports[0].extra?.componentStack).toContain('Thrower');
   const copy=Array.from(container.querySelectorAll('button')).find(button=>button.textContent==='Скопировать диагностику')!;
   await act(async()=>{copy.click()});
   expect(written).toHaveLength(1);
