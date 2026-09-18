@@ -58,6 +58,17 @@ for(const type of ['recognition','assembly','spelling','listening']){
  });
 }
 
+test('ошибка в написании: дополнительная попытка идёт сборкой, а не повторным набором',async({page})=>{
+ await installSession(page,'spelling');
+ await page.getByRole('button',{name:'Не знаю',exact:true}).click();
+ await expect(page.getByTestId('feedback').or(page.locator('[data-answer="correct"]'))).toBeVisible();
+ await page.getByRole('button',{name:'Далее',exact:true}).click();
+ await expect(page.getByTestId('tile').first()).toBeVisible();
+ await expect(page.getByLabel('Твой ответ по-гречески')).toHaveCount(0);
+ const after=await stored(page);
+ expect(after.session.items[1]).toMatchObject({type:'assembly',mode:'practice',retryOf:'objective-0'});
+});
+
 test('знакомство идёт отдельным проходом и переживает перезагрузку без ответа',async({page})=>{
  await installSession(page,'recognition',true,3);
  await expect(page.getByTestId('prompt')).toHaveText('Новое слово');

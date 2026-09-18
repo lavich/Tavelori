@@ -13,6 +13,7 @@ import {installMixed, mixedPackage} from './helpers/mixed';
 import {unitKey} from './helpers/cards';
 import {applyPackage} from '../src/content/client';
 import {checkTextAnswer} from '../src/domain/cloze';
+import {tiles} from '../src/domain/syllables';
 import {clozeRevisionOf} from '../content/build';
 import type {Cloze} from '../src/domain/types';
 
@@ -78,6 +79,26 @@ describe('запись ответа',()=>{
   expect(await db.cardStates.get(session.items[0].unitKey)).toEqual(before);
   expect((await db.sessions.get(session.id))!.items).toHaveLength(stored.items.length);
   expect(await db.events.count()).toBe(2);
+ });
+ it('ошибка в написании даёт в попытке сборку, а не повторный набор',async()=>{
+  const {session}=await prepare();
+  const item={...session.items[0],type:'spelling' as const,options:[]};
+  const stored={...session,items:[item,...session.items.slice(1)]};
+  await db.sessions.put(stored);
+  const parts=tiles(item.card.kind==='word'?item.card.word.greek:'');
+  expect(parts.length).toBeGreaterThan(1); // слово занятия делится на слоги
+  await answer(stored,item,{correct:false});
+  const retry=(await db.sessions.get(session.id))!.items.find(entry=>entry.retryOf===item.id)!;
+  expect(retry).toMatchObject({type:'assembly',mode:'practice',isNew:false});
+  expect([...retry.options].sort()).toEqual([...parts].sort());
+ });
+ it('ошибка в узнавании оставляет в попытке то же задание',async()=>{
+  const {session}=await prepare();
+  const item=session.items.find(entry=>entry.type==='recognition')!;
+  await answer(session,item,{correct:false});
+  const retry=(await db.sessions.get(session.id))!.items.find(entry=>entry.retryOf===item.id)!;
+  expect(retry.type).toBe('recognition');
+  expect(retry.options).toEqual(item.options);
  });
  it('последняя ошибка не завершает занятие до дополнительной попытки',async()=>{
   await prepare();

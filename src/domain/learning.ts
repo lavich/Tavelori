@@ -340,6 +340,41 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
 }
 
 export interface OptionPools {words:Word[];phrases:Phrase[]}
+/**
+ * Ступени вниз после ошибки: попытка сразу после показанного ответа должна быть поддержанной,
+ * а не повторным экзаменом. Сборка даёт слоги, узнавание — варианты; ниже узнавания ступеней нет.
+ */
+const EASIER:Partial<Record<ExerciseType,ExerciseType[]>>={spelling:['assembly','recognition'],assembly:['recognition']};
+/** Есть ли под заданием ступень: пул вариантов читается только ради неё. */
+export const hasEasierStep=(type:ExerciseType)=>!!EASIER[type];
+/**
+ * Упражнение дополнительной попытки: ближайшая доступная ступень проще провалённой.
+ * `null` — ступени нет (узнавание, аудирование, пропуск, нехватка слогов или вариантов): попытка повторяет то же задание.
+ * Условие открытия написания здесь не действует: попытка идёт вниз по ступеням, а не вверх.
+ */
+export function easierExercise(card:SessionCard,type:ExerciseType,pools:OptionPools,random:()=>number=Math.random):Pick<SessionItem,'type'|'options'>|null{
+ for(const step of EASIER[type]??[]){
+  if(step==='assembly'){
+   const exercise=card.kind==='word'?assemblyExercise(card.word,random):null;
+   if(exercise)return exercise;
+   continue;
+  }
+  const options=card.kind==='word'?optionsFor(card.word,pools.words,'recognition',random)
+   :card.kind==='phrase'?phraseOptionsFor(card.phrase,pools.phrases,'recognition',random):[];
+  if(options.length===4)return {type:'recognition',options};
+ }
+ return null;
+}
+/** Сборка слова: `null` — слогов меньше двух. Артикль остаётся условием задания, лишней плиткой не ложится. */
+function assemblyExercise(word:Word,random:()=>number):Pick<SessionItem,'type'|'options'>|null{
+ const writing=splitWriting(word.greek);
+ const parts=writing.syllables;
+ if(parts.length<2)return null;
+ // Перемешивание полной старой последовательности сохраняет детерминированный поток random для остальных заданий.
+ const shuffled=shuffleTiles(writing.article?[writing.article,...parts]:parts,random);
+ const options=assemblyOptions(word.greek,shuffled);
+ return {type:'assembly',options:options.join('')===parts.join('')?[...options.slice(1),options[0]]:options};
+}
 /** Упражнение для карточки любого вида; `null` — фразу нечем объективно проверить. */
 export function exerciseFor(card:SessionCard,pools:OptionPools,skills:SkillSummary,random:()=>number,hasVoice:boolean):Pick<SessionItem,'type'|'options'>|null{
  if(card.kind==='word')return objectiveExercise(card.word,pools.words,skills,random,hasVoice);
@@ -358,10 +393,8 @@ export function objectiveExercise(word:Word,pool:Word[],skills:SkillSummary=empt
   hasOptions:recognition.length===4,canAssemble:parts.length>=2,
  });
  if(type==='assembly'){
-  // Перемешивание полной старой последовательности сохраняет детерминированный поток random для остальных заданий.
-  const shuffled=shuffleTiles(writing.article?[writing.article,...parts]:parts,random);
-  const options=assemblyOptions(word.greek,shuffled);
-  return {type,options:options.join('')===parts.join('')?[...options.slice(1),options[0]]:options};
+  const exercise=assemblyExercise(word,random);
+  if(exercise)return exercise;
  }
  return {type,options:type==='recognition'?recognition:type==='listening'?listening:[]};
 }
