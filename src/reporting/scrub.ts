@@ -6,7 +6,6 @@ import type {Breadcrumb, ErrorEvent} from '@sentry/react';
  * поле пользователя удаляется, дополнительные поля проходят только из разрешённого списка,
  * крошки консоли и кликов отбрасываются; остаются навигация, запросы к собственному контенту и жизненный цикл Mini App.
  */
-/** `componentStack` — имена компонентов React с места падения: у DOMException из WebKit стека нет, это единственный указатель на экран. */
 export const ALLOWED_EXTRA=new Set(['category','kind','packageId','packageVersion','componentStack']);
 /** Категория собственных крошек приложения: события жизненного цикла Mini App с размерами области просмотра. */
 export const LIFECYCLE_CATEGORY='lexi.lifecycle';

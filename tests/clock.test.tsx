@@ -29,11 +29,11 @@ describe('часы приложения в фоне',()=>{
   const start=seen.at(-1)!;
   vi.setSystemTime(start+5000);
   await act(async()=>{setVisibility('hidden')});
-  expect(seen.at(-1)).toBe(start); // скрытие экрана — не повод перечитывать план
+  expect(seen.at(-1)).toBe(start);
   await act(async()=>{vi.advanceTimersByTime(3*60000)});
-  expect(seen.at(-1)).toBe(start); // в фоне живые запросы к базе не перезапускаются
+  expect(seen.at(-1)).toBe(start);
   await act(async()=>{setVisibility('visible')});
-  expect(seen.at(-1)).toBeGreaterThanOrEqual(start+3*60000); // после возврата время догоняет
+  expect(seen.at(-1)).toBeGreaterThanOrEqual(start+3*60000);
  });
  it('на видимом экране интервал двигает время как раньше',async()=>{
   container=document.body.appendChild(document.createElement('div'));

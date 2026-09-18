@@ -22,7 +22,7 @@ describe('очистка события',()=>{
  });
  it('пропускает дополнительные поля только из разрешённого списка',()=>{
   const out=scrubEvent(event({extra:{category:'content',kind:'schema',packageId:'lesson-1-1',packageVersion:'3',componentStack:'\n    at SessionScreen\n    at Recovery',words:[{greek:'σπίτι'}],answer:'дом',userId:42}}),ORIGIN);
-  expect(out.extra).toEqual({category:'content',kind:'schema',packageId:'lesson-1-1',packageVersion:'3',componentStack:'\n    at SessionScreen\n    at Recovery'}); // стек компонентов — только имена компонентов, без данных
+  expect(out.extra).toEqual({category:'content',kind:'schema',packageId:'lesson-1-1',packageVersion:'3',componentStack:'\n    at SessionScreen\n    at Recovery'});
  });
  it('прогоняет крошки события через фильтр и режет адреса в них',()=>{
   const out=scrubEvent(event({breadcrumbs:[

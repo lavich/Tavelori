@@ -6,13 +6,12 @@ import {Recovery} from '../src/app/Recovery';
 import {pendingCrumbs, pendingReports, resetReporting} from '../src/reporting/reporting';
 
 (globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true;
-/** Хранилище «сломано», пока база не переоткрыта, как в e2e `breakStorage`; `heals` — сколько переоткрытий лечат. */
+/** Хранилище сломано до переоткрытия базы; `heals` — сколько переоткрытий лечат. */
 const storage={broken:false,heals:0,reopened:0};
 vi.mock('../src/storage/recovery',async(importOriginal)=>{
  const original=await importOriginal<typeof import('../src/storage/recovery')>();
  return {...original,reopenDatabase:async()=>{storage.reopened++;if(storage.heals>0){storage.heals--;storage.broken=false}}};
 });
-/** Так WebKit после сна WebView роняет живой запрос Dexie: DOMException без стека, имя `UnknownError`. */
 function SleepyScreen(){
  if(storage.broken)throw new DOMException("Attempt to iterate a cursor that doesn't exist",'UnknownError');
  return <p data-testid="screen">экран</p>;
