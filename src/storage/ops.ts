@@ -42,8 +42,9 @@ export async function recordAnswer({session,item,correct,answer,responseTimeMs,a
   if(existing)return {event:existing,created:false}; // повторное нажатие не создаёт второй ответ
   const state=await database.cardStates.get(item.unitKey);
   if((state?.version??0)!==item.expectedVersion)throw new ConflictError();
-  const scheduled=item.mode==='scheduled';
-  const updated=scheduled?nextState(state,item.ref,rating,now):undefined;
+  // Досрочный верный ответ — слабое свидетельство памяти: карточку недавно показывали. Ошибка достоверна всегда.
+  const movesSchedule=item.mode==='scheduled'||(item.mode==='preview'&&!correct);
+  const updated=movesSchedule?nextState(state,item.ref,rating,now):undefined;
   const event:ReviewEvent={
    id:eventId,sessionId:session.id,itemId:item.id,ref:item.ref,unitKey:item.unitKey,
    snapshot:snapshotOf(item.card),type:item.type,mode:item.mode,
