@@ -47,8 +47,19 @@ describe('результат смешанного занятия',()=>{
   expect(stats.skills.find(skill=>skill.type==='cloze')).toEqual({type:'cloze',attempts:0,correct:0,rate:null});
   expect(SKILL_TYPES).toContain('cloze');
   expect(SKILL_NAMES.cloze).toBe('Заполнение пропуска');
+  // Ответ на снятый тип остаётся в общем числе, но своей строки в сводке у него нет.
+  expect(SKILL_TYPES).not.toContain('recall');
+  expect(stats.skills.find(skill=>skill.type==='recall')).toBeUndefined();
   const objective=data.events.filter(e=>e.correct!==null);
   expect(objective).toHaveLength(0); // экран показывает «нет данных», а не проценты
+ });
+ it('понимание на слух занимает свою строку в сводке навыков',async()=>{
+  const heard=event(wordRef('w1'),'comprehension',true,'2026-09-14T09:00:00Z');
+  const missed=event(wordRef('w2'),'comprehension',false,'2026-09-14T09:01:00Z',{id:'missed'});
+  const stats=await progress(fromSnapshot(base({events:[heard,missed]})),now);
+  expect(SKILL_TYPES).toContain('comprehension');
+  expect(stats.skills.find(skill=>skill.type==='comprehension')).toEqual({type:'comprehension',attempts:2,correct:1,rate:.5});
+  expect(SKILL_NAMES.comprehension).toBe('Понимание на слух');
  });
  it('ответ на пропуск около полуночи относится ко дню выбранной зоны, и день считает уникальные карточки любого вида',async()=>{
   const late=event(ref('cloze','c1'),'cloze',true,'2026-09-14T22:30:00Z'); // 01:30 15 сентября в Никосии

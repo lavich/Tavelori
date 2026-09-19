@@ -23,8 +23,12 @@ export interface StatsSource {
  totals():Promise<{answers:number;cards:number;byKind:Record<CardKind,number>}>;
 }
 
-/** Типы проверки в порядке показа; сводка по ним описывает форматы проверки, а не освоение грамматических тем. */
-export const SKILL_TYPES:ExerciseType[]=['recall','recognition','assembly','spelling','listening','cloze'];
+/**
+ * Типы проверки в порядке показа; сводка по ним описывает форматы проверки, а не освоение грамматических тем.
+ * Перечислены только предлагаемые сейчас типы: у снятого `recall` постоянная строка «Ещё не проверяли»
+ * не описывала бы ни навык, ни историю. Его ответы остаются в общем числе и в разбивке по дням.
+ */
+export const SKILL_TYPES:ExerciseType[]=['recognition','assembly','spelling','listening','comprehension','cloze'];
 /** Статистика считается по записанным событиям, а не по показам экрана. */
 export async function progress(source:StatsSource,now:Date):Promise<Progress>{
  const {timezone}=await source.settings();
