@@ -138,7 +138,10 @@ test('знакомство идёт отдельным проходом и пе�
  await page.getByTestId('option').first().click();
  await expect(page.locator('[data-answer="correct"]')).toContainText('Правильный ответ');
  await expect(page.getByTestId('feedback')).toHaveCount(0);
- expect((await stored(page)).events[0]).toMatchObject({correct:true,rating:3});
+ const event=(await stored(page)).events[0];
+ // Оценка зависит от времени ответа, а тест проверяет не её: верный ответ не должен быть Again.
+ expect(event).toMatchObject({correct:true});
+ expect(event.rating).toBeGreaterThan(1);
 });
 
 test('старое вспоминание заменяется объективным заданием при продолжении',async({page})=>{
