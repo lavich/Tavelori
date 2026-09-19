@@ -11,7 +11,7 @@ import {hapticsEnabled} from '../../platform/haptics';
 import {useBackHandler, useHaptics, usePlatform} from '../../platform/platform';
 import {db} from '../../storage/db';
 import {ConflictError, endSession, recordAnswer, markIntroduced, prepareObjectiveSession, skipItem} from '../../storage/ops';
-import {Assembly, ClozeExercise, Introduction, Listening, Recognition, Spelling, type Answer} from './exercises';
+import {Assembly, ClozeExercise, Comprehension, Introduction, Listening, Recognition, Spelling, type Answer} from './exercises';
 import ui from '../../shared/ui.module.css';
 import s from './session.module.css';
 
@@ -135,6 +135,7 @@ export function SessionScreen(){
   :item.type==='cloze'?<ClozeExercise key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip} autoSpeak={settingsReady&&settings.autoSpeak}/>
+  :item.type==='comprehension'?<Comprehension key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :<Spelling key={item.id} item={item} onAnswer={answer} onNext={next}/>;
 

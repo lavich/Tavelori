@@ -8,7 +8,7 @@ import {LEGACY_SNAPSHOT_FORMAT, SNAPSHOT_FORMAT, type CompactCourse, type Compac
  * Числа FSRS не округляются: второе устройство должно получить те же интервалы. Кодек обратим, что проверяется тестом.
  * Формат 2 кодирует ссылку на карточку одним символом вида и идентификатором; формат 1 читается как словарный.
  */
-const TYPE_CODE:Record<ExerciseType,string>={recall:'c',recognition:'r',assembly:'a',spelling:'s',listening:'l',cloze:'z'};
+const TYPE_CODE:Record<ExerciseType,string>={recall:'c',recognition:'r',assembly:'a',spelling:'s',listening:'l',comprehension:'m',cloze:'z'};
 const CODE_TYPE=Object.fromEntries(Object.entries(TYPE_CODE).map(([type,code])=>[code,type])) as Record<string,ExerciseType>;
 const KIND_CODE:Record<CardKind,string>={word:'w',phrase:'p',cloze:'c'};
 const CODE_KIND=Object.fromEntries(Object.entries(KIND_CODE).map(([kind,code])=>[code,kind])) as Record<string,CardKind>;

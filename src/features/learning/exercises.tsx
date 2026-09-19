@@ -230,6 +230,46 @@ export function Listening(props:Props&{autoSpeak?:boolean}){
   </div>}/>;
 }
 
+/**
+ * Понимание на слух: звучит слово или фраза, варианты ответа — переводы. До ответа письменной опоры нет,
+ * иначе проверялось бы чтение. После ответа показывается написание с транскрипцией и повтором:
+ * из ошибки должно быть что извлечь. Отказ воспроизведения ведёт себя как в аудировании.
+ */
+export function Comprehension(props:Props&{autoSpeak?:boolean}){
+ const {card}=props.item;
+ const word=card.kind==='word'?card.word:null;
+ const text=word?word.greek:card.kind==='phrase'?card.phrase.text:'';
+ const audioAssetId=word?word.audioAssetId:card.kind==='phrase'?card.phrase.audioAssetId:undefined;
+ const correct=word?word.russian:card.kind==='phrase'?(card.phrase.translation??''):'';
+ const wordKind=useAudioKind(word??undefined);
+ const textKind=useTextAudioKind(audioAssetId);
+ const kind=word?wordKind:textKind;
+ const played=useRef(false);
+ const [failed,setFailed]=useState(false);
+ const play=()=>(word?playWord(word):playText(text,audioAssetId)).then(result=>setFailed(result==='error'||result==='none'));
+ useEffect(()=>{if(props.autoSpeak&&!played.current){played.current=true;play()}},[props.item.id,props.autoSpeak]);
+ return <Choice {...props} prompt="Что это значит?" correct={correct} options={props.item.options}
+  head={<div className="flex w-full flex-col items-center gap-3">
+   <Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={play}><Volume2 aria-hidden/></Button>
+   {failed&&(
+    <div data-testid="audio-failed" role="alert" className="w-full rounded-[14px] p-3 text-left" style={{background:'var(--almost-bg)',color:'var(--almost-fg)'}}>
+     <p className="m-0 text-sm">Аудио не воспроизвелось. Это не влияет на прогресс: попробуйте ещё раз или продолжите без аудирования.</p>
+     <div className="mt-2 flex gap-2">
+      <Button size="sm" variant="outline" onClick={play}>Повторить</Button>
+      {props.onSkip&&<Button size="sm" variant="outline" onClick={props.onSkip}>Продолжить без аудио</Button>}
+     </div>
+    </div>
+   )}
+  </div>}
+  after={<div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}} data-testid="heard-text">
+   <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>
+    <p className={wordCss.greek} style={{margin:0}}>{text}</p>
+    {word?.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}
+   </div>
+   {word?<SpeakButton word={word}/>:<SpeakText text={text} audioAssetId={audioAssetId} label="Послушать фразу"/>}
+  </div>}/>;
+}
+
 /** Ступень перед свободным написанием: слово собирается из перемешанных слогов. Только для слов. */
 export function Assembly({item,onAnswer,onNext}:Props){
  const [placed,setPlaced]=useState<number[]>([]);

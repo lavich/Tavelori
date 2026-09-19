@@ -254,12 +254,12 @@
     {
      "id": "S-1",
      "wordId": "w24",
-     "type": "listening",
+     "type": "comprehension",
      "options": [
-      "το λέξη2",
-      "το λέξη19",
-      "το λέξη24",
-      "το λέξη37"
+      "слово4",
+      "слово25",
+      "слово34",
+      "слово24"
      ],
      "isNew": false,
      "mode": "scheduled",
