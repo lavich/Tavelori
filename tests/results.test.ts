@@ -3,7 +3,7 @@ import {createEmptyCard, State} from 'ts-fsrs';
 import {compositionText} from '../src/features/learning/ResultScreen';
 import {compositionLabel, targetLabel} from '../src/features/lessons/LessonScreen';
 import {fromSnapshot} from '../src/domain/snapshot-source';
-import {lessonProgress, progress, SKILL_NAMES, SKILL_TYPES, SOLID_DAYS} from '../src/domain/stats';
+import {LEECH_LAPSES, lessonProgress, progress, SKILL_NAMES, SKILL_TYPES, SOLID_DAYS} from '../src/domain/stats';
 import {localDay} from '../src/domain/learning';
 import {foldStats, emptyStats} from '../src/domain/skills';
 import {defaultSettings, type CardKind, type Cloze, type LearningRef, type LearningState, type ReviewEvent, type Snapshot} from '../src/domain/types';
@@ -88,5 +88,38 @@ describe('результат смешанного занятия',()=>{
   const cloze:Cloze={id:'c',template:'{{gap}} ένα γράμμα.',answer:'Γράφω',acceptedAnswers:['Γράφω'],provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso,target:{kind:'verb-form',features:{tense:'present',person:1}}};
   expect(targetLabel(cloze)).toBe('Цель: verb-form (tense: present, person: 1)');
   expect(targetLabel({...cloze,target:undefined})).toBeNull();
+ });
+});
+
+describe('карточки, которые не даются',()=>{
+ const word=(id:string,greek:string)=>({id,greek,russian:'перевод',ipa:'',segments:[],examples:[],verified:false,createdAt:iso,updatedAt:iso});
+ const cloze=(id:string,answer:string):Cloze=>({id,template:'{{gap}} κάτι.',answer,acceptedAnswers:[answer],
+  provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso});
+ const lapsed=(r:LearningRef,lapses:number):LearningState=>({unitKey:unitKey(r),ref:r,introducedAt:iso,version:1,
+  card:{...createEmptyCard(now),state:State.Review,lapses,scheduled_days:2,reps:lapses+2}});
+ const data=()=>base({
+  words:[word('w1','η λέξη'),word('w2','το βιβλίο'),word('w3','ο δρόμος'),{...word('w4','η πόρτα'),deletedAt:iso}],
+  clozes:[cloze('c1','γράφω')],
+  states:[
+   lapsed(wordRef('w1'),LEECH_LAPSES),
+   lapsed(wordRef('w2'),LEECH_LAPSES-1),
+   lapsed(wordRef('w3'),LEECH_LAPSES+4),
+   lapsed(wordRef('w4'),LEECH_LAPSES+9),
+   lapsed(ref('cloze','c1'),LEECH_LAPSES+1),
+  ],
+ });
+ it('отбирает по порогу провалов, по убыванию и с подписью карточки',async()=>{
+  const stats=await progress(fromSnapshot(data()),now);
+  expect(stats.leeches.map(entry=>[entry.label,entry.lapses])).toEqual([
+   ['ο δρόμος',LEECH_LAPSES+4],['γράφω',LEECH_LAPSES+1],['η λέξη',LEECH_LAPSES],
+  ]);
+ });
+ it('удалённая карточка в список не попадает, даже с самым большим числом провалов',async()=>{
+  const stats=await progress(fromSnapshot(data()),now);
+  expect(stats.leeches.some(entry=>entry.ref.id==='w4')).toBe(false);
+ });
+ it('без провалов список пуст',async()=>{
+  const stats=await progress(fromSnapshot(base({words:[word('w1','η λέξη')],states:[lapsed(wordRef('w1'),0)]})),now);
+  expect(stats.leeches).toEqual([]);
  });
 });

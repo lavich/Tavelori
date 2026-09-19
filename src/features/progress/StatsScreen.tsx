@@ -9,6 +9,9 @@ import {CARDS, CLOZES, dayMonth, PHRASES, withCount, WORDS} from '../../shared/f
 import {useStats} from '../../shared/store';
 import ui from '../../shared/ui.module.css';
 
+/** Провал — переход карточки в переучивание; формы нужны только этому разделу. */
+const LAPSES:[string,string,string]=['провал','провала','провалов'];
+
 export function StatsScreen(){
  const now=useNow();
  const stats=useStats(now);
@@ -62,6 +65,21 @@ export function StatsScreen(){
       <p key={label} className="m-0 flex items-center justify-between"><span>{label}</span><b>{value}</b></p>
      ))}
     </CardContent></Card>
+
+    {stats.leeches.length>0&&(
+     <>
+      <h2>Не даётся</h2>
+      <Card className="mb-3"><CardContent className="flex flex-col gap-1.5">
+       {stats.leeches.map(leech=>(
+        <p key={leech.unitKey} className="m-0 flex items-center justify-between gap-3">
+         <span className="min-w-0 truncate">{leech.label}</span>
+         <b className="shrink-0 text-muted-foreground">{withCount(leech.lapses,LAPSES)}</b>
+        </p>
+       ))}
+       <p className="m-0 text-sm text-muted-foreground">Эти карточки вы забывали чаще всего. Из программы они не убраны: возможно, их стоит переформулировать или разобрать отдельно.</p>
+      </CardContent></Card>
+     </>
+    )}
 
     <h2>Навыки</h2>
     <Card className="mb-3">
