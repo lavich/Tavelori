@@ -1,7 +1,8 @@
 import Dexie from 'dexie';
 import {db, ensureLocalCourse, indexWord, type LexiDatabase} from './db';
-import {optionPool, phrasePool} from './queries';
-import {easierExercise, exerciseFor, hasEasierStep, localDay, nextState, OPTION_POOL, spaceSingleIntroduction} from '../domain/learning';
+import {clozePool, optionPool, phrasePool} from './queries';
+import {easierExercise, exerciseFor, gradeFor, hasEasierStep, localDay, nextState, OPTION_POOL, spaceSingleIntroduction} from '../domain/learning';
+import type {TextAnswerStatus} from '../domain/cloze';
 import {normalize, wordKey, type ImportRow} from '../domain/import';
 import {snapshotOf, unitKey, wordRef} from '../domain/refs';
 import {emptySkills} from '../domain/skills';
@@ -21,6 +22,8 @@ export const newId=(prefix:string)=>`${prefix}-${Date.now().toString(36)}-${Math
 
 export interface AnswerInput {
  session:Session; item:SessionItem; correct:boolean; answer:string;
+ /** Исход проверки для оценки срока; без него он выводится из `correct`, как у заданий с выбором. */
+ status?:TextAnswerStatus;
  responseTimeMs:number; activeTimeMs:number; timezone:string; now?:Date; database?:LexiDatabase;
 }
 /** Один ответ = одно событие, один пересчёт FSRS и одна позиция сессии, в одной транзакции. */
@@ -31,9 +34,10 @@ export async function submitAnswer(input:AnswerInput):Promise<ReviewEvent>{
  * `created:false` — ответ уже был записан (повторное нажатие, вторая вкладка): отклик и синхронизация не повторяются.
  * Снимок содержимого и описание цели берутся из карточки сессии, а не из свежей версии пакета.
  */
-export async function recordAnswer({session,item,correct,answer,responseTimeMs,activeTimeMs,timezone,now=new Date(),database=db}:AnswerInput):Promise<{event:ReviewEvent;created:boolean}>{
+export async function recordAnswer({session,item,correct,answer,status,responseTimeMs,activeTimeMs,timezone,now=new Date(),database=db}:AnswerInput):Promise<{event:ReviewEvent;created:boolean}>{
  if(typeof correct!=='boolean'||item.type==='recall')throw new Error('Нужен ответ на объективное задание');
- const rating=correct?3:1;
+ // «Почти» приходит только из проверок с вводом текста; у заданий с выбором исход задаёт сам `correct`.
+ const rating=gradeFor(status??(correct?'correct':'wrong'),item.type,responseTimeMs);
  // Ступень проще считается до транзакции: иначе запись пришлось бы расширить на таблицы слов и фраз.
  const easier=correct?null:await easierRetry(item,database);
  const eventId=`e-${item.id}`;
@@ -80,6 +84,7 @@ async function easierRetry(item:SessionItem,database:LexiDatabase):Promise<Pick<
  const pools={
   words:item.card.kind==='word'?await optionPool(OPTION_POOL,database):[],
   phrases:item.card.kind==='phrase'?await phrasePool(OPTION_POOL,database):[],
+  clozes:item.card.kind==='cloze'?await clozePool(OPTION_POOL,database):[],
  };
  return easierExercise(item.card,item.type,pools);
 }

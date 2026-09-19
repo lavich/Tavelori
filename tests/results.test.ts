@@ -3,7 +3,7 @@ import {createEmptyCard, State} from 'ts-fsrs';
 import {compositionText} from '../src/features/learning/ResultScreen';
 import {compositionLabel, targetLabel} from '../src/features/lessons/LessonScreen';
 import {fromSnapshot} from '../src/domain/snapshot-source';
-import {lessonProgress, progress, SKILL_NAMES, SKILL_TYPES, SOLID_DAYS} from '../src/domain/stats';
+import {LEECH_LAPSES, lessonProgress, progress, SKILL_NAMES, SKILL_TYPES, SOLID_DAYS} from '../src/domain/stats';
 import {localDay} from '../src/domain/learning';
 import {foldStats, emptyStats} from '../src/domain/skills';
 import {defaultSettings, type CardKind, type Cloze, type LearningRef, type LearningState, type ReviewEvent, type Snapshot} from '../src/domain/types';
@@ -47,8 +47,19 @@ describe('результат смешанного занятия',()=>{
   expect(stats.skills.find(skill=>skill.type==='cloze')).toEqual({type:'cloze',attempts:0,correct:0,rate:null});
   expect(SKILL_TYPES).toContain('cloze');
   expect(SKILL_NAMES.cloze).toBe('Заполнение пропуска');
+  // Ответ на снятый тип остаётся в общем числе, но своей строки в сводке у него нет.
+  expect(SKILL_TYPES).not.toContain('recall');
+  expect(stats.skills.find(skill=>skill.type==='recall')).toBeUndefined();
   const objective=data.events.filter(e=>e.correct!==null);
   expect(objective).toHaveLength(0); // экран показывает «нет данных», а не проценты
+ });
+ it('понимание на слух занимает свою строку в сводке навыков',async()=>{
+  const heard=event(wordRef('w1'),'comprehension',true,'2026-09-14T09:00:00Z');
+  const missed=event(wordRef('w2'),'comprehension',false,'2026-09-14T09:01:00Z',{id:'missed'});
+  const stats=await progress(fromSnapshot(base({events:[heard,missed]})),now);
+  expect(SKILL_TYPES).toContain('comprehension');
+  expect(stats.skills.find(skill=>skill.type==='comprehension')).toEqual({type:'comprehension',attempts:2,correct:1,rate:.5});
+  expect(SKILL_NAMES.comprehension).toBe('Понимание на слух');
  });
  it('ответ на пропуск около полуночи относится ко дню выбранной зоны, и день считает уникальные карточки любого вида',async()=>{
   const late=event(ref('cloze','c1'),'cloze',true,'2026-09-14T22:30:00Z'); // 01:30 15 сентября в Никосии
@@ -77,5 +88,38 @@ describe('результат смешанного занятия',()=>{
   const cloze:Cloze={id:'c',template:'{{gap}} ένα γράμμα.',answer:'Γράφω',acceptedAnswers:['Γράφω'],provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso,target:{kind:'verb-form',features:{tense:'present',person:1}}};
   expect(targetLabel(cloze)).toBe('Цель: verb-form (tense: present, person: 1)');
   expect(targetLabel({...cloze,target:undefined})).toBeNull();
+ });
+});
+
+describe('карточки, которые не даются',()=>{
+ const word=(id:string,greek:string)=>({id,greek,russian:'перевод',ipa:'',segments:[],examples:[],verified:false,createdAt:iso,updatedAt:iso});
+ const cloze=(id:string,answer:string):Cloze=>({id,template:'{{gap}} κάτι.',answer,acceptedAnswers:[answer],
+  provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso});
+ const lapsed=(r:LearningRef,lapses:number):LearningState=>({unitKey:unitKey(r),ref:r,introducedAt:iso,version:1,
+  card:{...createEmptyCard(now),state:State.Review,lapses,scheduled_days:2,reps:lapses+2}});
+ const data=()=>base({
+  words:[word('w1','η λέξη'),word('w2','το βιβλίο'),word('w3','ο δρόμος'),{...word('w4','η πόρτα'),deletedAt:iso}],
+  clozes:[cloze('c1','γράφω')],
+  states:[
+   lapsed(wordRef('w1'),LEECH_LAPSES),
+   lapsed(wordRef('w2'),LEECH_LAPSES-1),
+   lapsed(wordRef('w3'),LEECH_LAPSES+4),
+   lapsed(wordRef('w4'),LEECH_LAPSES+9),
+   lapsed(ref('cloze','c1'),LEECH_LAPSES+1),
+  ],
+ });
+ it('отбирает по порогу провалов, по убыванию и с подписью карточки',async()=>{
+  const stats=await progress(fromSnapshot(data()),now);
+  expect(stats.leeches.map(entry=>[entry.label,entry.lapses])).toEqual([
+   ['ο δρόμος',LEECH_LAPSES+4],['γράφω',LEECH_LAPSES+1],['η λέξη',LEECH_LAPSES],
+  ]);
+ });
+ it('удалённая карточка в список не попадает, даже с самым большим числом провалов',async()=>{
+  const stats=await progress(fromSnapshot(data()),now);
+  expect(stats.leeches.some(entry=>entry.ref.id==='w4')).toBe(false);
+ });
+ it('без провалов список пуст',async()=>{
+  const stats=await progress(fromSnapshot(base({words:[word('w1','η λέξη')],states:[lapsed(wordRef('w1'),0)]})),now);
+  expect(stats.leeches).toEqual([]);
  });
 });

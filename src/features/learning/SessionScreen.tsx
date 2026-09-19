@@ -95,7 +95,7 @@ export function SessionScreen(){
   setProblem('');
   try{
    const {created}=await recordAnswer({
-    session,item,correct,answer:text,
+    session,item,correct,answer:text,status,
     responseTimeMs:Date.now()-shown.current,activeTimeMs:activeMs(),
     timezone:settings.timezone,
    });

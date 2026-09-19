@@ -6,7 +6,7 @@ import {isShippedCard, unitKey, wordKeyOf, wordRef} from '../domain/refs';
 import {byTime, emptyStats, emptySkills, foldStats, succeeded, summarizeEvents, type DaySummary} from '../domain/skills';
 import {normalize, wordKey} from '../domain/import';
 import {scheduleCourses} from '../domain/schedule';
-import {lessonProgress, type LessonProgress, type StatsSource} from '../domain/stats';
+import {cardLabel, lessonProgress, type LessonProgress, type StatsSource} from '../domain/stats';
 import {CARD_KINDS, defaultSchedule, DEFAULT_NEW_ITEMS_PER_DAY, fillSettings, LOCAL_COURSE, type CardKind, type Cloze, type LearningRef, type LearningState, type Lesson, type LessonItem, type Phrase, type SessionCard, type Word} from '../domain/types';
 
 const span=(first:string)=>[[first,Dexie.minKey],[first,Dexie.maxKey]] as const;
@@ -143,6 +143,7 @@ export function dexieSource(database:LexiDatabase=db):SessionSource&StatsSource{
   deletedKeys:()=>deletedKeys(database),
   cardCount:async()=>await database.words.count()+await database.phrases.count()+await database.clozes.count(),
   eachState:visit=>database.cardStates.each(visit),
+  labelsOf:async refs=>new Map([...await cardsOf(refs,database)].map(([key,card])=>[key,cardLabel(card)])),
   totals:async()=>{
    const base=await database.baseSummary.get('base');
    const count=(keys:Iterable<string>)=>{
@@ -187,6 +188,19 @@ export async function phrasePool(want:number,database:LexiDatabase=db):Promise<P
  for(let draw=0;draw<8&&seen.size<want;draw++){
   const offset=Math.floor(Math.random()*Math.max(1,total-chunk));
   for(const phrase of await database.phrases.orderBy('id').offset(offset).limit(chunk).toArray()) if(!phrase.deletedAt)seen.set(phrase.id,phrase);
+ }
+ return [...seen.values()];
+}
+
+/** Пул карточек пропуска для вариантов ответа в дополнительной попытке; те же правила, что у слов и фраз. */
+export async function clozePool(want:number,database:LexiDatabase=db):Promise<Cloze[]>{
+ const total=await database.clozes.count();
+ if(total<=want)return (await database.clozes.toArray()).filter(cloze=>!cloze.deletedAt);
+ const chunk=Math.ceil(want/4);
+ const seen=new Map<string,Cloze>();
+ for(let draw=0;draw<8&&seen.size<want;draw++){
+  const offset=Math.floor(Math.random()*Math.max(1,total-chunk));
+  for(const cloze of await database.clozes.orderBy('id').offset(offset).limit(chunk).toArray()) if(!cloze.deletedAt)seen.set(cloze.id,cloze);
  }
  return [...seen.values()];
 }

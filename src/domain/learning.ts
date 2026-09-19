@@ -1,10 +1,16 @@
-import {createEmptyCard, fsrs, generatorParameters, State, type Card, type Grade} from 'ts-fsrs';
+import {createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade} from 'ts-fsrs';
+import type {TextAnswerStatus} from './cloze';
 import {unitKey, wordRef} from './refs';
 import {emptySkills, summarizeEvents, type SkillSummary} from './skills';
 import {assemblyOptions, splitWriting} from './syllables';
-import {LOCAL_COURSE, type CardKind, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type Phrase, type ReviewEvent, type Session, type SessionCard, type SessionItem, type Settings, type Word} from './types';
+import {LOCAL_COURSE, type CardKind, type Cloze, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type Phrase, type ReviewEvent, type Session, type SessionCard, type SessionItem, type Settings, type Word} from './types';
 
-export const scheduler=fsrs(generatorParameters({enable_fuzz:false}));
+/**
+ * Разброс интервалов включён: без него карточки, введённые в один день, возвращаются одной группой.
+ * Случайности он не вносит — сид `ts-fsrs` строится из момента ответа, числа повторений и произведения
+ * сложности на стабильность, поэтому для одной карточки, состояния и момента интервал воспроизводим.
+ */
+export const scheduler=fsrs(generatorParameters({enable_fuzz:true}));
 
 /** Зрелость состояния для очередей: сперва то, что переучивается, потом разучиваемое, потом повторяемое. */
 const stateRank=(card:Card)=>card.state===State.Relearning?0:card.state===State.Learning?1:2;
@@ -246,8 +252,12 @@ const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening','com
  */
 export interface SkillContext {hasAudio?:boolean;hasOptions?:boolean;canAssemble?:boolean;canSpell?:boolean;canListen?:boolean;canComprehend?:boolean}
 
-/** Написание открывается, когда после последней ошибки в нём набрано две успешные сборки. */
-export const spellingUnlockedFor=(skills:SkillSummary)=>skills.cleanAssemblies>=2;
+/**
+ * Написание открывается, когда после последней ошибки в нём набрана хотя бы одна успешная сборка.
+ * Сборка показывает все буквы слова и проверяет их порядок, а не продукцию: дольше держать письмо
+ * закрытым значит не проверять продукцию вовсе — при интервалах FSRS вторая сборка выпадает через месяц.
+ */
+export const spellingUnlockedFor=(skills:SkillSummary)=>skills.cleanAssemblies>=1;
 /**
  * Понимание на слух открывается после первого верного узнавания: пока значение не связано с формой,
  * выбор из четырёх переводов к незнакомому звуку — угадайка. Ошибка условие не сбрасывает: навык уже открыт,
@@ -292,6 +302,28 @@ export function chooseType(unitKey:string,events:ReviewEvent[],context:SkillCont
  return chooseTypeFor(summarizeEvents(unitKey,events),context);
 }
 
+/**
+ * Задания с готовыми вариантами: только у них длительность ответа говорит о лёгкости вспоминания.
+ * В сборке, написании и пропуске она определяется длиной ответа и скоростью набора, поэтому там не читается.
+ */
+export const FAST_TYPES:readonly ExerciseType[]=['recognition','listening','comprehension'];
+/**
+ * Порог быстрого ответа. Общий для трёх типов, хотя у аудирования и понимания на слух в него входит
+ * воспроизведение: перекос сознательно в консервативную сторону — `Easy` там выпадает реже,
+ * и ни одна карточка не получает завышенный интервал из-за короткого аудио.
+ */
+export const FAST_ANSWER_MS=3500;
+/**
+ * Оценка объективного ответа. `status` отвечает на вопрос «насколько подвинуть срок», а поле `correct`
+ * события — на вопрос «что показать и чему учить дальше»: «Почти» остаётся ошибкой навыка и поводом
+ * для дополнительной попытки, но полного сброса интервала не заслуживает.
+ */
+export function gradeFor(status:TextAnswerStatus,type:ExerciseType,responseTimeMs:number):Grade{
+ if(status==='almost')return Rating.Hard;
+ if(status!=='correct')return Rating.Again;
+ return FAST_TYPES.includes(type)&&responseTimeMs<FAST_ANSWER_MS?Rating.Easy:Rating.Good;
+}
+
 /** Practice сюда не попадает: ручная тренировка не должна двигать интервалы. */
 export function nextState(state:LearningState|undefined,ref:LearningRef,rating:Grade,now:Date):LearningState{
  const card:Card=state?{...state.card,due:new Date(state.card.due),last_review:state.card.last_review?new Date(state.card.last_review):undefined}:createEmptyCard(now);
@@ -329,6 +361,15 @@ export function phraseOptionsFor(phrase:Phrase,pool:Phrase[],type:ExerciseType,r
  const key=(p:Phrase)=>type==='recognition'?(p.translation??''):p.text;
  if(!key(phrase))return [];
  return optionsAmong(phrase.id,key(phrase),pool.map(p=>[p.id,key(p)]),random);
+}
+
+/**
+ * Варианты для пропуска подбираются среди ответов других живых карточек пропуска: это формы того же языка,
+ * а не случайные слова. Совпадающие по нормализации ответы вариантами не считаются.
+ */
+export function clozeOptionsFor(cloze:Cloze,pool:Cloze[],random:()=>number):string[]{
+ if(!cloze.answer)return [];
+ return optionsAmong(cloze.id,cloze.answer,pool.map(c=>[c.id,c.answer]),random);
 }
 
 export interface SessionInput {source:SessionSource;now:Date;random?:()=>number;mode?:'scheduled'|'practice';refs?:LearningRef[];hasVoice?:boolean}
@@ -374,21 +415,30 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
  return {id,createdAt:now.toISOString(),planDate:plan.today,items:spaceSingleIntroduction(items),index:0,status:'active',activeTimeMs:0,introducedKeys:[],objectiveVersion:1};
 }
 
-export interface OptionPools {words:Word[];phrases:Phrase[]}
+/** Пулы вариантов ответа. Пул пропусков нужен только ступени вниз, поэтому выбор упражнения его не требует. */
+export interface OptionPools {words:Word[];phrases:Phrase[];clozes:Cloze[]}
+export type ExercisePools=Omit<OptionPools,'clozes'>;
 /**
  * Ступени вниз после ошибки: попытка сразу после показанного ответа должна быть поддержанной,
- * а не повторным экзаменом. Сборка даёт слоги, узнавание — варианты; ниже узнавания ступеней нет.
+ * а не повторным экзаменом. Сборка даёт слоги, узнавание и пропуск с вариантами — готовые ответы;
+ * ниже узнавания ступеней нет.
  */
-const EASIER:Partial<Record<ExerciseType,ExerciseType[]>>={spelling:['assembly','recognition'],assembly:['recognition'],comprehension:['recognition']};
+const EASIER:Partial<Record<ExerciseType,ExerciseType[]>>={spelling:['assembly','recognition'],assembly:['recognition'],comprehension:['recognition'],cloze:['cloze']};
 /** Есть ли под заданием ступень: пул вариантов читается только ради неё. */
 export const hasEasierStep=(type:ExerciseType)=>!!EASIER[type];
 /**
  * Упражнение дополнительной попытки: ближайшая доступная ступень проще провалённой.
- * `null` — ступени нет (узнавание, аудирование, пропуск, нехватка слогов или вариантов): попытка повторяет то же задание.
+ * `null` — ступени нет (узнавание, аудирование, нехватка слогов или вариантов): попытка повторяет то же задание.
  * Условие открытия написания здесь не действует: попытка идёт вниз по ступеням, а не вверх.
  */
 export function easierExercise(card:SessionCard,type:ExerciseType,pools:OptionPools,random:()=>number=Math.random):Pick<SessionItem,'type'|'options'>|null{
  for(const step of EASIER[type]??[]){
+  // Ступень пропуска — тот же пропуск с вариантами: отдельный тип упражнения ради подачи одного вопроса не заводим.
+  if(step==='cloze'){
+   const options=card.kind==='cloze'?clozeOptionsFor(card.cloze,pools.clozes,random):[];
+   if(options.length===4)return {type:'cloze',options};
+   continue;
+  }
   if(step==='assembly'){
    const exercise=card.kind==='word'?assemblyExercise(card.word,random):null;
    if(exercise)return exercise;
@@ -411,7 +461,7 @@ function assemblyExercise(word:Word,random:()=>number):Pick<SessionItem,'type'|'
  return {type:'assembly',options:options.join('')===parts.join('')?[...options.slice(1),options[0]]:options};
 }
 /** Упражнение для карточки любого вида; `null` — фразу нечем объективно проверить. */
-export function exerciseFor(card:SessionCard,pools:OptionPools,skills:SkillSummary,random:()=>number,hasVoice:boolean):Pick<SessionItem,'type'|'options'>|null{
+export function exerciseFor(card:SessionCard,pools:ExercisePools,skills:SkillSummary,random:()=>number,hasVoice:boolean):Pick<SessionItem,'type'|'options'>|null{
  if(card.kind==='word')return objectiveExercise(card.word,pools.words,skills,random,hasVoice);
  if(card.kind==='cloze')return {type:'cloze',options:[]};
  return phraseExercise(card.phrase,pools.phrases,skills,random,hasVoice);

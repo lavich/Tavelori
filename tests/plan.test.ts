@@ -400,14 +400,22 @@ describe('выбор упражнения',()=>{
   expect(chooseType(W0,history,{hasAudio:true})).toBe('listening');
   expect(chooseType(W0,history,{hasOptions:false})).not.toBe('recognition');
  });
- it('сборка предлагается раньше написания, а написание ждёт двух чистых сборок',()=>{
+ it('сборка предлагается раньше написания, а написание ждёт чистой сборки',()=>{
   const tested=[event('recall',true,'2026-09-10T09:00:00Z'),event('recognition',true,'2026-09-11T09:00:00Z')];
   expect(chooseType(W0,tested,{canAssemble:true})).toBe('assembly');
+  expect(spellingUnlocked(W0,tested)).toBe(false);
   const one=[...tested,event('assembly',true,'2026-09-12T09:00:00Z')];
-  expect(chooseType(W0,one,{canAssemble:true})).not.toBe('spelling');
-  const two=[...one,event('assembly',true,'2026-09-13T09:00:00Z')];
-  expect(spellingUnlocked(W0,two)).toBe(true);
-  expect(chooseType(W0,two,{canAssemble:true})).toBe('spelling');
+  expect(spellingUnlocked(W0,one)).toBe(true);
+  expect(chooseType(W0,one,{canAssemble:true})).toBe('spelling');
+ });
+ it('письмо приходит третьим заданием слова со всеми доступными проверками',()=>{
+  // Сборка показывает все буквы и проверяет их порядок; продукция не должна ждать дольше этого.
+  const full={hasAudio:true,hasOptions:true,canAssemble:true,canComprehend:true};
+  expect(chooseType(W0,[],full)).toBe('recognition');
+  const first=[event('recognition',true,'2026-09-11T09:00:00Z')];
+  expect(chooseType(W0,first,full)).toBe('assembly');
+  const second=[...first,event('assembly',true,'2026-09-12T09:00:00Z')];
+  expect(chooseType(W0,second,full)).toBe('spelling');
  });
  it('ошибка в написании возвращает слово к сборке',()=>{
   const history=[
@@ -417,7 +425,7 @@ describe('выбор упражнения',()=>{
   ];
   expect(spellingUnlocked(W0,history)).toBe(false);
   expect(chooseType(W0,history,{canAssemble:true})).not.toBe('spelling');
-  const recovered=[...history,event('assembly',true,'2026-09-15T09:00:00Z'),event('assembly',true,'2026-09-15T10:00:00Z')];
+  const recovered=[...history,event('assembly',true,'2026-09-15T09:00:00Z')];
   expect(spellingUnlocked(W0,recovered)).toBe(true);
  });
  it('без слогов написание не блокируется',()=>{

@@ -2,7 +2,7 @@ import {localDay, type CardFacts, type SessionSource} from './learning';
 import {itemOfLink, unitKey, wordRef} from './refs';
 import {byTime, emptyStats, foldStats, summarizeEvents} from './skills';
 import {scheduleCourses} from './schedule';
-import type {StatsSource} from './stats';
+import {cardLabel, type StatsSource} from './stats';
 import {defaultSchedule, DEFAULT_NEW_ITEMS_PER_DAY, fillSettings, LOCAL_COURSE, type CardKind, type Course, type LearningRef, type LessonItem, type SessionCard, type Snapshot} from './types';
 
 /**
@@ -73,6 +73,7 @@ export function fromSnapshot(data:Snapshot):SessionSource&StatsSource{
   deletedKeys:async()=>deleted,
   cardCount:async()=>total('word')+total('phrase')+total('cloze'),
   eachState:async visit=>{for(const state of data.states)visit(state)},
+  labelsOf:async refs=>new Map(refs.flatMap(ref=>{const card=cardOf(ref);return card?[[unitKey(ref),cardLabel(card)] as [string,string]]:[]})),
   totals:async()=>{
    const keys=new Set(data.events.map(event=>event.unitKey));
    const byKind:Record<CardKind,number>={word:0,phrase:0,cloze:0};

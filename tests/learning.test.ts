@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
-import {createEmptyCard, Rating} from 'ts-fsrs';
-import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,exerciseFor,isCheckable,makePlan as planOf,nextState,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
+import {createEmptyCard, Rating, State} from 'ts-fsrs';
+import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,exerciseFor,isCheckable,FAST_ANSWER_MS,FAST_TYPES,gradeFor,makePlan as planOf,nextState,scheduler,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
 import {emptySkills, type SkillSummary} from '../src/domain/skills';
 import {fromSnapshot} from '../src/domain/snapshot-source';
 import {defaultSchedule,defaultSettings,LOCAL_COURSE,type Cloze,type Course,type ExerciseType,type Phrase,type SessionCard,type Word,type Lesson,type Snapshot} from '../src/domain/types';
@@ -23,6 +23,36 @@ it('handles multiple deadlines by cumulative demand',async()=>{const plan=await 
 it('honors local calendar through DST and UTC midnight',()=>{expect(localDay(new Date('2026-09-15T22:30Z'),'Asia/Nicosia')).toBe('2026-09-16');expect(daysBetween('2026-10-24','2026-10-26')).toBe(2)});
 it('schedules a new word without losing FSRS fields',()=>{const state=nextState(undefined,wordRef('w0'),Rating.Good,now);expect(state.card.due.getTime()).toBeGreaterThan(now.getTime());expect(state.card.reps).toBe(1);expect(state.version).toBe(1)});
 it('chooses recognition for an untested word',()=>expect(chooseType(wordKeyOf('w0'),[],{})).toBe('recognition'));
+
+describe('оценка объективного ответа',()=>{
+ it('«Почти» получает Hard, а не Again',()=>expect(gradeFor('almost','spelling',9000)).toBe(Rating.Hard));
+ it('неверный ответ и «Не знаю» получают Again',()=>{
+  expect(gradeFor('wrong','recognition',900)).toBe(Rating.Again);
+  expect(gradeFor('wrong','cloze',900)).toBe(Rating.Again);
+ });
+ it('быстрый верный выбор получает Easy',()=>{
+  for(const type of FAST_TYPES)expect(gradeFor('correct',type,FAST_ANSWER_MS-1)).toBe(Rating.Easy);
+ });
+ it('неспешный верный выбор получает Good',()=>{
+  for(const type of FAST_TYPES)expect(gradeFor('correct',type,FAST_ANSWER_MS)).toBe(Rating.Good);
+ });
+ it('у заданий без вариантов время не читается',()=>{
+  for(const type of ['assembly','spelling','cloze'] as const)expect(gradeFor('correct',type,1)).toBe(Rating.Good);
+ });
+});
+
+describe('разброс интервалов',()=>{
+ /** Карточка в Review с большим интервалом: только там разброс FSRS вообще применяется. */
+ const mature=()=>({unitKey:wordKeyOf('w0'),ref:wordRef('w0'),version:1,introducedAt:'2026-08-01T09:00:00Z',
+  card:{...createEmptyCard(new Date('2026-08-01')),state:State.Review,stability:40,difficulty:5,scheduled_days:40,elapsed_days:40,reps:5,due:now,last_review:new Date('2026-08-06T09:00:00Z')}});
+ it('включён',()=>expect(scheduler.parameters.enable_fuzz).toBe(true));
+ it('воспроизводим для одной карточки, момента и состояния',()=>{
+  const first=nextState(mature(),wordRef('w0'),Rating.Good,now);
+  const second=nextState(mature(),wordRef('w0'),Rating.Good,now);
+  expect(second.card.due).toEqual(first.card.due);
+  expect(second.card.scheduled_days).toBe(first.card.scheduled_days);
+ });
+});
 
 it('считает сборку по слогам без артикля и сохраняет только их',()=>{
  const history=[wordEvent('w',{id:'r',sessionId:'s',itemId:'i',snapshot:{greek:'',russian:''},type:'recognition' as const,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',createdAt:now.toISOString(),localDate:'2026-09-15',responseTimeMs:100})];
@@ -104,7 +134,7 @@ describe('дополнительная попытка на ступень про
  const word=(id:string,greek:string):Word=>({...words[0],id,greek,russian:`перевод ${id}`});
  const cardOfWord=(w:Word):SessionCard=>({kind:'word',word:w});
  const pool=['p1','p2','p3','p4','p5'].map((id,i)=>word(id,`λέξις${i}`));
- const pools=(over:Partial<OptionPools>={}):OptionPools=>({words:pool,phrases:[],...over});
+ const pools=(over:Partial<OptionPools>={}):OptionPools=>({words:pool,phrases:[],clozes:[],...over});
  const family=word('family','η οικογένεια');
  const light=word('light','το φως');
  it('под написанием стоит сборка, а не повторный набор',()=>{
@@ -126,12 +156,25 @@ describe('дополнительная попытка на ступень про
   expect(step.options).toHaveLength(4);
   expect(easierExercise(cardOfWord(family),'assembly',pools({words:[]}),()=>0.5)).toBeNull();
  });
- it('у узнавания, аудирования и пропуска ступени ниже нет',()=>{
-  for(const type of ['recognition','listening','cloze'] as ExerciseType[])
+ it('у узнавания и аудирования ступени ниже нет',()=>{
+  for(const type of ['recognition','listening'] as ExerciseType[])
    expect(easierExercise(cardOfWord(family),type,pools(),()=>0.5)).toBeNull();
   expect(hasEasierStep('spelling')).toBe(true);
   expect(hasEasierStep('assembly')).toBe(true);
-  expect(['recognition','listening','cloze'].some(type=>hasEasierStep(type as ExerciseType))).toBe(false);
+  expect(hasEasierStep('cloze')).toBe(true);
+  expect(['recognition','listening'].some(type=>hasEasierStep(type as ExerciseType))).toBe(false);
+ });
+ it('под пропуском — тот же пропуск с вариантами, а при бедном пуле ступени нет',()=>{
+  const cloze=(id:string,answer:string):Cloze=>({id,template:'{{gap}} κάτι.',answer,acceptedAnswers:[answer],
+   provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso});
+  const own=cloze('c1','Γράφω');
+  const clozes=[own,cloze('c2','Διαβάζω'),cloze('c3','Τρώω'),cloze('c4','Πίνω')];
+  const card:SessionCard={kind:'cloze',cloze:own};
+  const step=easierExercise(card,'cloze',pools({clozes}),()=>0.5)!;
+  expect(step.type).toBe('cloze'); // отдельного типа упражнения нет: варианты едут в том же пропуске
+  expect(step.options).toHaveLength(4);
+  expect(step.options).toContain('Γράφω');
+  expect(easierExercise(card,'cloze',pools({clozes:clozes.slice(0,3)}),()=>0.5)).toBeNull();
  });
  it('фразе сборка недоступна: под написанием сразу узнавание среди фраз',()=>{
   const phrases:Phrase[]=['a','b','c','d','e'].map(id=>({id,text:`Φράση ${id}.`,translation:`Фраза ${id}.`,provenance:{sourceLabel:'тест',operation:'verbatim'},createdAt:iso,updatedAt:iso}));
@@ -169,7 +212,7 @@ describe('понимание на слух',()=>{
  });
  it('под ним стоит узнавание: та же проверка значения, но с написанием на экране',()=>{
   const pool=Array.from({length:6},(_,i)=>({...words[0],id:`d${i}`,greek:`λέξη${i}`,russian:`перевод ${i}`}));
-  const step=easierExercise({kind:'word',word:pool[0]},'comprehension',{words:pool,phrases:[]},()=>0.5)!;
+  const step=easierExercise({kind:'word',word:pool[0]},'comprehension',{words:pool,phrases:[],clozes:[]},()=>0.5)!;
   expect(step.type).toBe('recognition');
   expect(step.options).toHaveLength(4);
   expect(hasEasierStep('comprehension')).toBe(true);

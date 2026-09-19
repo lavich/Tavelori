@@ -164,7 +164,7 @@ test('занятие: знакомство с фразой и пропуском
  expect(intros).toEqual(expect.arrayContaining(['Новая фраза','Новое задание с пропуском','Новое слово']));
 
  const seen=new Set<string>();
- let wrong=false, skipped=false, restarted=false;
+ let wrong=false, skipped=false, restarted=false, chosen=false;
  for(let step=0;step<40;step++){
   if(await page.getByRole('heading',{name:'Занятие завершено'}).isVisible())break;
   const prompt=await promptOf(page);
@@ -172,27 +172,38 @@ test('занятие: знакомство с фразой и пропуском
   if(prompt==='Заполни пропуск'){
    const template=await page.getByTestId('cloze-template').innerText();
    const answer=answerFor(template);
-   // До ответа правильной формы нет ни в тексте, ни в разметке (включая подписи для экранного диктора), ни в озвучке.
-   expect(await page.locator('main').innerText()).not.toContain(answer);
-   expect(await page.locator('main').innerHTML()).not.toContain(answer);
+   const choices=page.getByTestId('cloze-option');
+   // Ни у одного вида пропуска до ответа нет полного предложения, объяснения и озвучки.
    await expect(page.getByRole('button',{name:'Послушать предложение'})).toHaveCount(0);
    await expect(page.getByTestId('cloze-explanation')).toHaveCount(0);
-   const input=page.getByTestId('cloze-input');
-   await expect(input).toBeInViewport();
-   await expect(page.getByRole('button',{name:'Проверить'})).toBeDisabled(); // пустой ввод не проверяется
-   if(!wrong){
-    await input.fill('λάθος');
-    await input.press('Enter'); // Enter отправляет ответ
-    await expect(page.getByTestId('feedback')).toContainText('Пока не получилось');
-    wrong=true;
-   }else if(!skipped){
-    await page.getByRole('button',{name:'Не знаю',exact:true}).click();
-    await expect(page.getByTestId('feedback')).toContainText('Правильная форма');
-    skipped=true;
-   }else{
-    await input.fill(answer);
-    await page.getByRole('button',{name:'Проверить'}).click();
+   if(await choices.count()){
+    // Дополнительная попытка после ошибки: четыре готовых ответа вместо поля ввода.
+    await expect(choices).toHaveCount(4);
+    await expect(page.getByTestId('cloze-input')).toHaveCount(0);
+    chosen=true;
+    await choices.filter({hasText:answer}).first().click();
     await expect(page.getByTestId('feedback')).toContainText('Правильно');
+   }else{
+    // Свободный ввод: правильной формы нет ни в тексте, ни в разметке, включая подписи для экранного диктора.
+    expect(await page.locator('main').innerText()).not.toContain(answer);
+    expect(await page.locator('main').innerHTML()).not.toContain(answer);
+    const input=page.getByTestId('cloze-input');
+    await expect(input).toBeInViewport();
+    await expect(page.getByRole('button',{name:'Проверить'})).toBeDisabled(); // пустой ввод не проверяется
+    if(!wrong){
+     await input.fill('λάθος');
+     await input.press('Enter'); // Enter отправляет ответ
+     await expect(page.getByTestId('feedback')).toContainText('Пока не получилось');
+     wrong=true;
+    }else if(!skipped){
+     await page.getByRole('button',{name:'Не знаю',exact:true}).click();
+     await expect(page.getByTestId('feedback')).toContainText('Правильная форма');
+     skipped=true;
+    }else{
+     await input.fill(answer);
+     await page.getByRole('button',{name:'Проверить'}).click();
+     await expect(page.getByTestId('feedback')).toContainText('Правильно');
+    }
    }
    // После сохранения доступно полное предложение; без файла и голоса озвучка честно недоступна.
    await expect(page.getByTestId('cloze-sentence')).toContainText(answer);
@@ -229,6 +240,7 @@ test('занятие: знакомство с фразой и пропуском
  }
  expect([...seen]).toEqual(expect.arrayContaining(['Заполни пропуск','Что значит эта фраза?']));
  expect(wrong&&skipped&&restarted).toBe(true);
+ expect(chosen).toBe(true); // ошибка в пропуске дала попытку с вариантами, и она была пройдена
  await expect(page.getByRole('heading',{name:'Занятие завершено'})).toBeVisible();
  await expect(page.getByTestId('composition')).toContainText('пропуск');
  await expect(page.getByText(/Объективная точность .*пропуск/)).toBeVisible();
