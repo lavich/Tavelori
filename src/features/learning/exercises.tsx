@@ -248,8 +248,8 @@ export function Listening(props:Props&{autoSpeak?:boolean}){
 
 /**
  * Понимание на слух: звучит слово или фраза, варианты ответа — переводы. До ответа письменной опоры нет,
- * иначе проверялось бы чтение. После ответа показывается написание с транскрипцией и повтором:
- * из ошибки должно быть что извлечь. Отказ воспроизведения ведёт себя как в аудировании.
+ * иначе проверялось бы чтение. После ответа раскрывается та же карточка со значением, что и в аудировании:
+ * из ошибки должно быть что извлечь. Отказ воспроизведения тоже ведёт себя как в аудировании.
  */
 export function Comprehension(props:Props&{autoSpeak?:boolean}){
  const {card}=props.item;
@@ -277,12 +277,8 @@ export function Comprehension(props:Props&{autoSpeak?:boolean}){
     </div>
    )}
   </div>}
-  after={<div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}} data-testid="heard-text">
-   <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>
-    <p className={wordCss.greek} style={{margin:0}}>{text}</p>
-    {word?.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}
-   </div>
-   {word?<SpeakButton word={word}/>:<SpeakText text={text} audioAssetId={audioAssetId} label="Послушать фразу"/>}
+  after={<div data-testid="reveal" style={{width:'100%'}}>
+   {word?<WordReveal word={word}/>:card.kind==='phrase'?<PhraseReveal phrase={card.phrase}/>:null}
   </div>}/>;
 }
 

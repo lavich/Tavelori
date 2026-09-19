@@ -88,12 +88,12 @@ test('понимание на слух: звучит само, письменн�
  await expect(page.getByTestId('prompt')).toHaveText('Что это значит?');
  // Звучит само, а написания до ответа нет: иначе проверялось бы чтение.
  await expect.poll(()=>page.evaluate(()=>(window as unknown as {__spoken:string[]}).__spoken)).toContain('το σπίτι');
- await expect(page.getByTestId('heard-text')).toHaveCount(0);
+ await expect(page.getByTestId('reveal')).toHaveCount(0);
  await expect(page.getByTestId('option').first()).toBeVisible();
  await page.getByRole('button',{name:'Повторить аудио'}).click();
  await page.getByTestId('option').first().click();
  // После ответа видно, что именно прозвучало.
- await expect(page.getByTestId('heard-text')).toContainText('το σπίτι');
+ await expect(page.getByTestId('reveal')).toContainText('το σπίτι');
  const after=await stored(page);
  expect(after.events[0]).toMatchObject({type:'comprehension'});
 });
