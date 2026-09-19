@@ -108,6 +108,36 @@ describe('досрочная подготовка к ближайшему зан
   expect(plan.reviews.map(r=>r.ref.id)).toEqual([pool[0].id]);
   expect(idsOf(plan.preview)).toEqual([pool[1].id]);
  });
+ it('подготовка добирает места, не тронув квоту новых',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l3',ids(0,30),'2026-09-22',{courseId:'leeke'})],
+   states:ids(0,30).map(id=>learned(id,'2026-09-30T09:00:00Z')),
+   settings:{...defaultSettings,sessionSize:20},
+  });
+  const session=await sessionOf({data,now});
+  expect(session.items).toHaveLength(20);
+  expect(session.items.every(item=>item.mode==='preview')).toBe(true);
+  expect(session.items.every(item=>!item.isNew)).toBe(true);
+ });
+ it('подготовка не вытесняет новые карточки и повторения',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l3',ids(0,40),'2026-09-22',{courseId:'leeke'})],
+   states:[
+    ...ids(0,4).map(id=>learned(id,'2026-09-14T09:00:00Z')), // срочные
+    ...ids(4,20).map(id=>learned(id,'2026-09-30T09:00:00Z')), // подготовка
+   ],
+   settings:{...defaultSettings,sessionSize:20},
+  });
+  const session=await sessionOf({data,now});
+  const byMode=(value:string)=>session.items.filter(item=>item.mode===value).length;
+  expect(session.items.filter(item=>item.isNew)).toHaveLength(10);
+  expect(byMode('scheduled')).toBe(14); // 10 новых и 4 повторения
+  expect(byMode('preview')).toBe(6);
+ });
  it('курс без предстоящих занятий подготовки не даёт',async()=>{
   const data=base({
    words:pool,

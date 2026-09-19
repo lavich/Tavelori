@@ -336,7 +336,7 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
  const plan=await makePlan(source,now,{hasVoice});
  const settings=await source.settings();
  const size=Math.max(2,settings.sessionSize);
- let chosen:{ref:LearningRef;isNew:boolean}[];
+ let chosen:{ref:LearningRef;isNew:boolean;preview?:boolean}[];
  if(refs){
   const live=await source.liveKeys(refs);
   const kept=refs.filter(ref=>live.has(unitKey(ref)));
@@ -347,8 +347,13 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
   const newOnes=plan.newRefs.slice(0,reserve);
   const reviews=plan.reviews.slice(0,Math.max(size-newOnes.length,plan.reviews.length?1:0));
   const extraNew=plan.newRefs.slice(newOnes.length,Math.min(plan.newRefs.length,newOnes.length+Math.max(0,size-newOnes.length-reviews.length)));
-  chosen=[...newOnes.concat(extraNew).map(ref=>({ref,isNew:true})),...reviews.slice(0,Math.max(0,size-newOnes.length-extraNew.length)).map(r=>({ref:r.ref,isNew:false}))];
-  chosen=shuffle(chosen,random).slice(0,size);
+  const taken=[
+   ...newOnes.concat(extraNew).map(ref=>({ref,isNew:true})),
+   ...reviews.slice(0,Math.max(0,size-newOnes.length-extraNew.length)).map(r=>({ref:r.ref,isNew:false})),
+  ];
+  // Подготовка добирает то, что осталось: она не новый материал и дневную квоту не тратит.
+  const preview=plan.preview.slice(0,Math.max(0,size-taken.length)).map(ref=>({ref,isNew:false,preview:true}));
+  chosen=shuffle([...taken,...preview],random).slice(0,size);
  }
  const wanted=chosen.map(entry=>entry.ref);
  const [cards,states,pool]=await Promise.all([source.cardsOf(wanted),source.statesOf(wanted),source.optionPool(OPTION_POOL)]);
@@ -364,7 +369,7 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
   const exercise=exerciseFor(card,{words:pool,phrases},skills,random,hasVoice);
   if(!exercise)continue; // объективного упражнения нет: карточка остаётся для просмотра
   const origin=entry.isNew?plan.origins.get(key):undefined;
-  items.push({id:`${id}-${items.length}`,ref:entry.ref,unitKey:key,card,...exercise,isNew:entry.isNew,mode,expectedVersion:states.get(key)?.version??0,...(origin?{lessonTitle:origin.title,lessonPast:origin.past}:{})});
+  items.push({id:`${id}-${items.length}`,ref:entry.ref,unitKey:key,card,...exercise,isNew:entry.isNew,mode:entry.preview?'preview':mode,expectedVersion:states.get(key)?.version??0,...(origin?{lessonTitle:origin.title,lessonPast:origin.past}:{})});
  }
  return {id,createdAt:now.toISOString(),planDate:plan.today,items:spaceSingleIntroduction(items),index:0,status:'active',activeTimeMs:0,introducedKeys:[],objectiveVersion:1};
 }
