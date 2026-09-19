@@ -64,8 +64,35 @@ export function SpeakText({text,audioAssetId,label}:{text:string;audioAssetId?:s
  );
 }
 
-/** Знакомство с фразой: текст целиком, перевод, ситуация употребления, примечание и озвучка. */
-function PhraseIntro({phrase}:{phrase:Phrase}){
+/**
+ * Карточка слова: картинка, написание, IPA, перевод, заметки о чтении и пример.
+ * `speak` добавляет кнопку озвучки: в раскрытии после аудирования она лишняя — повтор уже есть в задании.
+ */
+function WordReveal({word,speak}:{word:Word;speak?:boolean}){
+ return (
+  <>
+   <WordArt word={word}/>
+   <div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}}>
+    <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>
+     <p className={wordCss.greek} style={{margin:0}}>{word.greek}</p>
+     {word.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{word.ipa}</p>}
+     <p style={{fontSize:19,margin:'6px 0 0'}}>{word.russian}</p>
+    </div>
+    {speak&&<SpeakButton word={word}/>}
+   </div>
+   <div style={{width:'100%',textAlign:'left'}}>
+    <ReadingNotes word={word}/>
+    {word.examples[0]&&<ExampleBox example={word.examples[0]}/>}
+   </div>
+  </>
+ );
+}
+/**
+ * Карточка фразы: текст целиком, перевод, ситуация употребления и примечание.
+ * `speak` добавляет кнопку озвучки — в знакомстве она нужна, в раскрытии после ответа
+ * дублировала бы кнопку повтора аудио самого задания.
+ */
+function PhraseReveal({phrase,speak}:{phrase:Phrase;speak?:boolean}){
  return (
   <>
    <div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}}>
@@ -73,7 +100,7 @@ function PhraseIntro({phrase}:{phrase:Phrase}){
      <p className={wordCss.greek} style={{margin:0}} data-testid="phrase-text">{phrase.text}</p>
      {phrase.translation?<p style={{fontSize:19,margin:'6px 0 0'}}>{phrase.translation}</p>:<p className={cx(ui.small, ui.muted)} style={{margin:'6px 0 0'}}>Перевода в материале нет</p>}
     </div>
-    <SpeakText text={phrase.text} audioAssetId={phrase.audioAssetId} label="Послушать фразу"/>
+    {speak&&<SpeakText text={phrase.text} audioAssetId={phrase.audioAssetId} label="Послушать фразу"/>}
    </div>
    {(phrase.usage||phrase.note)&&(
     <div style={{width:'100%',textAlign:'left'}}>
@@ -112,24 +139,8 @@ export function Introduction({item,onReady,saving=false,autoSpeak=false}:{item:P
    <div className={s.center}>
     <p className={cx(s.prompt,card.kind==='word'&&'sr-only')} data-testid="prompt">{title}</p>
     {label&&<p className={s.prompt} style={{margin:0}} data-testid="lesson-label">{label}</p>}
-    {card.kind==='word'&&(
-     <>
-      <WordArt word={card.word}/>
-      <div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}}>
-       <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>
-        <p className={wordCss.greek} style={{margin:0}}>{card.word.greek}</p>
-        {card.word.ipa&&<p className={wordCss.ipa} style={{margin:0}}>{card.word.ipa}</p>}
-        <p style={{fontSize:19,margin:'6px 0 0'}}>{card.word.russian}</p>
-       </div>
-       <SpeakButton word={card.word}/>
-      </div>
-      <div style={{width:'100%',textAlign:'left'}}>
-       <ReadingNotes word={card.word}/>
-       {card.word.examples[0]&&<ExampleBox example={card.word.examples[0]}/>}
-      </div>
-     </>
-    )}
-    {card.kind==='phrase'&&<PhraseIntro phrase={card.phrase}/>}
+    {card.kind==='word'&&<WordReveal word={card.word} speak/>}
+    {card.kind==='phrase'&&<PhraseReveal phrase={card.phrase} speak/>}
     {card.kind==='cloze'&&<ClozeIntro cloze={card.cloze}/>}
    </div>
    <div className={s.dock}><Button size="xl" disabled={saving} onClick={onReady}>{saving?'Сохраняем…':'Далее'}</Button></div>
@@ -203,6 +214,8 @@ export function Recognition(props:Props&{autoSpeak?:boolean}){
 /**
  * Аудирование. Отказ воспроизведения не засчитывается как ошибка знания: можно повторить или продолжить без аудио —
  * упражнение пропускается без события и без сдвига интервалов. Варианты для фразы — фразы, для слова — слова.
+ * После ответа раскрывается карточка со значением: выбрать написание на слух можно и не зная смысла,
+ * поэтому верный ответ показывает её наравне с ошибкой и с «Не знаю». Показ ничего не сохраняет.
  */
 export function Listening(props:Props&{autoSpeak?:boolean}){
  const {card}=props.item;
@@ -227,6 +240,9 @@ export function Listening(props:Props&{autoSpeak?:boolean}){
      </div>
     </div>
    )}
+  </div>}
+  after={<div data-testid="reveal" style={{width:'100%'}}>
+   {card.kind==='phrase'?<PhraseReveal phrase={card.phrase}/>:<WordReveal word={wordOf(card)}/>}
   </div>}/>;
 }
 
