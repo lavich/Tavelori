@@ -4,7 +4,12 @@ import {emptySkills, summarizeEvents, type SkillSummary} from './skills';
 import {assemblyOptions, splitWriting} from './syllables';
 import {LOCAL_COURSE, type CardKind, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type Phrase, type ReviewEvent, type Session, type SessionCard, type SessionItem, type Settings, type Word} from './types';
 
-export const scheduler=fsrs(generatorParameters({enable_fuzz:false}));
+/**
+ * Разброс интервалов включён: без него карточки, введённые в один день, возвращаются одной группой.
+ * Случайности он не вносит — сид `ts-fsrs` строится из момента ответа, числа повторений и произведения
+ * сложности на стабильность, поэтому для одной карточки, состояния и момента интервал воспроизводим.
+ */
+export const scheduler=fsrs(generatorParameters({enable_fuzz:true}));
 
 /** Зрелость состояния для очередей: сперва то, что переучивается, потом разучиваемое, потом повторяемое. */
 const stateRank=(card:Card)=>card.state===State.Relearning?0:card.state===State.Learning?1:2;

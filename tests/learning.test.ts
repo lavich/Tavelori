@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
-import {createEmptyCard, Rating} from 'ts-fsrs';
-import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,exerciseFor,isCheckable,makePlan as planOf,nextState,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
+import {createEmptyCard, Rating, State} from 'ts-fsrs';
+import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,exerciseFor,isCheckable,makePlan as planOf,nextState,scheduler,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
 import {emptySkills, type SkillSummary} from '../src/domain/skills';
 import {fromSnapshot} from '../src/domain/snapshot-source';
 import {defaultSchedule,defaultSettings,LOCAL_COURSE,type Cloze,type Course,type ExerciseType,type Phrase,type SessionCard,type Word,type Lesson,type Snapshot} from '../src/domain/types';
@@ -23,6 +23,19 @@ it('handles multiple deadlines by cumulative demand',async()=>{const plan=await 
 it('honors local calendar through DST and UTC midnight',()=>{expect(localDay(new Date('2026-09-15T22:30Z'),'Asia/Nicosia')).toBe('2026-09-16');expect(daysBetween('2026-10-24','2026-10-26')).toBe(2)});
 it('schedules a new word without losing FSRS fields',()=>{const state=nextState(undefined,wordRef('w0'),Rating.Good,now);expect(state.card.due.getTime()).toBeGreaterThan(now.getTime());expect(state.card.reps).toBe(1);expect(state.version).toBe(1)});
 it('chooses recognition for an untested word',()=>expect(chooseType(wordKeyOf('w0'),[],{})).toBe('recognition'));
+
+describe('разброс интервалов',()=>{
+ /** Карточка в Review с большим интервалом: только там разброс FSRS вообще применяется. */
+ const mature=()=>({unitKey:wordKeyOf('w0'),ref:wordRef('w0'),version:1,introducedAt:'2026-08-01T09:00:00Z',
+  card:{...createEmptyCard(new Date('2026-08-01')),state:State.Review,stability:40,difficulty:5,scheduled_days:40,elapsed_days:40,reps:5,due:now,last_review:new Date('2026-08-06T09:00:00Z')}});
+ it('включён',()=>expect(scheduler.parameters.enable_fuzz).toBe(true));
+ it('воспроизводим для одной карточки, момента и состояния',()=>{
+  const first=nextState(mature(),wordRef('w0'),Rating.Good,now);
+  const second=nextState(mature(),wordRef('w0'),Rating.Good,now);
+  expect(second.card.due).toEqual(first.card.due);
+  expect(second.card.scheduled_days).toBe(first.card.scheduled_days);
+ });
+});
 
 it('считает сборку по слогам без артикля и сохраняет только их',()=>{
  const history=[wordEvent('w',{id:'r',sessionId:'s',itemId:'i',snapshot:{greek:'',russian:''},type:'recognition' as const,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',createdAt:now.toISOString(),localDate:'2026-09-15',responseTimeMs:100})];
