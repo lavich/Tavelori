@@ -252,8 +252,12 @@ const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening','com
  */
 export interface SkillContext {hasAudio?:boolean;hasOptions?:boolean;canAssemble?:boolean;canSpell?:boolean;canListen?:boolean;canComprehend?:boolean}
 
-/** Написание открывается, когда после последней ошибки в нём набрано две успешные сборки. */
-export const spellingUnlockedFor=(skills:SkillSummary)=>skills.cleanAssemblies>=2;
+/**
+ * Написание открывается, когда после последней ошибки в нём набрана хотя бы одна успешная сборка.
+ * Сборка показывает все буквы слова и проверяет их порядок, а не продукцию: дольше держать письмо
+ * закрытым значит не проверять продукцию вовсе — при интервалах FSRS вторая сборка выпадает через месяц.
+ */
+export const spellingUnlockedFor=(skills:SkillSummary)=>skills.cleanAssemblies>=1;
 /**
  * Понимание на слух открывается после первого верного узнавания: пока значение не связано с формой,
  * выбор из четырёх переводов к незнакомому звуку — угадайка. Ошибка условие не сбрасывает: навык уже открыт,
