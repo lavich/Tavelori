@@ -6,6 +6,9 @@ import {LOCAL_COURSE, type CardKind, type Course, type ExerciseType, type Learni
 
 export const scheduler=fsrs(generatorParameters({enable_fuzz:false}));
 
+/** Зрелость состояния для очередей: сперва то, что переучивается, потом разучиваемое, потом повторяемое. */
+const stateRank=(card:Card)=>card.state===State.Relearning?0:card.state===State.Learning?1:2;
+
 /** Календарный день в выбранной зоне, без деления миллисекунд на сутки. */
 export function localDay(date:Date,timezone:string):string{
  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
@@ -44,11 +47,13 @@ export interface CoursePlan {
  courseId:string; title:string; newItemsPerDay:number; budget:number; introducedToday:number;
  newRefs:LearningRef[]; requiredPerDay:number; shortfall:boolean; deadlines:DeadlinePlan[]; backlog:Backlog;
  origins:Map<string,WordOrigin>; unavailable:LearningRef[];
+ /** Карточки ближайшего занятия, которые уже вводили, а срок ещё не наступил: подготовка к уроку. */
+ preview:LearningRef[];
 }
 export interface DailyPlan {
  today:string; requiredPerDay:number; budget:number; introducedToday:number;
  newRefs:LearningRef[]; reviews:{ref:LearningRef;state:LearningState}[]; deadlines:DeadlinePlan[]; shortfall:boolean;
- backlog:Backlog; courses:CoursePlan[]; origins:Map<string,WordOrigin>; unavailable:LearningRef[];
+ backlog:Backlog; courses:CoursePlan[]; origins:Map<string,WordOrigin>; unavailable:LearningRef[]; preview:LearningRef[];
 }
 
 /** Лёгкие признаки доступности проверки: для фразы — наличие перевода и файла аудио; слова и пропуски проверяемы всегда. */
@@ -180,11 +185,25 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
     }
    }
   }
+  // Подготовка к ближайшему занятию: карточка уже введена, а срок ещё не наступил — повторением она сегодня не станет.
+  const nearest=upcoming[0];
+  const preview:LearningRef[]=[];
+  if(nearest){
+   const refs=await source.lessonRefs(nearest.id);
+   const [live,states]=await Promise.all([source.liveKeys(refs),source.statesOf(refs)]);
+   const ready=refs.flatMap(ref=>{
+    const state=states.get(unitKey(ref));
+    return live.has(unitKey(ref))&&state&&new Date(state.card.due).getTime()>now.getTime()?[state]:[];
+   });
+   ready.sort((a,b)=>stateRank(a.card)-stateRank(b.card)||a.card.scheduled_days-b.card.scheduled_days
+    ||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.unitKey.localeCompare(b.unitKey));
+   preview.push(...ready.map(state=>state.ref));
+  }
   const requiredPerDay=deadlines.reduce((max,d)=>Math.max(max,d.requiredPerDay),0);
   plans.push({
    courseId:course.id,title:course.title,newItemsPerDay:course.newItemsPerDay,budget,introducedToday,
    newRefs:picked.slice(0,budget),requiredPerDay,shortfall:requiredPerDay>course.newItemsPerDay,
-   deadlines,backlog:{refs:overdue,lessons:overdueLessons.size},origins,unavailable,
+   deadlines,backlog:{refs:overdue,lessons:overdueLessons.size},origins,unavailable,preview,
   });
  }
 
@@ -197,10 +216,9 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
  const backlogRefs=uniqueRefs(plans.flatMap(plan=>plan.backlog.refs));
 
  const [due,deleted]=await Promise.all([source.dueStates(now),source.deletedKeys()]);
- const rank=(state:LearningState)=>state.card.state===State.Relearning?0:state.card.state===State.Learning?1:2;
  const reviews=due
   .filter(s=>!deleted.has(s.unitKey))
-  .sort((a,b)=>rank(a)-rank(b)||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.unitKey.localeCompare(b.unitKey))
+  .sort((a,b)=>stateRank(a.card)-stateRank(b.card)||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.unitKey.localeCompare(b.unitKey))
   .map(s=>({ref:s.ref,state:s}));
 
  return {
@@ -216,6 +234,7 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
   // Карточка из двух курсов подписывается уроком курса с ближайшим сроком.
   origins:new Map(plans.flatMap(plan=>[...plan.origins]).reverse()),
   unavailable:uniqueRefs(plans.flatMap(plan=>plan.unavailable)),
+  preview:uniqueRefs(plans.flatMap(plan=>plan.preview)),
  };
 }
 

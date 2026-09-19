@@ -75,6 +75,51 @@ describe('очередь ведёт ближайшее занятие',()=>{
  });
 });
 
+describe('досрочная подготовка к ближайшему занятию',()=>{
+ const pool=words(60);
+ const ids=(from:number,to:number)=>pool.slice(from,to).map(w=>w.id);
+ const at=(id:string,due:string,state:State,days:number):LearningState=>wordState(id,{
+  introducedAt:'2026-09-14T09:00:00Z',version:1,
+  card:{...createEmptyCard(new Date('2026-09-14')),due:new Date(due),state,scheduled_days:days,reps:2},
+ });
+ it('берёт несозревшие карточки ближайшего занятия от наименее зрелых',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l3',ids(0,4),'2026-09-22',{courseId:'leeke'})],
+   states:[
+    at(pool[0].id,'2026-09-20T09:00:00Z',State.Review,14),
+    at(pool[1].id,'2026-09-16T09:00:00Z',State.Relearning,0),
+    at(pool[2].id,'2026-09-18T09:00:00Z',State.Review,3),
+    at(pool[3].id,'2026-09-16T09:00:00Z',State.Learning,0),
+   ],
+  });
+  const plan=await planOf(data);
+  expect(idsOf(plan.preview)).toEqual([pool[1].id,pool[3].id,pool[2].id,pool[0].id]);
+ });
+ it('срочная карточка идёт в повторения и в подготовку не попадает',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l3',ids(0,2),'2026-09-22',{courseId:'leeke'})],
+   states:[at(pool[0].id,'2026-09-14T09:00:00Z',State.Review,3),at(pool[1].id,'2026-09-20T09:00:00Z',State.Review,3)],
+  });
+  const plan=await planOf(data);
+  expect(plan.reviews.map(r=>r.ref.id)).toEqual([pool[0].id]);
+  expect(idsOf(plan.preview)).toEqual([pool[1].id]);
+ });
+ it('курс без предстоящих занятий подготовки не даёт',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l1',ids(0,2),'2026-09-10',{courseId:'leeke'})],
+   states:[at(pool[0].id,'2026-09-20T09:00:00Z',State.Review,3)],
+  });
+  const plan=await planOf(data);
+  expect(plan.preview).toEqual([]);
+ });
+});
+
 describe('темп принадлежит курсу',()=>{
  const pool=words(60);
  const ids=(from:number,to:number)=>pool.slice(from,to).map(w=>w.id);
