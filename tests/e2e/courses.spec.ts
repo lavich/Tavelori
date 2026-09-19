@@ -85,5 +85,5 @@ test('у курса своё расписание и свой предел; со
   });
   database.close();
   return Object.fromEntries(rows.map(row=>[row.id,row.newItemsPerDay]));
- })).toEqual({leeke:3,my:10});
+ })).toEqual({leeke:3,my:12}); // «Мои слова» остаются на пределе по умолчанию: правка соседнего курса их не задела
 });

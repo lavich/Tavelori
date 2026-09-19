@@ -4,7 +4,7 @@ import {LexiDatabase} from '../src/storage/db';
 import {applyPackage, coursePhase, downloadLessonMedia, ensureAsset, installCourse, installLesson, lessonReadiness, mergeWord, refreshCatalog, setCourseSubscription, syncCourses} from '../src/content/client';
 import {ContentError, type ContentPackage} from '../src/content/schema';
 import {revisionOf} from '../content/build';
-import {deleteWord, removeFromLesson, saveWord} from '../src/storage/ops';
+import {deleteWord, removeFromLesson, saveCourseTempo, saveWord} from '../src/storage/ops';
 import {lessonItems} from '../src/storage/queries';
 import {indexWord} from '../src/storage/db';
 import {linkWords} from '../src/storage/ops';
@@ -54,6 +54,14 @@ describe('курсы',()=>{
   await refreshCatalog(db,memoryFetcher());
   expect((await db.lessons.get('lesson-1-1'))!.courseId).toBe('leeke');
   expect(await db.courses.get('leeke')).toMatchObject({title:'LEEKE A2',origin:'content',subscribed:true});
+ });
+ it('новый курс получает предел новых карточек по умолчанию, а сохранённый предел обновление не трогает',async()=>{
+  await refreshCatalog(db,memoryFetcher());
+  // Окно подготовки к уроку — промежуток до предыдущего занятия: набор из 35 карточек за три дня требует двенадцати в день.
+  expect((await db.courses.get('leeke'))!.newItemsPerDay).toBe(12);
+  await saveCourseTempo('leeke',{newItemsPerDay:7},new Date('2026-09-19T09:00:00Z'),db);
+  await refreshCatalog(db,memoryFetcher());
+  expect((await db.courses.get('leeke'))!.newItemsPerDay).toBe(7);
  });
  it('курс без установленных уроков остаётся неподписанным, а повторное обновление ничего не ломает',async()=>{
   await refreshCatalog(db,memoryFetcher());

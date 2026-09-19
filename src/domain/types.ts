@@ -87,8 +87,13 @@ export interface Schedule {startDate:string|null;weekdays:number[]}
 export interface Settings {id:'settings';timezone:string;sessionSize:number;errorReports:boolean;autoSpeak:boolean}
 export const defaultSchedule:Schedule={startDate:null,weekdays:[]};
 export const defaultSettings:Settings={id:'settings',timezone:'Asia/Nicosia',sessionSize:20,errorReports:true,autoSpeak:true};
-/** Предел новых карточек нового курса: столько же, сколько раньше давало общее значение. */
-export const DEFAULT_NEW_ITEMS_PER_DAY=10;
+/**
+ * Предел новых карточек нового курса. Очередь ведёт только ближайшее занятие, поэтому окно подготовки
+ * к уроку — промежуток между ним и предыдущим: набор из 35 карточек за три дня требует двенадцати в день.
+ * Прежняя десятка не покрывала такой темп и упиралась в предупреждение о нехватке. Курс с уже сохранённым
+ * пределом этого значения не видит: его меняет пользователь на экране курса.
+ */
+export const DEFAULT_NEW_ITEMS_PER_DAY=12;
 /** Запись настроек старой версии или из старой копии читается без миграции. */
 export const fillSettings=(settings:Partial<Settings>|undefined):Settings=>({...defaultSettings,...settings});
 /**

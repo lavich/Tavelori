@@ -33,7 +33,9 @@ const event=(wordId:string,type:ExerciseType,correct:boolean,at:string):ReviewEv
  type,mode:'scheduled',rating:correct?3:1,correct,answer:'',createdAt:at,localDate:at.slice(0,10),responseTimeMs:1000,
 });
 const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):Snapshot=>({
- words:[],states:[],events:[],sessions:[],settings:defaultSettings,...over,
+ words:[],states:[],events:[],sessions:[],settings:defaultSettings,
+ // Предел локального курса закреплён: эталон фиксирует поведение, а не значение по умолчанию.
+ courses:[{id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:defaultSchedule,newItemsPerDay:10,createdAt:iso,updatedAt:iso}],...over,
  lessons:(over.lessons??[]).map(({wordIds:_,...rest})=>rest),
  links:(over.lessons??[]).flatMap(l=>l.wordIds.map((wordId,position)=>({lessonId:l.id,wordId,position}))),
 });

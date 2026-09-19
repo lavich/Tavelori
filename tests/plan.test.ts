@@ -5,7 +5,7 @@ import {fromSnapshot} from '../src/domain/snapshot-source';
 import {diffChars} from '../src/domain/spelling';
 import {checkAnswer} from '../src/domain/import';
 import {progress} from '../src/domain/stats';
-import {defaultSchedule, defaultSettings, type Cloze, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type LessonItem, type Phrase, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
+import {defaultSchedule, defaultSettings, LOCAL_COURSE, type Cloze, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type LessonItem, type Phrase, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
 import {idsOf, unitKey, wordEvent, wordKeyOf, wordRef, wordState} from './helpers/cards';
 
 const now=new Date('2026-09-15T09:00:00Z');
@@ -15,9 +15,13 @@ const words=(count:number,prefix='w')=>Array.from({length:count},(_,index)=>word
 type LessonSpec=Lesson&{wordIds:string[]};
 const lesson=(id:string,wordIds:string[],targetDate:string|null,over:Partial<Lesson>={}):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso,...over});
 const course=(id:string,newItemsPerDay:number,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:true,schedule:defaultSchedule,newItemsPerDay,createdAt:iso,updatedAt:iso,...over});
-/** Снимок для тестов: состав уроков задаётся массивами и раскладывается в связи с порядком. */
+/**
+ * Снимок для тестов: состав уроков задаётся массивами и раскладывается в связи с порядком.
+ * Предел локального курса задан явно: сценарии описывают поведение при пределе 10, а не значение по умолчанию.
+ */
 const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):Snapshot=>({
- words:[],states:[],events:[],sessions:[],settings:defaultSettings,...over,
+ words:[],states:[],events:[],sessions:[],settings:defaultSettings,
+ courses:[course(LOCAL_COURSE,10,{origin:'local',title:'Мои слова'})],...over,
  lessons:(over.lessons??[]).map(({wordIds:_,...rest})=>rest),
  links:(over.lessons??[]).flatMap(l=>l.wordIds.map((wordId,position)=>({lessonId:l.id,wordId,position}))),
 });
