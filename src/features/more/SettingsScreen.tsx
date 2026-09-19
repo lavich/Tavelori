@@ -21,12 +21,14 @@ export function SettingsScreen(){
  // Переключатель отвечает сразу, не дожидаясь живого запроса; значение из базы догоняет через эффект ниже.
  const [reports,setReports]=useState(true);
  const [reportsStatus,setReportsStatus]=useState('');
+ const [autoSpeak,setAutoSpeak]=useState(true);
  const platform=usePlatform();
  const [haptics,setHaptics]=useHapticsSetting();
  useEffect(()=>{
   setSize(String(settings.sessionSize));
   setZone(settings.timezone);
   setReports(settings.errorReports);
+  setAutoSpeak(settings.autoSpeak);
  },[settings]);
  const submit=async(event:React.FormEvent)=>{
   event.preventDefault();
@@ -72,6 +74,13 @@ export function SettingsScreen(){
      <Button size="xl" type="submit" className="mt-4">Сохранить</Button>
      {saved&&<p className="mt-2 text-sm text-(--ok)" role="status">Сохранено. Новые значения применятся к следующим занятиям, история ответов не изменилась.</p>}
     </form>
+    <section className="mt-6" data-testid="auto-speak-settings">
+     <h2>Озвучка</h2>
+     <label className="flex items-center justify-between gap-3" style={{color:'inherit',fontSize:16,margin:0}}>
+      <span>Озвучивать автоматически<br/><span className="text-sm text-muted-foreground">Карточка знакомства и задание «Что прозвучало?» звучат сами при открытии. Выключите, если занимаетесь там, где нужна тишина: кнопка озвучки работает в любом случае.</span></span>
+      <input type="checkbox" role="switch" aria-label="Озвучивать автоматически" checked={autoSpeak} onChange={event=>{const enabled=event.target.checked;setAutoSpeak(enabled);saveSettings({...settings,autoSpeak:enabled})}} style={{width:22,height:22,minHeight:0}}/>
+     </label>
+    </section>
     <section className="mt-6" data-testid="error-reports-settings">
      <h2>Отчёты об ошибках</h2>
      <label className="flex items-center justify-between gap-3" style={{color:'inherit',fontSize:16,margin:0}}>

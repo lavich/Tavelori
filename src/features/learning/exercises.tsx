@@ -31,6 +31,22 @@ export const lessonLabel=(item:Pick<SessionItem,'lessonTitle'|'lessonPast'>)=>it
 /** Слово карточки; для других видов упражнения слов не создаются. */
 const wordOf=(card:SessionCard):Word=>{if(card.kind!=='word')throw new Error('Упражнение для слова получило другую карточку');return card.word};
 
+/**
+ * Один автозапуск озвучки при открытии карточки. Карточки перемонтируются по `key`, поэтому
+ * ссылка-флаг защищает от повторного запуска при перерисовке той же карточки.
+ * Пропуск не озвучивается сам: следом идёт то же предложение с пропуском, и услышанный ответ
+ * превратил бы первую проверку в повтор по свежему следу. Кнопка остаётся.
+ */
+function useAutoSpeak(card:SessionCard,enabled:boolean){
+ const played=useRef(false);
+ useEffect(()=>{
+  if(!enabled||played.current||card.kind==='cloze')return;
+  played.current=true;
+  if(card.kind==='word')playWord(card.word);
+  else playText(card.phrase.text,card.phrase.audioAssetId);
+ },[card,enabled]);
+}
+
 /** Кнопка озвучки текста фразы или полного предложения; при отсутствии файла и голоса — подпись. */
 export function SpeakText({text,audioAssetId,label}:{text:string;audioAssetId?:string;label:string}){
  const kind=useTextAudioKind(audioAssetId);
@@ -85,9 +101,11 @@ function ClozeIntro({cloze}:{cloze:Cloze}){
  );
 }
 
-export function Introduction({item,onReady,saving=false}:{item:Pick<SessionItem,'card'|'lessonTitle'|'lessonPast'>;onReady:()=>void;saving?:boolean}){
+export function Introduction({item,onReady,saving=false,autoSpeak=false}:{item:Pick<SessionItem,'card'|'lessonTitle'|'lessonPast'>;onReady:()=>void;saving?:boolean;autoSpeak?:boolean}){
  const {card}=item;
  const label=lessonLabel(item);
+ // Знакомство показывает материал, а не проверяет знание: отказ озвучки здесь не показывается — кнопка сама объясняет недоступность.
+ useAutoSpeak(card,autoSpeak);
  const title=card.kind==='word'?'Новое слово':card.kind==='phrase'?'Новая фраза':'Новое задание с пропуском';
  return (
   <>
@@ -184,7 +202,7 @@ export function Recognition(props:Props){
  * Аудирование. Отказ воспроизведения не засчитывается как ошибка знания: можно повторить или продолжить без аудио —
  * упражнение пропускается без события и без сдвига интервалов. Варианты для фразы — фразы, для слова — слова.
  */
-export function Listening(props:Props){
+export function Listening(props:Props&{autoSpeak?:boolean}){
  const {card}=props.item;
  const text=card.kind==='phrase'?card.phrase.text:wordOf(card).greek;
  const audioAssetId=card.kind==='phrase'?card.phrase.audioAssetId:wordOf(card).audioAssetId;
@@ -194,7 +212,7 @@ export function Listening(props:Props){
  const played=useRef(false);
  const [failed,setFailed]=useState(false);
  const play=()=>(card.kind==='word'?playWord(card.word):playText(text,audioAssetId)).then(result=>setFailed(result==='error'||result==='none'));
- useEffect(()=>{if(!played.current){played.current=true;play()}},[props.item.id]);
+ useEffect(()=>{if(props.autoSpeak&&!played.current){played.current=true;play()}},[props.item.id,props.autoSpeak]);
  return <Choice {...props} prompt="Что прозвучало?" correct={text} options={props.item.options}
   head={<div className="flex w-full flex-col items-center gap-3">
    <Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={play}><Volume2 aria-hidden/></Button>

@@ -3,6 +3,7 @@ import {beforeEach, describe, expect, it} from 'vitest';
 import {LexiDatabase} from '../src/storage/db';
 import {dexieSource} from '../src/storage/queries';
 import {saveCourseTempo, saveSettings, submitAnswer, updateLesson} from '../src/storage/ops';
+import {defaultSettings} from '../src/domain/types';
 import {makePlan, makeSession} from '../src/domain/learning';
 import {progress} from '../src/domain/stats';
 import {kvAdapter} from '../src/sync/adapter';
@@ -52,7 +53,7 @@ describe('перенос компактного прогресса между у
  it('второе устройство получает сроки FSRS, навыки, настройки, даты уроков, бюджет и статистику без двойного учёта',async()=>{
   const phone=await device('phone',{lessons:['lesson-1-1']});
   const tablet=await device('tablet',{lessons:['lesson-1-1']});
-  await saveSettings({id:'settings',timezone:'Europe/Athens',sessionSize:6,errorReports:true},phone.db);
+  await saveSettings({...defaultSettings,timezone:'Europe/Athens',sessionSize:6},phone.db);
   await saveCourseTempo('leeke',{newItemsPerDay:7,schedule:{startDate:'2026-09-14',weekdays:[1,3]}},new Date('2026-09-16T09:00:00Z'),phone.db);
   await updateLesson('lesson-1-1',{targetDate:'2026-10-01'},phone.db);
   const studied=await study(phone,[true,false,true,true,false]);

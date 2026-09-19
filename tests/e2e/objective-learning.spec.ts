@@ -1,5 +1,5 @@
 import {expect,test,type Page} from '@playwright/test';
-import {installLessons, ready} from './helpers';
+import {GREEK_VOICE, installLessons, ready, setSettings} from './helpers';
 
 async function installSession(page:Page,type:string,isNew=false,count=1){
  await page.evaluate(async({type,isNew,count})=>{
@@ -67,6 +67,21 @@ test('ошибка в написании: дополнительная попы�
  await expect(page.getByLabel('Твой ответ по-гречески')).toHaveCount(0);
  const after=await stored(page);
  expect(after.session.items[1]).toMatchObject({type:'assembly',mode:'practice',retryOf:'objective-0'});
+});
+
+test('знакомство озвучивается само, а с выключенной настройкой молчит',async({page})=>{
+ await page.addInitScript(GREEK_VOICE);
+ await installSession(page,'recognition',true);
+ await expect(page.getByTestId('prompt')).toHaveText('Новое слово');
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {__spoken:string[]}).__spoken)).toContain('το σπίτι');
+ // Выключенная настройка убирает автозапуск, но не кнопку.
+ await setSettings(page,{autoSpeak:false});
+ await installSession(page,'recognition',true);
+ await expect(page.getByTestId('prompt')).toHaveText('Новое слово');
+ await page.waitForTimeout(500);
+ expect(await page.evaluate(()=>(window as unknown as {__spoken:string[]}).__spoken)).toEqual([]);
+ await page.getByRole('button',{name:'Послушать слово'}).click();
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {__spoken:string[]}).__spoken)).toContain('το σπίτι');
 });
 
 test('знакомство идёт отдельным проходом и переживает перезагрузку без ответа',async({page})=>{

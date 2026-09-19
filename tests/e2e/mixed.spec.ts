@@ -2,7 +2,7 @@ import {expect, test, type Page} from '@playwright/test';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {installLessons, ready, readTable, seedMixedLesson, setCourseLimit} from './helpers';
+import {GREEK_VOICE, installLessons, ready, readTable, seedMixedLesson, setCourseLimit} from './helpers';
 import {onlyReviews, openTelegram, tg} from './telegram';
 
 /**
@@ -13,15 +13,7 @@ import {onlyReviews, openTelegram, tg} from './telegram';
 const NO_VOICE=`Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{
  getVoices:()=>[],speak(){},cancel(){},addEventListener(){},removeEventListener(){},
 }});`;
-const GREEK_VOICE=`
- const voice={lang:'el-GR',name:'Test Greek',default:true,localService:true,voiceURI:'test'};
- window.__spoken=[];
- window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;this.lang='';this.rate=1;this.voice=null}};
- Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{
-  getVoices:()=>[voice],
-  speak:utterance=>window.__spoken.push(utterance.text),
-  cancel(){},addEventListener(){},removeEventListener(){},
- }});`;
+
 const tomorrow=()=>new Date(Date.now()+86400000).toISOString().slice(0,10);
 const today=()=>new Date().toISOString().slice(0,10);
 /** Канонические ответы фикстуры: тест вводит их сам, из интерфейса до ответа они недоступны. */

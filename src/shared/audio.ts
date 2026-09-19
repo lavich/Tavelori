@@ -23,36 +23,98 @@ function greekVoice():SpeechSynthesisVoice|null{
 }
 export const hasGreekVoice=()=>!!greekVoice();
 
-const speak=(text:string,voice:SpeechSynthesisVoice,rate:number):PlayResult=>{
- try{
-  const utterance=new SpeechSynthesisUtterance(text);
-  utterance.voice=voice; utterance.lang=voice.lang||'el-GR'; utterance.rate=rate;
-  speechSynthesis.speak(utterance);
-  return 'voice';
- }catch{return 'error'}
-};
-/** Предложения читает системный голос: записанных файлов для примеров нет. */
-export function speakPhrase(text:string):PlayResult{
- stopAudio();
- const voice=greekVoice();
+/** Сколько ждём начала речи, прежде чем считать реплику потерянной: синтезатор начинает за десятки миллисекунд. */
+const START_TIMEOUT=300;
+/** Сколько ждём список голосов: браузер отдаёт его асинхронно, пустой ответ — ещё не отказ. */
+const VOICES_TIMEOUT=1000;
+/** Такт между отменой и следующей репликой: «cancel → сразу speak» синтезаторы теряют молча. */
+const RESTART_DELAY=60;
+const wait=(ms:number)=>new Promise<void>(resolve=>{setTimeout(resolve,ms)});
+
+/** Голоса после загрузки списка; пустой список к сроку означает, что голосов нет. */
+function voicesReady():Promise<SpeechSynthesisVoice[]>{
+ if(typeof speechSynthesis==='undefined')return Promise.resolve([]);
+ const read=()=>{try{return speechSynthesis.getVoices()}catch{return []}};
+ const first=read();
+ if(first.length)return Promise.resolve(first);
+ return new Promise(resolve=>{
+  let done=false;
+  const finish=(list:SpeechSynthesisVoice[])=>{
+   if(done)return;
+   done=true;
+   speechSynthesis.removeEventListener('voiceschanged',update);
+   resolve(list);
+  };
+  const update=()=>{cachedVoice=undefined;const list=read();if(list.length)finish(list)};
+  speechSynthesis.addEventListener('voiceschanged',update);
+  setTimeout(()=>finish(read()),VOICES_TIMEOUT);
+ });
+}
+/** Греческий голос с ожиданием списка: до загрузки голосов отказывать рано. */
+async function greekVoiceReady():Promise<SpeechSynthesisVoice|null>{
+ const direct=greekVoice();
+ if(direct)return direct;
+ const voices=await voicesReady();
+ if(!voices.length)return null;
+ cachedVoice=voices.find(voice=>voice.lang?.toLowerCase().startsWith('el'))??null;
+ return cachedVoice;
+}
+/**
+ * Одна попытка озвучки. Успех — событие начала речи, а не факт вызова: синтезатор принимает реплику
+ * и может её потерять, не сообщив об этом ни ошибкой, ни событием.
+ */
+function speakOnce(text:string,voice:SpeechSynthesisVoice,rate:number):Promise<boolean>{
+ return new Promise(resolve=>{
+  let done=false;
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  const finish=(started:boolean)=>{if(done)return;done=true;clearTimeout(timer);resolve(started)};
+  try{
+   const utterance=new SpeechSynthesisUtterance(text);
+   utterance.voice=voice; utterance.lang=voice.lang||'el-GR'; utterance.rate=rate;
+   utterance.onstart=()=>finish(true);
+   utterance.onerror=()=>finish(false);
+   timer=setTimeout(()=>finish(false),START_TIMEOUT);
+   speechSynthesis.speak(utterance);
+  }catch{finish(false)}
+ });
+}
+/** Озвучка голосом с одной повторной попыткой: молчание после повтора — честный отказ, а не мнимый успех. */
+async function speakVoice(text:string,rate:number,stopped:boolean):Promise<PlayResult>{
+ const voice=await greekVoiceReady();
  if(!voice)return 'none';
- return speak(text,voice,0.85);
+ if(stopped)await wait(RESTART_DELAY); // отменённой реплике нужен такт, иначе синтезатор съест новую
+ if(await speakOnce(text,voice,rate))return 'voice';
+ cancelSpeech();
+ await wait(RESTART_DELAY);
+ return await speakOnce(text,voice,rate)?'voice':'error';
+}
+/** Предложения читает системный голос: записанных файлов для примеров нет. */
+export function speakPhrase(text:string):Promise<PlayResult>{
+ return speakVoice(text,0.85,stopAudio());
 }
 export function audioKind(word:Word|undefined):AudioKind{
  if(!word)return 'none';
  if(word.audioAssetId)return 'file';
  return greekVoice()?'voice':'none';
 }
-export function stopAudio(){
+/** Занят ли синтезатор: холостая отмена ломает следующую реплику, поэтому отменяем только говорящего. */
+const speaking=()=>typeof speechSynthesis!=='undefined'&&(speechSynthesis.speaking||speechSynthesis.pending);
+function cancelSpeech():boolean{
+ if(!speaking())return false;
+ try{speechSynthesis.cancel()}catch{/* синтез недоступен */}
+ return true;
+}
+/** Возвращает, была ли остановлена речь: следующей реплике после отмены нужен такт. */
+export function stopAudio():boolean{
  if(current){try{current.pause();current.currentTime=0}catch{/* элемент уже освобождён */}current=null}
- if(typeof speechSynthesis!=='undefined'){try{speechSynthesis.cancel()}catch{/* синтез недоступен */}}
+ return cancelSpeech();
 }
 /**
  * Отказ воспроизведения не подавляется: экран получает `error` и предлагает повтор или продолжение без аудирования.
  * Файл, который не проигрался, не подменяется голосом молча — иначе пользователь услышит другое произношение.
  */
 export async function playWord(word:Word):Promise<PlayResult>{
- stopAudio();
+ const stopped=stopAudio();
  if(word.audioAssetId){
   const asset=await ensureAsset(word.audioAssetId).catch(()=>null);
   if(asset){
@@ -64,11 +126,9 @@ export async function playWord(word:Word):Promise<PlayResult>{
    try{await audio.play();return 'file'}
    catch{release();if(current===audio)current=null;return 'error'}
   }
-  if(!greekVoice())return 'error'; // файл обещан, но недоступен, а голоса нет
+  if(!await greekVoiceReady())return 'error'; // файл обещан, но недоступен, а голоса нет
  }
- const voice=greekVoice();
- if(!voice)return 'none';
- return speak(word.greek,voice,0.9);
+ return speakVoice(word.greek,0.9,stopped);
 }
 /** Голос появляется асинхронно, поэтому доступность пересчитывается после загрузки списка. */
 export function useGreekVoice():boolean{
@@ -98,7 +158,7 @@ export function useAudioKind(word:Word|undefined):AudioKind{
 
 /** Файл, если он обещан записью, иначе системный голос: общий путь для слова, фразы и полного предложения пропуска. */
 export async function playText(text:string,audioAssetId?:string):Promise<PlayResult>{
- stopAudio();
+ const stopped=stopAudio();
  if(audioAssetId){
   const asset=await ensureAsset(audioAssetId).catch(()=>null);
   if(asset){
@@ -110,11 +170,9 @@ export async function playText(text:string,audioAssetId?:string):Promise<PlayRes
    try{await audio.play();return 'file'}
    catch{release();if(current===audio)current=null;return 'error'}
   }
-  if(!greekVoice())return 'error';
+  if(!await greekVoiceReady())return 'error';
  }
- const voice=greekVoice();
- if(!voice)return 'none';
- return speak(text,voice,0.85);
+ return speakVoice(text,0.85,stopped);
 }
 export const textAudioKind=(audioAssetId:string|undefined):AudioKind=>audioAssetId?'file':greekVoice()?'voice':'none';
 /** Доступность озвучки текста; голос появляется асинхронно. */

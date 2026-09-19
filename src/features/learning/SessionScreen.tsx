@@ -17,7 +17,7 @@ import s from './session.module.css';
 
 export function SessionScreen(){
  const navigate=useNavigate();
- const {settings}=useSettings();
+ const {settings,ready:settingsReady}=useSettings();
  const other=useActiveSession();
  const [sessionId,setSessionId]=useState<string|null>(null);
  // Сессию держим по id: последний ответ переводит её в done, но экран должен дорисовать обратную связь.
@@ -131,10 +131,10 @@ export function SessionScreen(){
  };
  // key по упражнению: иначе следующая карточка успевает показаться с ответом предыдущей.
  const view=session.objectiveVersion!==1?null:introduction
-  ?<Introduction key={introduction.id} item={introduction} onReady={introduce} saving={introducing}/>
+  ?<Introduction key={introduction.id} item={introduction} onReady={introduce} saving={introducing} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='cloze'?<ClozeExercise key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next}/>
-  :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip}/>
+  :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :<Spelling key={item.id} item={item} onAnswer={answer} onNext={next}/>;
 
