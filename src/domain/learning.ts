@@ -139,19 +139,23 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
     return false;
    });
   };
-  const take=async(lesson:Lesson,into:LearningRef[],isPast:boolean)=>{
+  /** `into` — куда класть карточки; `null` значит «только посчитать для срока», карточка при этом занята и заново не всплывёт. */
+  const take=async(lesson:Lesson,into:LearningRef[]|null,isPast:boolean)=>{
    let added=0;
    for(const ref of await fresh(await source.lessonRefs(lesson.id))){
     const key=unitKey(ref);
     if(seen.has(key))continue;
-    seen.add(key); into.push(ref); origins.set(key,{lessonId:lesson.id,title:lesson.title,past:isPast}); added++;
+    seen.add(key); added++;
+    if(!into)continue; // карточка дальнего занятия: в счёт срока входит, сегодня не показывается
+    into.push(ref); origins.set(key,{lessonId:lesson.id,title:lesson.title,past:isPast});
    }
    return added;
   };
-  // Ближайшее занятие — единственный срок, который ещё можно успеть: его карточки идут раньше хвоста, а хвост в счёт срока не входит.
+  // Очередь ведёт ближайшее занятие: его карточки идут раньше хвоста, а хвост в счёт срока не входит.
+  // Карточки дальних занятий считаются для их сроков, но ждут, пока их занятие само станет ближайшим.
   const dated:LearningRef[]=[]; let counted=0;
-  for(const lesson of upcoming){
-   counted+=await take(lesson,dated,false);
+  for(const [index,lesson] of upcoming.entries()){
+   counted+=await take(lesson,index===0?dated:null,false);
    const daysLeft=Math.max(1,daysBetween(today,lesson.targetDate!));
    deadlines.push({lessonId:lesson.id,title:lesson.title,targetDate:lesson.targetDate!,daysLeft:daysBetween(today,lesson.targetDate!),newLeft:counted,requiredPerDay:Math.ceil(counted/daysLeft)});
   }

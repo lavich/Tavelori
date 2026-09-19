@@ -28,6 +28,53 @@ const learned=(id:string,due:string,state=State.Review):LearningState=>wordState
  card:{...createEmptyCard(new Date('2026-09-01')),due:new Date(due),state,scheduled_days:3,reps:2},
 });
 
+describe('очередь ведёт ближайшее занятие',()=>{
+ const pool=words(60);
+ const ids=(from:number,to:number)=>pool.slice(from,to).map(w=>w.id);
+ it('карточки следующего занятия не берутся, пока ближайшее впереди',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[
+    lesson('l3',ids(0,10),'2026-09-22',{courseId:'leeke'}),
+    lesson('l4',ids(10,45),'2026-09-25',{courseId:'leeke'}),
+   ],
+   // Все карточки 1.3 уже вводили: срок ещё не наступил, но непоказанных у занятия не осталось.
+   states:ids(0,10).map(id=>learned(id,'2026-09-30T09:00:00Z')),
+  });
+  const plan=await planOf(data);
+  expect(idsOf(plan.newRefs)).toEqual([]);
+ });
+ it('срок дальнего занятия остаётся в плане с требуемым темпом',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[
+    lesson('l3',ids(0,10),'2026-09-22',{courseId:'leeke'}),
+    lesson('l4',ids(10,45),'2026-09-18',{courseId:'leeke'}),
+   ],
+   states:ids(0,10).map(id=>learned(id,'2026-09-30T09:00:00Z')),
+  });
+  const plan=await planOf(data); // сегодня 2026-09-15, до l4 три дня
+  expect(plan.deadlines.map(d=>[d.lessonId,d.newLeft,d.requiredPerDay])).toEqual([['l4',35,12],['l3',35,5]]);
+  expect(plan.shortfall).toBe(true);
+  expect(idsOf(plan.newRefs)).toEqual(ids(10,20)); // ближайшее теперь l4, очередь ведёт оно
+ });
+ it('добор бюджета не заглядывает в дальние занятия',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[
+    lesson('l3',ids(0,3),'2026-09-22',{courseId:'leeke'}),
+    lesson('l4',ids(10,45),'2026-09-25',{courseId:'leeke'}),
+   ],
+  });
+  const plan=await planOf(data);
+  // У ближайшего три непоказанные карточки, бюджет десять — остаток остаётся пустым.
+  expect(idsOf(plan.newRefs)).toEqual(ids(0,3));
+ });
+});
+
 describe('темп принадлежит курсу',()=>{
  const pool=words(60);
  const ids=(from:number,to:number)=>pool.slice(from,to).map(w=>w.id);
