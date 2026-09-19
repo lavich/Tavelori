@@ -74,6 +74,10 @@ test('знакомство озвучивается само, а с выключ
  await installSession(page,'recognition',true);
  await expect(page.getByTestId('prompt')).toHaveText('Новое слово');
  await expect.poll(()=>page.evaluate(()=>(window as unknown as {__spoken:string[]}).__spoken)).toContain('το σπίτι');
+ // Узнавание звучит тем же порядком: на экране показано греческое слово, ответ — перевод.
+ await page.getByRole('button',{name:'Далее',exact:true}).click();
+ await expect(page.getByTestId('prompt')).toHaveText('Что значит это слово?');
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {__spoken:string[]}).__spoken.length)).toBe(2);
  // Выключенная настройка убирает автозапуск, но не кнопку.
  await setSettings(page,{autoSpeak:false});
  await installSession(page,'recognition',true);

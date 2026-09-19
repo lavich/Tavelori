@@ -175,8 +175,10 @@ function Choice({item,onAnswer,onNext,prompt,head,options,correct,after}:Props&{
  );
 }
 
-export function Recognition(props:Props){
+export function Recognition(props:Props&{autoSpeak?:boolean}){
  const {card}=props.item;
+ // Узнавание проверяет значение, а звучит показанное написание: подсказки нет, поэтому карточка озвучивается сама.
+ useAutoSpeak(card,!!props.autoSpeak);
  if(card.kind==='phrase'){
   const phrase=card.phrase;
   return <Choice {...props} prompt="Что значит эта фраза?" correct={phrase.translation??''} options={props.item.options}

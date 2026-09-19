@@ -133,7 +133,7 @@ export function SessionScreen(){
  const view=session.objectiveVersion!==1?null:introduction
   ?<Introduction key={introduction.id} item={introduction} onReady={introduce} saving={introducing} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='cloze'?<ClozeExercise key={item.id} item={item} onAnswer={answer} onNext={next}/>
-  :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next}/>
+  :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :<Spelling key={item.id} item={item} onAnswer={answer} onNext={next}/>;
