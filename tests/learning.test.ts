@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {createEmptyCard, Rating, State} from 'ts-fsrs';
-import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,exerciseFor,isCheckable,makePlan as planOf,nextState,scheduler,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
+import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,exerciseFor,isCheckable,FAST_ANSWER_MS,FAST_TYPES,gradeFor,makePlan as planOf,nextState,scheduler,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
 import {emptySkills, type SkillSummary} from '../src/domain/skills';
 import {fromSnapshot} from '../src/domain/snapshot-source';
 import {defaultSchedule,defaultSettings,LOCAL_COURSE,type Cloze,type Course,type ExerciseType,type Phrase,type SessionCard,type Word,type Lesson,type Snapshot} from '../src/domain/types';
@@ -23,6 +23,23 @@ it('handles multiple deadlines by cumulative demand',async()=>{const plan=await 
 it('honors local calendar through DST and UTC midnight',()=>{expect(localDay(new Date('2026-09-15T22:30Z'),'Asia/Nicosia')).toBe('2026-09-16');expect(daysBetween('2026-10-24','2026-10-26')).toBe(2)});
 it('schedules a new word without losing FSRS fields',()=>{const state=nextState(undefined,wordRef('w0'),Rating.Good,now);expect(state.card.due.getTime()).toBeGreaterThan(now.getTime());expect(state.card.reps).toBe(1);expect(state.version).toBe(1)});
 it('chooses recognition for an untested word',()=>expect(chooseType(wordKeyOf('w0'),[],{})).toBe('recognition'));
+
+describe('оценка объективного ответа',()=>{
+ it('«Почти» получает Hard, а не Again',()=>expect(gradeFor('almost','spelling',9000)).toBe(Rating.Hard));
+ it('неверный ответ и «Не знаю» получают Again',()=>{
+  expect(gradeFor('wrong','recognition',900)).toBe(Rating.Again);
+  expect(gradeFor('wrong','cloze',900)).toBe(Rating.Again);
+ });
+ it('быстрый верный выбор получает Easy',()=>{
+  for(const type of FAST_TYPES)expect(gradeFor('correct',type,FAST_ANSWER_MS-1)).toBe(Rating.Easy);
+ });
+ it('неспешный верный выбор получает Good',()=>{
+  for(const type of FAST_TYPES)expect(gradeFor('correct',type,FAST_ANSWER_MS)).toBe(Rating.Good);
+ });
+ it('у заданий без вариантов время не читается',()=>{
+  for(const type of ['assembly','spelling','cloze'] as const)expect(gradeFor('correct',type,1)).toBe(Rating.Good);
+ });
+});
 
 describe('разброс интервалов',()=>{
  /** Карточка в Review с большим интервалом: только там разброс FSRS вообще применяется. */

@@ -1,4 +1,5 @@
-import {createEmptyCard, fsrs, generatorParameters, State, type Card, type Grade} from 'ts-fsrs';
+import {createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade} from 'ts-fsrs';
+import type {TextAnswerStatus} from './cloze';
 import {unitKey, wordRef} from './refs';
 import {emptySkills, summarizeEvents, type SkillSummary} from './skills';
 import {assemblyOptions, splitWriting} from './syllables';
@@ -295,6 +296,28 @@ export function chooseTypeFor(skills:SkillSummary,context:SkillContext={}):Exerc
 /** Совместимая форма: история карточки сворачивается в сводку и даёт тот же выбор. */
 export function chooseType(unitKey:string,events:ReviewEvent[],context:SkillContext={}):ExerciseType{
  return chooseTypeFor(summarizeEvents(unitKey,events),context);
+}
+
+/**
+ * Задания с готовыми вариантами: только у них длительность ответа говорит о лёгкости вспоминания.
+ * В сборке, написании и пропуске она определяется длиной ответа и скоростью набора, поэтому там не читается.
+ */
+export const FAST_TYPES:readonly ExerciseType[]=['recognition','listening','comprehension'];
+/**
+ * Порог быстрого ответа. Общий для трёх типов, хотя у аудирования и понимания на слух в него входит
+ * воспроизведение: перекос сознательно в консервативную сторону — `Easy` там выпадает реже,
+ * и ни одна карточка не получает завышенный интервал из-за короткого аудио.
+ */
+export const FAST_ANSWER_MS=3500;
+/**
+ * Оценка объективного ответа. `status` отвечает на вопрос «насколько подвинуть срок», а поле `correct`
+ * события — на вопрос «что показать и чему учить дальше»: «Почти» остаётся ошибкой навыка и поводом
+ * для дополнительной попытки, но полного сброса интервала не заслуживает.
+ */
+export function gradeFor(status:TextAnswerStatus,type:ExerciseType,responseTimeMs:number):Grade{
+ if(status==='almost')return Rating.Hard;
+ if(status!=='correct')return Rating.Again;
+ return FAST_TYPES.includes(type)&&responseTimeMs<FAST_ANSWER_MS?Rating.Easy:Rating.Good;
 }
 
 /** Practice сюда не попадает: ручная тренировка не должна двигать интервалы. */

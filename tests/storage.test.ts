@@ -72,6 +72,37 @@ describe('запись ответа',()=>{
   expect(after!.version).toBe(2);
   expect((await db.events.get(`e-${item.id}`))!.rating).toBe(Rating.Again);
  });
+ /** Зрелая карточка в Review: на ней видно, сбрасывает «Почти» интервал или нет. */
+ const asMature=async(item:Awaited<ReturnType<typeof makeSession>>['items'][number])=>{
+  await db.cardStates.put({unitKey:item.unitKey,ref:item.ref,introducedAt:'2026-08-01T09:00:00Z',version:1,
+   card:{...createEmptyCard(new Date('2026-08-01')),due:now,state:State.Review,stability:30,difficulty:5,
+    scheduled_days:30,elapsed_days:30,reps:5,last_review:new Date('2026-08-16T09:00:00Z')}});
+  return {...item,isNew:false,expectedVersion:1};
+ };
+ it('«Почти» получает Hard, оставляет карточку в повторении и добавляет тренировку',async()=>{
+  const {session}=await prepare();
+  const item=await asMature(session.items[0]);
+  const event=await answer(session,{...item,type:'spelling'},{correct:false,status:'almost',answer:'σπιτι'});
+  expect(event.rating).toBe(Rating.Hard);
+  expect(event.correct).toBe(false); // для сводки навыков «Почти» остаётся ошибкой
+  const after=await db.cardStates.get(item.unitKey);
+  expect(after!.card.state).toBe(State.Review);
+  expect(after!.card.scheduled_days).toBeGreaterThan(1);
+  const stored=(await db.sessions.get(session.id))!;
+  expect(stored.items.some(entry=>entry.retryOf===item.id)).toBe(true);
+ });
+ it('быстрый верный выбор получает Easy, неспешный — Good',async()=>{
+  const {session}=await prepare();
+  const fast=await answer(session,{...session.items[0],type:'recognition'},{responseTimeMs:1200});
+  const slow=await answer(session,{...session.items[1],type:'recognition'},{responseTimeMs:9000});
+  expect(fast.rating).toBe(Rating.Easy);
+  expect(slow.rating).toBe(Rating.Good);
+ });
+ it('быстрое написание остаётся Good',async()=>{
+  const {session}=await prepare();
+  const event=await answer(session,{...session.items[0],type:'spelling'},{responseTimeMs:900});
+  expect(event.rating).toBe(Rating.Good);
+ });
  it('провал дополнительной попытки расписание не двигает',async()=>{
   const {session}=await prepare();
   const item=session.items[0];
@@ -152,7 +183,7 @@ describe('запись ответа',()=>{
   expect(stored.items).toHaveLength(2);
   const state=await db.cardStates.get(session.items[0].unitKey);
   const event=await answer(stored,stored.items[1]);
-  expect(event.rating).toBe(Rating.Good);
+  expect(event.rating).toBe(Rating.Easy); // быстрое верное узнавание; на расписание это всё равно не влияет
   expect((await db.sessions.get(session.id))!.status).toBe('done');
   expect(await db.cardStates.get(session.items[0].unitKey)).toEqual(state);
  });
