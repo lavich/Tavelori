@@ -90,6 +90,11 @@ export function TodayScreen(){
       <CardContent>
        <div className="flex items-center gap-2 text-sm text-muted-foreground"><RefreshCw className="size-[18px]"/>Повторение</div>
        <div className="text-[26px] leading-tight font-bold text-primary">{plan?.reviews.length??0}</div>
+       {!!plan?.preview.length&&(
+        <div className="mt-1 text-sm text-muted-foreground" data-testid="preview-count">
+         Подготовка: {plan.courses.filter(item=>item.preview.length).map(item=>`${item.deadlines[0]!.title} — ${item.preview.length}`).join(' · ')}
+        </div>
+       )}
       </CardContent>
      </Card>
     </div>

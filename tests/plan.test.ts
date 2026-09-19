@@ -5,7 +5,7 @@ import {fromSnapshot} from '../src/domain/snapshot-source';
 import {diffChars} from '../src/domain/spelling';
 import {checkAnswer} from '../src/domain/import';
 import {progress} from '../src/domain/stats';
-import {defaultSchedule, defaultSettings, type Cloze, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type LessonItem, type Phrase, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
+import {defaultSchedule, defaultSettings, LOCAL_COURSE, type Cloze, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type LessonItem, type Phrase, type ReviewEvent, type Snapshot, type Word} from '../src/domain/types';
 import {idsOf, unitKey, wordEvent, wordKeyOf, wordRef, wordState} from './helpers/cards';
 
 const now=new Date('2026-09-15T09:00:00Z');
@@ -15,9 +15,13 @@ const words=(count:number,prefix='w')=>Array.from({length:count},(_,index)=>word
 type LessonSpec=Lesson&{wordIds:string[]};
 const lesson=(id:string,wordIds:string[],targetDate:string|null,over:Partial<Lesson>={}):LessonSpec=>({id,title:id,targetDate,status:'upcoming',wordIds,createdAt:iso,updatedAt:iso,...over});
 const course=(id:string,newItemsPerDay:number,over:Partial<Course>={}):Course=>({id,title:id,origin:'content',subscribed:true,schedule:defaultSchedule,newItemsPerDay,createdAt:iso,updatedAt:iso,...over});
-/** Снимок для тестов: состав уроков задаётся массивами и раскладывается в связи с порядком. */
+/**
+ * Снимок для тестов: состав уроков задаётся массивами и раскладывается в связи с порядком.
+ * Предел локального курса задан явно: сценарии описывают поведение при пределе 10, а не значение по умолчанию.
+ */
 const base=(over:Partial<Omit<Snapshot,'lessons'>>&{lessons?:LessonSpec[]}={}):Snapshot=>({
- words:[],states:[],events:[],sessions:[],settings:defaultSettings,...over,
+ words:[],states:[],events:[],sessions:[],settings:defaultSettings,
+ courses:[course(LOCAL_COURSE,10,{origin:'local',title:'Мои слова'})],...over,
  lessons:(over.lessons??[]).map(({wordIds:_,...rest})=>rest),
  links:(over.lessons??[]).flatMap(l=>l.wordIds.map((wordId,position)=>({lessonId:l.id,wordId,position}))),
 });
@@ -26,6 +30,128 @@ const sessionOf=(input:Omit<Parameters<typeof makeSession>[0],'source'>&{data:Sn
 const learned=(id:string,due:string,state=State.Review):LearningState=>wordState(id,{
  introducedAt:'2026-09-01T09:00:00Z',version:1,
  card:{...createEmptyCard(new Date('2026-09-01')),due:new Date(due),state,scheduled_days:3,reps:2},
+});
+
+describe('очередь ведёт ближайшее занятие',()=>{
+ const pool=words(60);
+ const ids=(from:number,to:number)=>pool.slice(from,to).map(w=>w.id);
+ it('карточки следующего занятия не берутся, пока ближайшее впереди',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[
+    lesson('l3',ids(0,10),'2026-09-22',{courseId:'leeke'}),
+    lesson('l4',ids(10,45),'2026-09-25',{courseId:'leeke'}),
+   ],
+   // Все карточки 1.3 уже вводили: срок ещё не наступил, но непоказанных у занятия не осталось.
+   states:ids(0,10).map(id=>learned(id,'2026-09-30T09:00:00Z')),
+  });
+  const plan=await planOf(data);
+  expect(idsOf(plan.newRefs)).toEqual([]);
+ });
+ it('срок дальнего занятия остаётся в плане с требуемым темпом',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[
+    lesson('l3',ids(0,10),'2026-09-22',{courseId:'leeke'}),
+    lesson('l4',ids(10,45),'2026-09-18',{courseId:'leeke'}),
+   ],
+   states:ids(0,10).map(id=>learned(id,'2026-09-30T09:00:00Z')),
+  });
+  const plan=await planOf(data); // сегодня 2026-09-15, до l4 три дня
+  expect(plan.deadlines.map(d=>[d.lessonId,d.newLeft,d.requiredPerDay])).toEqual([['l4',35,12],['l3',35,5]]);
+  expect(plan.shortfall).toBe(true);
+  expect(idsOf(plan.newRefs)).toEqual(ids(10,20)); // ближайшее теперь l4, очередь ведёт оно
+ });
+ it('добор бюджета не заглядывает в дальние занятия',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[
+    lesson('l3',ids(0,3),'2026-09-22',{courseId:'leeke'}),
+    lesson('l4',ids(10,45),'2026-09-25',{courseId:'leeke'}),
+   ],
+  });
+  const plan=await planOf(data);
+  // У ближайшего три непоказанные карточки, бюджет десять — остаток остаётся пустым.
+  expect(idsOf(plan.newRefs)).toEqual(ids(0,3));
+ });
+});
+
+describe('досрочная подготовка к ближайшему занятию',()=>{
+ const pool=words(60);
+ const ids=(from:number,to:number)=>pool.slice(from,to).map(w=>w.id);
+ const at=(id:string,due:string,state:State,days:number):LearningState=>wordState(id,{
+  introducedAt:'2026-09-14T09:00:00Z',version:1,
+  card:{...createEmptyCard(new Date('2026-09-14')),due:new Date(due),state,scheduled_days:days,reps:2},
+ });
+ it('берёт несозревшие карточки ближайшего занятия от наименее зрелых',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l3',ids(0,4),'2026-09-22',{courseId:'leeke'})],
+   states:[
+    at(pool[0].id,'2026-09-20T09:00:00Z',State.Review,14),
+    at(pool[1].id,'2026-09-16T09:00:00Z',State.Relearning,0),
+    at(pool[2].id,'2026-09-18T09:00:00Z',State.Review,3),
+    at(pool[3].id,'2026-09-16T09:00:00Z',State.Learning,0),
+   ],
+  });
+  const plan=await planOf(data);
+  expect(idsOf(plan.preview)).toEqual([pool[1].id,pool[3].id,pool[2].id,pool[0].id]);
+ });
+ it('срочная карточка идёт в повторения и в подготовку не попадает',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l3',ids(0,2),'2026-09-22',{courseId:'leeke'})],
+   states:[at(pool[0].id,'2026-09-14T09:00:00Z',State.Review,3),at(pool[1].id,'2026-09-20T09:00:00Z',State.Review,3)],
+  });
+  const plan=await planOf(data);
+  expect(plan.reviews.map(r=>r.ref.id)).toEqual([pool[0].id]);
+  expect(idsOf(plan.preview)).toEqual([pool[1].id]);
+ });
+ it('подготовка добирает места, не тронув квоту новых',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l3',ids(0,30),'2026-09-22',{courseId:'leeke'})],
+   states:ids(0,30).map(id=>learned(id,'2026-09-30T09:00:00Z')),
+   settings:{...defaultSettings,sessionSize:20},
+  });
+  const session=await sessionOf({data,now});
+  expect(session.items).toHaveLength(20);
+  expect(session.items.every(item=>item.mode==='preview')).toBe(true);
+  expect(session.items.every(item=>!item.isNew)).toBe(true);
+ });
+ it('подготовка не вытесняет новые карточки и повторения',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l3',ids(0,40),'2026-09-22',{courseId:'leeke'})],
+   states:[
+    ...ids(0,4).map(id=>learned(id,'2026-09-14T09:00:00Z')), // срочные
+    ...ids(4,20).map(id=>learned(id,'2026-09-30T09:00:00Z')), // подготовка
+   ],
+   settings:{...defaultSettings,sessionSize:20},
+  });
+  const session=await sessionOf({data,now});
+  const byMode=(value:string)=>session.items.filter(item=>item.mode===value).length;
+  expect(session.items.filter(item=>item.isNew)).toHaveLength(10);
+  expect(byMode('scheduled')).toBe(14); // 10 новых и 4 повторения
+  expect(byMode('preview')).toBe(6);
+ });
+ it('курс без предстоящих занятий подготовки не даёт',async()=>{
+  const data=base({
+   words:pool,
+   courses:[course('leeke',10)],
+   lessons:[lesson('l1',ids(0,2),'2026-09-10',{courseId:'leeke'})],
+   states:[at(pool[0].id,'2026-09-20T09:00:00Z',State.Review,3)],
+  });
+  const plan=await planOf(data);
+  expect(plan.preview).toEqual([]);
+ });
 });
 
 describe('темп принадлежит курсу',()=>{

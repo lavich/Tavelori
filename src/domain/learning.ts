@@ -6,6 +6,9 @@ import {LOCAL_COURSE, type CardKind, type Course, type ExerciseType, type Learni
 
 export const scheduler=fsrs(generatorParameters({enable_fuzz:false}));
 
+/** Зрелость состояния для очередей: сперва то, что переучивается, потом разучиваемое, потом повторяемое. */
+const stateRank=(card:Card)=>card.state===State.Relearning?0:card.state===State.Learning?1:2;
+
 /** Календарный день в выбранной зоне, без деления миллисекунд на сутки. */
 export function localDay(date:Date,timezone:string):string{
  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
@@ -44,11 +47,13 @@ export interface CoursePlan {
  courseId:string; title:string; newItemsPerDay:number; budget:number; introducedToday:number;
  newRefs:LearningRef[]; requiredPerDay:number; shortfall:boolean; deadlines:DeadlinePlan[]; backlog:Backlog;
  origins:Map<string,WordOrigin>; unavailable:LearningRef[];
+ /** Карточки ближайшего занятия, которые уже вводили, а срок ещё не наступил: подготовка к уроку. */
+ preview:LearningRef[];
 }
 export interface DailyPlan {
  today:string; requiredPerDay:number; budget:number; introducedToday:number;
  newRefs:LearningRef[]; reviews:{ref:LearningRef;state:LearningState}[]; deadlines:DeadlinePlan[]; shortfall:boolean;
- backlog:Backlog; courses:CoursePlan[]; origins:Map<string,WordOrigin>; unavailable:LearningRef[];
+ backlog:Backlog; courses:CoursePlan[]; origins:Map<string,WordOrigin>; unavailable:LearningRef[]; preview:LearningRef[];
 }
 
 /** Лёгкие признаки доступности проверки: для фразы — наличие перевода и файла аудио; слова и пропуски проверяемы всегда. */
@@ -139,19 +144,23 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
     return false;
    });
   };
-  const take=async(lesson:Lesson,into:LearningRef[],isPast:boolean)=>{
+  /** `into` — куда класть карточки; `null` значит «только посчитать для срока», карточка при этом занята и заново не всплывёт. */
+  const take=async(lesson:Lesson,into:LearningRef[]|null,isPast:boolean)=>{
    let added=0;
    for(const ref of await fresh(await source.lessonRefs(lesson.id))){
     const key=unitKey(ref);
     if(seen.has(key))continue;
-    seen.add(key); into.push(ref); origins.set(key,{lessonId:lesson.id,title:lesson.title,past:isPast}); added++;
+    seen.add(key); added++;
+    if(!into)continue; // карточка дальнего занятия: в счёт срока входит, сегодня не показывается
+    into.push(ref); origins.set(key,{lessonId:lesson.id,title:lesson.title,past:isPast});
    }
    return added;
   };
-  // Ближайшее занятие — единственный срок, который ещё можно успеть: его карточки идут раньше хвоста, а хвост в счёт срока не входит.
+  // Очередь ведёт ближайшее занятие: его карточки идут раньше хвоста, а хвост в счёт срока не входит.
+  // Карточки дальних занятий считаются для их сроков, но ждут, пока их занятие само станет ближайшим.
   const dated:LearningRef[]=[]; let counted=0;
-  for(const lesson of upcoming){
-   counted+=await take(lesson,dated,false);
+  for(const [index,lesson] of upcoming.entries()){
+   counted+=await take(lesson,index===0?dated:null,false);
    const daysLeft=Math.max(1,daysBetween(today,lesson.targetDate!));
    deadlines.push({lessonId:lesson.id,title:lesson.title,targetDate:lesson.targetDate!,daysLeft:daysBetween(today,lesson.targetDate!),newLeft:counted,requiredPerDay:Math.ceil(counted/daysLeft)});
   }
@@ -176,11 +185,25 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
     }
    }
   }
+  // Подготовка к ближайшему занятию: карточка уже введена, а срок ещё не наступил — повторением она сегодня не станет.
+  const nearest=upcoming[0];
+  const preview:LearningRef[]=[];
+  if(nearest){
+   const refs=await source.lessonRefs(nearest.id);
+   const [live,states]=await Promise.all([source.liveKeys(refs),source.statesOf(refs)]);
+   const ready=refs.flatMap(ref=>{
+    const state=states.get(unitKey(ref));
+    return live.has(unitKey(ref))&&state&&new Date(state.card.due).getTime()>now.getTime()?[state]:[];
+   });
+   ready.sort((a,b)=>stateRank(a.card)-stateRank(b.card)||a.card.scheduled_days-b.card.scheduled_days
+    ||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.unitKey.localeCompare(b.unitKey));
+   preview.push(...ready.map(state=>state.ref));
+  }
   const requiredPerDay=deadlines.reduce((max,d)=>Math.max(max,d.requiredPerDay),0);
   plans.push({
    courseId:course.id,title:course.title,newItemsPerDay:course.newItemsPerDay,budget,introducedToday,
    newRefs:picked.slice(0,budget),requiredPerDay,shortfall:requiredPerDay>course.newItemsPerDay,
-   deadlines,backlog:{refs:overdue,lessons:overdueLessons.size},origins,unavailable,
+   deadlines,backlog:{refs:overdue,lessons:overdueLessons.size},origins,unavailable,preview,
   });
  }
 
@@ -193,10 +216,9 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
  const backlogRefs=uniqueRefs(plans.flatMap(plan=>plan.backlog.refs));
 
  const [due,deleted]=await Promise.all([source.dueStates(now),source.deletedKeys()]);
- const rank=(state:LearningState)=>state.card.state===State.Relearning?0:state.card.state===State.Learning?1:2;
  const reviews=due
   .filter(s=>!deleted.has(s.unitKey))
-  .sort((a,b)=>rank(a)-rank(b)||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.unitKey.localeCompare(b.unitKey))
+  .sort((a,b)=>stateRank(a.card)-stateRank(b.card)||new Date(a.card.due).getTime()-new Date(b.card.due).getTime()||a.unitKey.localeCompare(b.unitKey))
   .map(s=>({ref:s.ref,state:s}));
 
  return {
@@ -212,6 +234,7 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
   // Карточка из двух курсов подписывается уроком курса с ближайшим сроком.
   origins:new Map(plans.flatMap(plan=>[...plan.origins]).reverse()),
   unavailable:uniqueRefs(plans.flatMap(plan=>plan.unavailable)),
+  preview:uniqueRefs(plans.flatMap(plan=>plan.preview)),
  };
 }
 
@@ -313,7 +336,7 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
  const plan=await makePlan(source,now,{hasVoice});
  const settings=await source.settings();
  const size=Math.max(2,settings.sessionSize);
- let chosen:{ref:LearningRef;isNew:boolean}[];
+ let chosen:{ref:LearningRef;isNew:boolean;preview?:boolean}[];
  if(refs){
   const live=await source.liveKeys(refs);
   const kept=refs.filter(ref=>live.has(unitKey(ref)));
@@ -324,8 +347,13 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
   const newOnes=plan.newRefs.slice(0,reserve);
   const reviews=plan.reviews.slice(0,Math.max(size-newOnes.length,plan.reviews.length?1:0));
   const extraNew=plan.newRefs.slice(newOnes.length,Math.min(plan.newRefs.length,newOnes.length+Math.max(0,size-newOnes.length-reviews.length)));
-  chosen=[...newOnes.concat(extraNew).map(ref=>({ref,isNew:true})),...reviews.slice(0,Math.max(0,size-newOnes.length-extraNew.length)).map(r=>({ref:r.ref,isNew:false}))];
-  chosen=shuffle(chosen,random).slice(0,size);
+  const taken=[
+   ...newOnes.concat(extraNew).map(ref=>({ref,isNew:true})),
+   ...reviews.slice(0,Math.max(0,size-newOnes.length-extraNew.length)).map(r=>({ref:r.ref,isNew:false})),
+  ];
+  // Подготовка добирает то, что осталось: она не новый материал и дневную квоту не тратит.
+  const preview=plan.preview.slice(0,Math.max(0,size-taken.length)).map(ref=>({ref,isNew:false,preview:true}));
+  chosen=shuffle([...taken,...preview],random).slice(0,size);
  }
  const wanted=chosen.map(entry=>entry.ref);
  const [cards,states,pool]=await Promise.all([source.cardsOf(wanted),source.statesOf(wanted),source.optionPool(OPTION_POOL)]);
@@ -341,7 +369,7 @@ export async function makeSession({source,now,random=Math.random,mode='scheduled
   const exercise=exerciseFor(card,{words:pool,phrases},skills,random,hasVoice);
   if(!exercise)continue; // объективного упражнения нет: карточка остаётся для просмотра
   const origin=entry.isNew?plan.origins.get(key):undefined;
-  items.push({id:`${id}-${items.length}`,ref:entry.ref,unitKey:key,card,...exercise,isNew:entry.isNew,mode,expectedVersion:states.get(key)?.version??0,...(origin?{lessonTitle:origin.title,lessonPast:origin.past}:{})});
+  items.push({id:`${id}-${items.length}`,ref:entry.ref,unitKey:key,card,...exercise,isNew:entry.isNew,mode:entry.preview?'preview':mode,expectedVersion:states.get(key)?.version??0,...(origin?{lessonTitle:origin.title,lessonPast:origin.past}:{})});
  }
  return {id,createdAt:now.toISOString(),planDate:plan.today,items:spaceSingleIntroduction(items),index:0,status:'active',activeTimeMs:0,introducedKeys:[],objectiveVersion:1};
 }

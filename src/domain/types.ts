@@ -75,10 +75,11 @@ export type MediaRef=PackageMedia;
 export interface InstalledPackage {lessonId:string;courseId?:string;version:string;schemaVersion:number;installedAt:string;words:PackageWord[];phrases:PackagePhrase[];clozes:PackageCloze[];items:PackageItem[];media:PackageMedia[];removed:string[]}
 /** Состояние повторений одной карточки; ключ — сериализованная пара вида и идентификатора. */
 export interface LearningState {unitKey:string;ref:LearningRef;card:Card;introducedAt:string;version:number}
-export interface ReviewEvent {id:string;sessionId:string;itemId:string;ref:LearningRef;unitKey:string;snapshot:CardSnapshot;type:ExerciseType;mode:'scheduled'|'practice';rating:Grade;correct:boolean|null;answer:string;createdAt:string;localDate:string;responseTimeMs:number;before?:Card;after?:Card}
+export interface ReviewEvent {id:string;sessionId:string;itemId:string;ref:LearningRef;unitKey:string;snapshot:CardSnapshot;type:ExerciseType;mode:'scheduled'|'practice'|'preview';rating:Grade;correct:boolean|null;answer:string;createdAt:string;localDate:string;responseTimeMs:number;before?:Card;after?:Card}
 /** `skipped` — упражнение пропущено без оценки знания (например, аудио недоступно): события нет, позиция сдвигается. */
 /** `lessonTitle`/`lessonPast` — урок новой карточки для подписи на экране знакомства. */
-export interface SessionItem {id:string;ref:LearningRef;unitKey:string;card:SessionCard;type:ExerciseType;options:string[];isNew:boolean;mode:'scheduled'|'practice';expectedVersion:number;eventId?:string;retryOf?:string;skipped?:boolean;lessonTitle?:string;lessonPast?:boolean}
+/** `mode` — `scheduled` очередное упражнение дня, `preview` досрочная подготовка к занятию, `practice` ручная тренировка и дополнительная попытка. */
+export interface SessionItem {id:string;ref:LearningRef;unitKey:string;card:SessionCard;type:ExerciseType;options:string[];isNew:boolean;mode:'scheduled'|'practice'|'preview';expectedVersion:number;eventId?:string;retryOf?:string;skipped?:boolean;lessonTitle?:string;lessonPast?:boolean}
 export interface Session {id:string;createdAt:string;planDate:string;items:SessionItem[];index:number;status:'active'|'done'|'ended';activeTimeMs:number;introducedKeys?:string[];objectiveVersion?:1}
 /** Дни недели по ISO: 1 — понедельник, 7 — воскресенье. */
 export interface Schedule {startDate:string|null;weekdays:number[]}
@@ -86,8 +87,13 @@ export interface Schedule {startDate:string|null;weekdays:number[]}
 export interface Settings {id:'settings';timezone:string;sessionSize:number;errorReports:boolean;autoSpeak:boolean}
 export const defaultSchedule:Schedule={startDate:null,weekdays:[]};
 export const defaultSettings:Settings={id:'settings',timezone:'Asia/Nicosia',sessionSize:20,errorReports:true,autoSpeak:true};
-/** Предел новых карточек нового курса: столько же, сколько раньше давало общее значение. */
-export const DEFAULT_NEW_ITEMS_PER_DAY=10;
+/**
+ * Предел новых карточек нового курса. Очередь ведёт только ближайшее занятие, поэтому окно подготовки
+ * к уроку — промежуток между ним и предыдущим: набор из 35 карточек за три дня требует двенадцати в день.
+ * Прежняя десятка не покрывала такой темп и упиралась в предупреждение о нехватке. Курс с уже сохранённым
+ * пределом этого значения не видит: его меняет пользователь на экране курса.
+ */
+export const DEFAULT_NEW_ITEMS_PER_DAY=12;
 /** Запись настроек старой версии или из старой копии читается без миграции. */
 export const fillSettings=(settings:Partial<Settings>|undefined):Settings=>({...defaultSettings,...settings});
 /**

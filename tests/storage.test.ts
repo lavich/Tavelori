@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {Rating} from 'ts-fsrs';
+import {createEmptyCard, Rating, State} from 'ts-fsrs';
 import {LexiDatabase} from '../src/storage/db';
 import {dexieSource, lessonItems, loadLessons} from '../src/storage/queries';
 import {wordRef} from './helpers/cards';
@@ -42,6 +42,48 @@ describe('запись ответа',()=>{
  const answer=(session:Awaited<ReturnType<typeof makeSession>>,item=session.items[0],extra={})=>submitAnswer({
   session,item,correct:true,answer:'',responseTimeMs:1200,activeTimeMs:5000,
   timezone:'Asia/Nicosia',now,database:db,...extra,
+ });
+ /** Карточка уже введена, срок ещё не наступил: в занятии она была бы подготовкой, а не повторением. */
+ const asPreview=async(item:Awaited<ReturnType<typeof makeSession>>['items'][number],due:Date)=>{
+  await db.cardStates.put({unitKey:item.unitKey,ref:item.ref,introducedAt:'2026-09-14T09:00:00Z',version:1,
+   card:{...createEmptyCard(new Date('2026-09-14')),due,state:State.Review,scheduled_days:5,reps:2}});
+  return {...item,mode:'preview' as const,isNew:false,expectedVersion:1};
+ };
+ it('верный ответ в подготовке не двигает срок',async()=>{
+  const {session}=await prepare();
+  const due=new Date('2026-09-22T09:00:00Z');
+  const item=await asPreview(session.items[0],due);
+  await answer(session,item,{correct:true});
+  const after=await db.cardStates.get(item.unitKey);
+  expect(after!.card.due).toEqual(due);
+  expect(after!.version).toBe(1);
+  const event=await db.events.get(`e-${item.id}`);
+  expect(event!.mode).toBe('preview');
+  expect(event!.after).toBeUndefined();
+ });
+ it('ошибка в подготовке возвращает карточку в переучивание',async()=>{
+  const {session}=await prepare();
+  const due=new Date('2026-09-22T09:00:00Z');
+  const item=await asPreview(session.items[1],due);
+  await answer(session,item,{correct:false});
+  const after=await db.cardStates.get(item.unitKey);
+  expect(after!.card.state).toBe(State.Relearning);
+  expect(after!.card.due.getTime()).toBeLessThan(due.getTime());
+  expect(after!.version).toBe(2);
+  expect((await db.events.get(`e-${item.id}`))!.rating).toBe(Rating.Again);
+ });
+ it('провал дополнительной попытки расписание не двигает',async()=>{
+  const {session}=await prepare();
+  const item=session.items[0];
+  await answer(session,item,{correct:false});
+  const afterFirst=await db.cardStates.get(item.unitKey);
+  const stored=(await db.sessions.get(session.id))!;
+  const retry=stored.items.find(entry=>entry.retryOf===item.id)!;
+  expect(retry.mode).toBe('practice');
+  await answer(stored,retry,{correct:false});
+  const afterRetry=await db.cardStates.get(item.unitKey);
+  expect(afterRetry!.version).toBe(afterFirst!.version);
+  expect(afterRetry!.card.due).toEqual(afterFirst!.card.due);
  });
  it('двойное нажатие создаёт один ответ и один пересчёт FSRS',async()=>{
   const {session}=await prepare();
