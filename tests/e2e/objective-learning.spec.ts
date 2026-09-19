@@ -58,6 +58,19 @@ for(const type of ['recognition','assembly','spelling','listening']){
  });
 }
 
+test('аудирование: после ответа раскрывается значение слова',async({page})=>{
+ await installSession(page,'listening');
+ await expect(page.getByTestId('reveal')).toHaveCount(0);
+ await page.getByTestId('option').filter({hasText:'ναι'}).click();
+ const reveal=page.getByTestId('reveal');
+ await expect(reveal).toBeVisible();
+ await expect(reveal).toContainText('дом');
+ await expect(reveal).toContainText('ˈspiti');
+ await expect(reveal).toContainText('Дом маленький.');
+ // Показ ничего не сохраняет: событие ровно одно, от самого ответа.
+ expect((await stored(page)).events).toHaveLength(1);
+});
+
 test('ошибка в написании: дополнительная попытка идёт сборкой, а не повторным набором',async({page})=>{
  await installSession(page,'spelling');
  await page.getByRole('button',{name:'Не знаю',exact:true}).click();
