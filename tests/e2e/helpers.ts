@@ -151,6 +151,29 @@ export async function setCourseLimit(page:Page,courseId:string,newItemsPerDay:nu
 }
 /** Чтение таблицы IndexedDB целиком: только для проверок в тестах. */
 /**
+ * Греческий системный голос для проверок озвучки: доступность не должна зависеть от набора голосов машины.
+ * Реплика подтверждает начало речи событием `onstart` — приложение считает озвучку состоявшейся именно по нему.
+ */
+export const GREEK_VOICE=`
+ const voice={lang:'el-GR',name:'Test Greek',default:true,localService:true,voiceURI:'test'};
+ window.__spoken=[];
+ window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;this.lang='';this.rate=1;this.voice=null}};
+ Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{
+  speaking:false,pending:false,
+  getVoices:()=>[voice],
+  speak(utterance){window.__spoken.push(utterance.text);this.speaking=true;setTimeout(()=>utterance.onstart&&utterance.onstart(),0)},
+  cancel(){this.speaking=false},addEventListener(){},removeEventListener(){},
+ }});`;
+/** Настройки приложения из базы: проверки меняют их напрямую, а не через экран. */
+export const setSettings=(page:Page,patch:Record<string,unknown>)=>page.evaluate(async patch=>{
+ const database=await new Promise<IDBDatabase>(resolve=>{const request=indexedDB.open('lexi');request.onsuccess=()=>resolve(request.result)});
+ const store=database.transaction('settings','readwrite').objectStore('settings');
+ const current=await new Promise<Record<string,unknown>|undefined>(resolve=>{const request=store.get('settings');request.onsuccess=()=>resolve(request.result)});
+ await new Promise<void>((resolve,reject)=>{const request=store.put({id:'settings',timezone:'Asia/Nicosia',sessionSize:20,errorReports:true,autoSpeak:true,...current,...patch});request.onsuccess=()=>resolve();request.onerror=()=>reject(request.error)});
+ database.close();
+},patch);
+
+/**
  * Карточки установленных уроков из базы: ожидания интерфейса считаются от каталога,
  * а не вписываются числом — иначе каждое пополнение контента правит e2e.
  */
