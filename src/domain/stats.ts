@@ -85,4 +85,4 @@ export function lessonProgress(keys:Iterable<string>,states:Map<string,LearningS
  }
  return groups;
 }
-export const SKILL_NAMES:Record<ExerciseType,string>={recall:'Вспомнить слово',recognition:'Выбрать перевод',assembly:'Сборка из слогов',spelling:'Написание',listening:'Аудирование',cloze:'Заполнение пропуска'};
+export const SKILL_NAMES:Record<ExerciseType,string>={recall:'Вспомнить слово',recognition:'Выбрать перевод',assembly:'Сборка из слогов',spelling:'Написание',listening:'Аудирование',comprehension:'Понимание на слух',cloze:'Заполнение пропуска'};

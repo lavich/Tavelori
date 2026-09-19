@@ -76,9 +76,10 @@ describe('упражнения для фраз и пропусков',()=>{
   expect(isCheckable({kind:'cloze'},{hasVoice:false,phrasePool:0})).toBe(true);
  });
  it('слабый навык фразы выбирается чаще: ошибочное написание при удачном узнавании — написание',()=>{
-  const weakSpelling=skills({recognition:[true,true,true],spelling:[false,false],listening:[true]},['listening','recognition']);
+  // Все доступные навыки уже проверены: иначе непроверенный выбирается раньше слабого.
+  const weakSpelling=skills({recognition:[true,true,true],spelling:[false,false],listening:[true],comprehension:[true]},['listening','recognition']);
   expect(phraseExercise(pool[0],pool,weakSpelling,()=>0.5,true)!.type).toBe('spelling');
-  const weakRecognition=skills({recognition:[false,false,true],spelling:[true,true],listening:[true]},['spelling','listening']);
+  const weakRecognition=skills({recognition:[false,false,true],spelling:[true,true],listening:[true],comprehension:[true]},['spelling','listening']);
   expect(phraseExercise(pool[0],pool,weakRecognition,()=>0.5,true)!.type).toBe('recognition');
  });
  it('пропуск всегда проверяется вводом текста без вариантов',()=>{
@@ -137,5 +138,45 @@ describe('дополнительная попытка на ступень про
   expect(step.type).toBe('recognition');
   expect(step.options).toContain('Фраза a.');
   expect(easierExercise(card,'spelling',pools({phrases:phrases.slice(0,2)}),()=>0.5)).toBeNull();
+ });
+});
+
+describe('понимание на слух',()=>{
+ const iso=now.toISOString();
+ const heard=(types:Partial<Record<ExerciseType,boolean[]>>):SkillSummary=>
+  ({types:Object.fromEntries(Object.entries(types).map(([type,recent])=>[type,{recent,lastAt:iso}])),lastTypes:[],cleanAssemblies:0});
+ const known=heard({recognition:[true]});
+ const context={hasAudio:true,hasOptions:true,canAssemble:false,canComprehend:true};
+ it('открывается только после верного узнавания',()=>{
+  expect(availableTypes(emptySkills(),context)).not.toContain('comprehension');
+  expect(availableTypes(heard({recognition:[false,false]}),context)).not.toContain('comprehension');
+  expect(availableTypes(known,context)).toContain('comprehension');
+ });
+ it('требует озвучки и четырёх различных переводов',()=>{
+  expect(availableTypes(known,{...context,canComprehend:false})).not.toContain('comprehension');
+  expect(availableTypes(known,{...context,hasOptions:false,canComprehend:false})).not.toContain('comprehension');
+ });
+ it('варианты — переводы, а не написания',()=>{
+  const pool=Array.from({length:6},(_,i)=>({...words[0],id:`c${i}`,greek:`λέξη${i}`,russian:`перевод ${i}`}));
+  const skills:SkillSummary={...known,types:{...known.types,recognition:{recent:[true],lastAt:iso},assembly:{recent:[true],lastAt:iso},spelling:{recent:[true],lastAt:iso},listening:{recent:[true],lastAt:iso}}};
+  const exercise=objectiveExercise(pool[0],pool,skills,()=>0.5,true);
+  expect(exercise.type).toBe('comprehension'); // непроверенный навык выбирается первым
+  expect(exercise.options).toHaveLength(4);
+  expect(exercise.options).toContain('перевод 0');
+  expect(exercise.options.every(option=>pool.some(word=>word.russian===option))).toBe(true);
+ });
+ it('под ним стоит узнавание: та же проверка значения, но с написанием на экране',()=>{
+  const pool=Array.from({length:6},(_,i)=>({...words[0],id:`d${i}`,greek:`λέξη${i}`,russian:`перевод ${i}`}));
+  const step=easierExercise({kind:'word',word:pool[0]},'comprehension',{words:pool,phrases:[]},()=>0.5)!;
+  expect(step.type).toBe('recognition');
+  expect(step.options).toHaveLength(4);
+  expect(hasEasierStep('comprehension')).toBe(true);
+ });
+ it('фраза с переводом и голосом тоже получает понимание на слух',()=>{
+  const pool=['a','b','c','d','e'].map(id=>({id,text:`Φράση ${id}.`,translation:`Фраза ${id}.`,provenance:{sourceLabel:'тест',operation:'verbatim' as const},createdAt:iso,updatedAt:iso}));
+  const skills:SkillSummary={...known,types:{recognition:{recent:[true],lastAt:iso},spelling:{recent:[true],lastAt:iso},listening:{recent:[true],lastAt:iso}}};
+  const exercise=phraseExercise(pool[0],pool,skills,()=>0.5,true)!;
+  expect(exercise.type).toBe('comprehension');
+  expect(exercise.options).toContain('Фраза a.');
  });
 });

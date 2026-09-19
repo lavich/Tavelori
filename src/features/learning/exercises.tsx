@@ -246,6 +246,42 @@ export function Listening(props:Props&{autoSpeak?:boolean}){
   </div>}/>;
 }
 
+/**
+ * Понимание на слух: звучит слово или фраза, варианты ответа — переводы. До ответа письменной опоры нет,
+ * иначе проверялось бы чтение. После ответа раскрывается та же карточка со значением, что и в аудировании:
+ * из ошибки должно быть что извлечь. Отказ воспроизведения тоже ведёт себя как в аудировании.
+ */
+export function Comprehension(props:Props&{autoSpeak?:boolean}){
+ const {card}=props.item;
+ const word=card.kind==='word'?card.word:null;
+ const text=word?word.greek:card.kind==='phrase'?card.phrase.text:'';
+ const audioAssetId=word?word.audioAssetId:card.kind==='phrase'?card.phrase.audioAssetId:undefined;
+ const correct=word?word.russian:card.kind==='phrase'?(card.phrase.translation??''):'';
+ const wordKind=useAudioKind(word??undefined);
+ const textKind=useTextAudioKind(audioAssetId);
+ const kind=word?wordKind:textKind;
+ const played=useRef(false);
+ const [failed,setFailed]=useState(false);
+ const play=()=>(word?playWord(word):playText(text,audioAssetId)).then(result=>setFailed(result==='error'||result==='none'));
+ useEffect(()=>{if(props.autoSpeak&&!played.current){played.current=true;play()}},[props.item.id,props.autoSpeak]);
+ return <Choice {...props} prompt="Что это значит?" correct={correct} options={props.item.options}
+  head={<div className="flex w-full flex-col items-center gap-3">
+   <Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={play}><Volume2 aria-hidden/></Button>
+   {failed&&(
+    <div data-testid="audio-failed" role="alert" className="w-full rounded-[14px] p-3 text-left" style={{background:'var(--almost-bg)',color:'var(--almost-fg)'}}>
+     <p className="m-0 text-sm">Аудио не воспроизвелось. Это не влияет на прогресс: попробуйте ещё раз или продолжите без аудирования.</p>
+     <div className="mt-2 flex gap-2">
+      <Button size="sm" variant="outline" onClick={play}>Повторить</Button>
+      {props.onSkip&&<Button size="sm" variant="outline" onClick={props.onSkip}>Продолжить без аудио</Button>}
+     </div>
+    </div>
+   )}
+  </div>}
+  after={<div data-testid="reveal" style={{width:'100%'}}>
+   {word?<WordReveal word={word}/>:card.kind==='phrase'?<PhraseReveal phrase={card.phrase}/>:null}
+  </div>}/>;
+}
+
 /** Ступень перед свободным написанием: слово собирается из перемешанных слогов. Только для слов. */
 export function Assembly({item,onAnswer,onNext}:Props){
  const [placed,setPlaced]=useState<number[]>([]);

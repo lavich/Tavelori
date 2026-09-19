@@ -10,7 +10,7 @@ async function installSession(page:Page,type:string,isNew=false,count=1){
    const pool=request.result;
    const selected=count===1?[pool.find(word=>word.id==='w12-16')]:pool.slice(0,count);
    const items=selected.map((word,index)=>({id:`objective-${index}`,ref:{kind:'word',id:word.id},unitKey:JSON.stringify(['word',word.id]),card:{kind:'word',word},type,isNew,mode:'scheduled',expectedVersion:0,
-    options:type==='assembly'?['τι','το','σπί']:type==='recognition'?[word.russian,'другой ответ','ещё ответ','неверно']:type==='listening'?[word.greek,'ναι','όχι','ευχαριστώ']:[]}));
+    options:type==='assembly'?['τι','το','σπί']:type==='recognition'||type==='comprehension'?[word.russian,'другой ответ','ещё ответ','неверно']:type==='listening'?[word.greek,'ναι','όχι','ευχαριστώ']:[]}));
    tx.objectStore('sessions').put({id:'objective',createdAt:new Date().toISOString(),planDate:'2026-09-16',items,index:0,status:'active',activeTimeMs:0,
     objectiveVersion:type==='recall'?undefined:1,introducedKeys:[]});
   };
@@ -80,6 +80,22 @@ test('ошибка в написании: дополнительная попы�
  await expect(page.getByLabel('Твой ответ по-гречески')).toHaveCount(0);
  const after=await stored(page);
  expect(after.session.items[1]).toMatchObject({type:'assembly',mode:'practice',retryOf:'objective-0'});
+});
+
+test('понимание на слух: звучит само, письменной опоры нет до ответа',async({page})=>{
+ await page.addInitScript(GREEK_VOICE);
+ await installSession(page,'comprehension');
+ await expect(page.getByTestId('prompt')).toHaveText('Что это значит?');
+ // Звучит само, а написания до ответа нет: иначе проверялось бы чтение.
+ await expect.poll(()=>page.evaluate(()=>(window as unknown as {__spoken:string[]}).__spoken)).toContain('το σπίτι');
+ await expect(page.getByTestId('reveal')).toHaveCount(0);
+ await expect(page.getByTestId('option').first()).toBeVisible();
+ await page.getByRole('button',{name:'Повторить аудио'}).click();
+ await page.getByTestId('option').first().click();
+ // После ответа видно, что именно прозвучало.
+ await expect(page.getByTestId('reveal')).toContainText('το σπίτι');
+ const after=await stored(page);
+ expect(after.events[0]).toMatchObject({type:'comprehension'});
 });
 
 test('знакомство озвучивается само, а с выключенной настройкой молчит',async({page})=>{

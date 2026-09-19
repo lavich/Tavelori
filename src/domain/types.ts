@@ -1,7 +1,10 @@
 import type {Card, Grade} from 'ts-fsrs';
 import type {PackageItem, PackageMedia, PackageWord, PackagePhrase, PackageCloze} from '../content/schema';
-/** Типы проверки. `cloze` — ввод скрытого текста для карточки пропуска; `recall` остался только в старой истории. */
-export type ExerciseType='recall'|'recognition'|'assembly'|'spelling'|'listening'|'cloze';
+/**
+ * Типы проверки. `listening` — узнавание написания на слух, `comprehension` — понимание значения на слух;
+ * `cloze` — ввод скрытого текста для карточки пропуска; `recall` остался только в старой истории.
+ */
+export type ExerciseType='recall'|'recognition'|'assembly'|'spelling'|'listening'|'comprehension'|'cloze';
 export interface Example {greek:string;russian:string;target:string;source?:string}
 export interface Segment {text:string;ipa:string;explanation:string;start:number}
 /**

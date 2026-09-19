@@ -215,25 +215,32 @@ export async function makePlan(source:PlanSource,now:Date,options:PlanOptions={}
  };
 }
 
-const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening'];
+const ORDER:ExerciseType[]=['recognition','assembly','spelling','listening','comprehension'];
 /**
  * `canSpell` — есть перевод, по которому пишут; у слов всегда, у фраз без перевода — нет.
  * `canListen` — аудирование доступно само по себе (у фраз варианты аудирования отделены от вариантов узнавания);
  * без него аудирование требует звука и вариантов узнавания, как у слов.
  */
-export interface SkillContext {hasAudio?:boolean;hasOptions?:boolean;canAssemble?:boolean;canSpell?:boolean;canListen?:boolean}
+export interface SkillContext {hasAudio?:boolean;hasOptions?:boolean;canAssemble?:boolean;canSpell?:boolean;canListen?:boolean;canComprehend?:boolean}
 
 /** Написание открывается, когда после последней ошибки в нём набрано две успешные сборки. */
 export const spellingUnlockedFor=(skills:SkillSummary)=>skills.cleanAssemblies>=2;
+/**
+ * Понимание на слух открывается после первого верного узнавания: пока значение не связано с формой,
+ * выбор из четырёх переводов к незнакомому звуку — угадайка. Ошибка условие не сбрасывает: навык уже открыт,
+ * а слабость видна планировщику по доле ошибок.
+ */
+export const comprehensionUnlockedFor=(skills:SkillSummary)=>!!skills.types.recognition?.recent.some(Boolean);
 export function spellingUnlocked(unitKey:string,events:ReviewEvent[]):boolean{
  return spellingUnlockedFor(summarizeEvents(unitKey,events));
 }
 
 /** Доступные упражнения в порядке предпочтения; пусто — карточку нечем объективно проверить. */
 export function availableTypes(skills:SkillSummary,context:SkillContext={}):ExerciseType[]{
- const {hasAudio=false,hasOptions=true,canAssemble=false,canSpell=true,canListen=hasAudio&&hasOptions}=context;
+ const {hasAudio=false,hasOptions=true,canAssemble=false,canSpell=true,canListen=hasAudio&&hasOptions,canComprehend=false}=context;
  return ORDER.filter(type=>
   (type!=='listening'||canListen)
+  &&(type!=='comprehension'||(canComprehend&&hasOptions&&canSpell&&comprehensionUnlockedFor(skills)))
   &&(type!=='recognition'||(hasOptions&&canSpell))
   &&(type!=='assembly'||canAssemble)
   &&(type!=='spelling'||(canSpell&&(!canAssemble||spellingUnlockedFor(skills)))));
@@ -344,7 +351,7 @@ export interface OptionPools {words:Word[];phrases:Phrase[]}
  * Ступени вниз после ошибки: попытка сразу после показанного ответа должна быть поддержанной,
  * а не повторным экзаменом. Сборка даёт слоги, узнавание — варианты; ниже узнавания ступеней нет.
  */
-const EASIER:Partial<Record<ExerciseType,ExerciseType[]>>={spelling:['assembly','recognition'],assembly:['recognition']};
+const EASIER:Partial<Record<ExerciseType,ExerciseType[]>>={spelling:['assembly','recognition'],assembly:['recognition'],comprehension:['recognition']};
 /** Есть ли под заданием ступень: пул вариантов читается только ради неё. */
 export const hasEasierStep=(type:ExerciseType)=>!!EASIER[type];
 /**
@@ -388,15 +395,17 @@ export function objectiveExercise(word:Word,pool:Word[],skills:SkillSummary=empt
  const parts=writing.syllables;
  const recognition=optionsFor(word,pool,'recognition',random);
  const listening=optionsFor(word,pool,'listening',random);
+ const sounds=!!word.audioAssetId||hasVoice;
  const type=chooseTypeFor(skills,{
-  hasAudio:(!!word.audioAssetId||hasVoice)&&listening.length===4,
+  hasAudio:sounds&&listening.length===4,
   hasOptions:recognition.length===4,canAssemble:parts.length>=2,
+  canComprehend:sounds&&recognition.length===4,
  });
  if(type==='assembly'){
   const exercise=assemblyExercise(word,random);
   if(exercise)return exercise;
  }
- return {type,options:type==='recognition'?recognition:type==='listening'?listening:[]};
+ return {type,options:type==='recognition'||type==='comprehension'?recognition:type==='listening'?listening:[]};
 }
 /**
  * Фраза: узнавание и написание при переводе, аудирование при голосе или файле и четырёх различных фразах.
@@ -405,11 +414,12 @@ export function objectiveExercise(word:Word,pool:Word[],skills:SkillSummary=empt
 export function phraseExercise(phrase:Phrase,pool:Phrase[],skills:SkillSummary=emptySkills(),random:()=>number=Math.random,hasVoice=false):Pick<SessionItem,'type'|'options'>|null{
  const recognition=phraseOptionsFor(phrase,pool,'recognition',random);
  const listening=phraseOptionsFor(phrase,pool,'listening',random);
- const canListen=(!!phrase.audioAssetId||hasVoice)&&listening.length===4;
- const context:SkillContext={hasAudio:canListen,canListen,hasOptions:recognition.length===4,canAssemble:false,canSpell:!!phrase.translation};
+ const sounds=!!phrase.audioAssetId||hasVoice;
+ const canListen=sounds&&listening.length===4;
+ const context:SkillContext={hasAudio:canListen,canListen,hasOptions:recognition.length===4,canAssemble:false,canSpell:!!phrase.translation,canComprehend:sounds&&recognition.length===4};
  if(!availableTypes(skills,context).length)return null;
  const type=chooseTypeFor(skills,context);
- return {type,options:type==='recognition'?recognition:type==='listening'?listening:[]};
+ return {type,options:type==='recognition'||type==='comprehension'?recognition:type==='listening'?listening:[]};
 }
 
 export function spaceSingleIntroduction(items:SessionItem[]):SessionItem[]{
