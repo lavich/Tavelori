@@ -420,6 +420,9 @@ export function Spelling({item,onAnswer,onNext}:Props){
  * Заполнение пропуска. До ответа видны только шаблон, поле ввода и контекст на языке перевода: правильная форма,
  * полное предложение, объяснение, озвучка и подсказки для экранного диктора не выводятся в DOM.
  * После успешно сохранённого ответа — результат, полное предложение, объяснение при наличии и озвучка.
+ *
+ * С четырьмя вариантами вместо поля ввода идёт выбор: так выглядит дополнительная попытка после ошибки.
+ * Проверка и раскрытие общие — выбранный вариант уходит в ту же `checkTextAnswer`, поэтому «Почти» работает и здесь.
  */
 export function ClozeExercise({item,onAnswer,onNext}:Props){
  const [value,setValue]=useState('');
@@ -438,15 +441,16 @@ export function ClozeExercise({item,onAnswer,onNext}:Props){
   setSaving(false);
   if(saved)setResult({status:'wrong',message:'Правильная форма:',expected:cloze.answer,skipped:true});
  };
- const submit=async(event:React.FormEvent)=>{
-  event.preventDefault();
-  if(!value.trim()||result||saving)return;
-  const checked=checkTextAnswer(value,cloze.acceptedAnswers,{template:cloze.template});
+ const check=async(text:string)=>{
+  if(!text.trim()||result||saving)return;
+  const checked=checkTextAnswer(text,cloze.acceptedAnswers,{template:cloze.template});
   setSaving(true);
-  const saved=await onAnswer({correct:checked.status==='correct',text:value,status:checked.status});
+  const saved=await onAnswer({correct:checked.status==='correct',text,status:checked.status});
   setSaving(false);
-  if(saved)setResult(checked);
+  if(saved){setValue(text);setResult(checked)}
  };
+ const submit=(event:React.FormEvent)=>{event.preventDefault();check(value)};
+ const choices=item.options.length===4?item.options:null;
  const sentence=fillGap(cloze.template,result?.expected??cloze.answer);
  return (
   <>
@@ -476,14 +480,25 @@ export function ClozeExercise({item,onAnswer,onNext}:Props){
     )}
    </div>
    <div className={s.dock}>
-    {!result?(
-     <form onSubmit={submit}>
-      <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
-       autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Пропущенная часть предложения" lang="el" data-testid="cloze-input"/>
-      <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
-      <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>Не знаю</Button>
-     </form>
-    ):<Button size="xl" onClick={onNext}>Далее</Button>}
+    {result?<Button size="xl" onClick={onNext}>Далее</Button>
+     :choices?(
+      <>
+       <div className={s.options} style={{width:'100%'}}>
+        {choices.map(option=>(
+         <Button key={option} data-testid="cloze-option" variant="outline" disabled={saving}
+          className="h-14 justify-center rounded-[14px] text-[17px]" onClick={()=>check(option)}>{option}</Button>
+        ))}
+       </div>
+       <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>Не знаю</Button>
+      </>
+     ):(
+      <form onSubmit={submit}>
+       <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
+        autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Пропущенная часть предложения" lang="el" data-testid="cloze-input"/>
+       <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
+       <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>Не знаю</Button>
+      </form>
+     )}
    </div>
   </>
  );

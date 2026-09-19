@@ -134,7 +134,7 @@ describe('дополнительная попытка на ступень про
  const word=(id:string,greek:string):Word=>({...words[0],id,greek,russian:`перевод ${id}`});
  const cardOfWord=(w:Word):SessionCard=>({kind:'word',word:w});
  const pool=['p1','p2','p3','p4','p5'].map((id,i)=>word(id,`λέξις${i}`));
- const pools=(over:Partial<OptionPools>={}):OptionPools=>({words:pool,phrases:[],...over});
+ const pools=(over:Partial<OptionPools>={}):OptionPools=>({words:pool,phrases:[],clozes:[],...over});
  const family=word('family','η οικογένεια');
  const light=word('light','το φως');
  it('под написанием стоит сборка, а не повторный набор',()=>{
@@ -156,12 +156,25 @@ describe('дополнительная попытка на ступень про
   expect(step.options).toHaveLength(4);
   expect(easierExercise(cardOfWord(family),'assembly',pools({words:[]}),()=>0.5)).toBeNull();
  });
- it('у узнавания, аудирования и пропуска ступени ниже нет',()=>{
-  for(const type of ['recognition','listening','cloze'] as ExerciseType[])
+ it('у узнавания и аудирования ступени ниже нет',()=>{
+  for(const type of ['recognition','listening'] as ExerciseType[])
    expect(easierExercise(cardOfWord(family),type,pools(),()=>0.5)).toBeNull();
   expect(hasEasierStep('spelling')).toBe(true);
   expect(hasEasierStep('assembly')).toBe(true);
-  expect(['recognition','listening','cloze'].some(type=>hasEasierStep(type as ExerciseType))).toBe(false);
+  expect(hasEasierStep('cloze')).toBe(true);
+  expect(['recognition','listening'].some(type=>hasEasierStep(type as ExerciseType))).toBe(false);
+ });
+ it('под пропуском — тот же пропуск с вариантами, а при бедном пуле ступени нет',()=>{
+  const cloze=(id:string,answer:string):Cloze=>({id,template:'{{gap}} κάτι.',answer,acceptedAnswers:[answer],
+   provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso});
+  const own=cloze('c1','Γράφω');
+  const clozes=[own,cloze('c2','Διαβάζω'),cloze('c3','Τρώω'),cloze('c4','Πίνω')];
+  const card:SessionCard={kind:'cloze',cloze:own};
+  const step=easierExercise(card,'cloze',pools({clozes}),()=>0.5)!;
+  expect(step.type).toBe('cloze'); // отдельного типа упражнения нет: варианты едут в том же пропуске
+  expect(step.options).toHaveLength(4);
+  expect(step.options).toContain('Γράφω');
+  expect(easierExercise(card,'cloze',pools({clozes:clozes.slice(0,3)}),()=>0.5)).toBeNull();
  });
  it('фразе сборка недоступна: под написанием сразу узнавание среди фраз',()=>{
   const phrases:Phrase[]=['a','b','c','d','e'].map(id=>({id,text:`Φράση ${id}.`,translation:`Фраза ${id}.`,provenance:{sourceLabel:'тест',operation:'verbatim'},createdAt:iso,updatedAt:iso}));
@@ -199,7 +212,7 @@ describe('понимание на слух',()=>{
  });
  it('под ним стоит узнавание: та же проверка значения, но с написанием на экране',()=>{
   const pool=Array.from({length:6},(_,i)=>({...words[0],id:`d${i}`,greek:`λέξη${i}`,russian:`перевод ${i}`}));
-  const step=easierExercise({kind:'word',word:pool[0]},'comprehension',{words:pool,phrases:[]},()=>0.5)!;
+  const step=easierExercise({kind:'word',word:pool[0]},'comprehension',{words:pool,phrases:[],clozes:[]},()=>0.5)!;
   expect(step.type).toBe('recognition');
   expect(step.options).toHaveLength(4);
   expect(hasEasierStep('comprehension')).toBe(true);

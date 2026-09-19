@@ -374,6 +374,17 @@ describe('запись ответа на смешанном уроке',()=>{
  const answer=(session:Awaited<ReturnType<typeof makeSession>>,item:Awaited<ReturnType<typeof makeSession>>['items'][number],extra={})=>submitAnswer({
   session,item,correct:true,answer:'',responseTimeMs:1200,activeTimeMs:5000,timezone:'Asia/Nicosia',now,database:db,...extra,
  });
+ it('ошибка в пропуске даёт попытку с четырьмя вариантами ответа',async()=>{
+  const {session,item}=await prepare();
+  const target=item('c-grafo');
+  await answer(session,target,{correct:false,answer:'διαβάζω'});
+  const retry=(await db.sessions.get(session.id))!.items.find(entry=>entry.retryOf===target.id)!;
+  expect(retry.type).toBe('cloze'); // тот же пропуск, но с готовыми ответами
+  expect(retry.mode).toBe('practice');
+  expect(retry.options).toHaveLength(4);
+  expect(retry.options).toContain('Γράφω');
+  expect(new Set(retry.options).size).toBe(4);
+ });
  it('слово, фраза и два пропуска одного предложения независимы; ошибка в пропуске не трогает слово',async()=>{
   const {session,item}=await prepare();
   expect(item('c-grafo').type).toBe('cloze');
