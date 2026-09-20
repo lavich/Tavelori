@@ -164,6 +164,27 @@ test.describe('навигация, тема и размеры',()=>{
   await tg(page).back();
   await expect(page.getByRole('heading',{name:'Немного каждый день'})).toBeVisible();
  });
+ test('нижняя навигация остаётся на месте при прокрутке: в Mini App документ не едет',async({page})=>{
+  // В WebView клиента `position:fixed` считается от области, которая при прокрутке сдвигается, и закреплённая
+  // навигация уезжала вместе со страницей. В Telegram оболочка высотой с окно, прокручивается только содержимое.
+  await openTelegram(page,{noCloud:true});
+  await installLessons(page,['lesson-1-1','lesson-1-2','lesson-1-3']);
+  await page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
+  await expect(page.getByRole('heading',{name:'Уроки'})).toBeVisible();
+  const nav=page.getByRole('navigation');
+  const before=(await nav.boundingBox())!;
+  // Главная проверка: прокрутку ведёт содержимое экрана. Закреплённую навигацию Chromium рисует верно
+  // в любом случае, поэтому положение навигации бага бы не поймало — ловит именно модель прокрутки.
+  const scrollable=await page.locator('main').first().evaluate(node=>node.scrollHeight-node.clientHeight);
+  expect(scrollable,'содержимое экрана должно быть отдельным скроллером длиннее окна').toBeGreaterThan(0);
+  await page.mouse.move(195,400);
+  for(let i=0;i<10;i++)await page.mouse.wheel(0,400);
+  await expect.poll(()=>page.locator('main').first().evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  const after=(await nav.boundingBox())!;
+  expect(after.y).toBeCloseTo(before.y,0);
+  expect(after.y+after.height).toBeCloseTo(844,0); // навигация прижата к низу окна клиента
+  expect(await page.evaluate(()=>window.scrollY)).toBe(0); // сам документ не прокручивается
+ });
  test('экран результата во весь экран начинается ниже системной строки и кнопок клиента',async({page})=>{
   await openTelegram(page,{noCloud:true,fullscreen:true,safeTop:47,contentTop:46});
   // Занятие уже закрыто: экран результата проверяем по разметке, а не по прохождению упражнений.
