@@ -46,11 +46,20 @@ describe('исходные наборы 1.1 и 1.2 сохранены в нач�
   expect(wordsOf(content,'lesson-1-1').slice(33,38).map(w=>[w.greek,w.russian]))
    .toEqual([['Σωστό','верно'],['Λάθος','неверно'],['και','и'],['ένα','один'],['στο','в']]);
  });
- /** Материал занятия — приветствия, слова текстов и примеры правил чтения — дописан после прежнего набора. */
- it('урок 1.1 продолжен словами занятия и не переставляет прежние',()=>{
-  const words=wordsOf(content,'lesson-1-1');
-  expect(words.slice(38).map(w=>w.greek).slice(0,5)).toEqual(['Γεια','Καλημέρα','Καλησπέρα','Χαίρετε','Ευχαριστώ']);
-  expect(words.slice(38).every(word=>/^w11-\d\d$/.test(word.id))).toBe(true);
+ /** Материал занятия — приветствия, слова текстов и примеры правил чтения — вынесен в отдельный урок. */
+ it('слова занятия живут в дополнительном словаре, а состав 1.1 остаётся прежним',()=>{
+  const number=(id:string)=>Number(id.slice(4));
+  expect(wordsOf(content,'lesson-1-1').every(word=>/^w11-\d\d$/.test(word.id)&&number(word.id)<=38)).toBe(true);
+  const extra=wordsOf(content,'lesson-1-1-extra');
+  // Идентификаторы при переносе не менялись: прогресс остаётся у тех же карточек.
+  expect(extra.every(word=>/^w11-\d\d$/.test(word.id)&&number(word.id)>=39)).toBe(true);
+  expect(extra.map(word=>word.greek).slice(0,5)).toEqual(['Γεια','Καλημέρα','Καλησπέρα','Χαίρετε','Ευχαριστώ']);
+ });
+ /** Порядок занятий даёт номер в заголовке: заголовок без номера ставит урок после всех нумерованных. */
+ it('дополнительный словарь не встраивается между нумерованными уроками',()=>{
+  const title=packageOf('lesson-1-1-extra').lesson.title;
+  expect(title).toBe('Дополнительный словарь');
+  expect(/\d/.test(title)).toBe(false);
  });
  /** Пакет описывает урок, а не занятие: статус и дата принадлежат пользователю и в поставку не попадают. */
  it('пакет несёт только название урока',()=>{
@@ -117,7 +126,10 @@ describe('уроки принадлежат курсам',()=>{
  it('каталог отдаёт состав курса, а урок и пакет знают свой курс',()=>{
   const leeke=content.catalog.courses.find(course=>course.id==='leeke')!;
   expect(leeke.title).toBe('LEEKE A2');
-  expect(leeke.lessonIds).toEqual(content.packages.map(pack=>pack.id));
+  // Порядок состава задаёт файл курса, порядок пакетов — обход каталога уроков: совпадать они не обязаны.
+  expect([...leeke.lessonIds].sort()).toEqual(content.packages.map(pack=>pack.id).sort());
+  expect(leeke.lessonIds).toEqual(readFileSync('content/courses/leeke.yaml','utf8').split('\n')
+   .flatMap(line=>/^\s+- (\S+)$/.exec(line)?.[1]??[]));
   for(const entry of content.catalog.lessons)expect(entry.courseId,entry.id).toBe('leeke');
   for(const pack of content.packages)expect(pack.courseId,pack.id).toBe('leeke');
  });

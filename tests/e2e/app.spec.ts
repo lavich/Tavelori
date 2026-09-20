@@ -182,7 +182,8 @@ test('будущие занятия: импорт нового набора бе
  await expect(page.getByRole('heading',{name:'Урок 1.5'})).toBeVisible();
  await expect(page.getByText(/3 слова/)).toBeVisible();
  await expect(page.getByText('Дата не назначена')).toBeVisible();
- await page.locator('#date').fill('2026-09-20');
+ // Дата заведомо дальше всех уроков расписания: ближайшим остаётся 1.2. Фиксированная дата здесь была миной — она наступила.
+ await page.locator('#date').fill(addDays(new Date().toISOString().slice(0,10),30));
  await page.getByRole('button',{name:'Сохранить дату'}).click();
  await expect(page.getByText(/План пересчитан|Дата сохранена/)).toBeVisible();
  await page.getByRole('navigation').getByRole('link',{name:'Сегодня'}).click();
