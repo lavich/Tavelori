@@ -47,7 +47,7 @@ export function LessonRow({lesson,next}:{lesson:LessonView;next?:boolean}){
  const text=progress?progressText(progress):'';
  const fill=progress&&progressFill(progress);
  return (
-  <Item variant="outline" className="min-h-16 rounded-[var(--radius-card)] bg-card text-foreground" render={<Link to={`/lessons/${lesson.id}`}/>}>
+  <Item variant="row" render={<Link to={`/lessons/${lesson.id}`}/>}>
    <ItemMedia variant="icon"><FileText/></ItemMedia>
    <ItemContent>
     <ItemTitle className="text-base">{title}</ItemTitle>

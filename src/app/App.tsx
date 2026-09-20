@@ -1,4 +1,4 @@
-import {Suspense, useEffect, useRef} from 'react';
+import {lazy, Suspense, useEffect, useRef} from 'react';
 import {toast} from 'sonner';
 import {Toaster} from '@/components/ui/sonner';
 import {Navigate, Route, Routes, useLocation} from 'react-router-dom';
@@ -11,20 +11,24 @@ import {localDay} from '../domain/learning';
 import {useNow} from '../shared/clock';
 import {useSettings} from '../shared/store';
 import {settleLessons} from '../storage/ops';
+// «Сегодня» открывается первым и в браузере, и в Mini App, поэтому грузится сразу: иначе первый кадр пустой.
 import {TodayScreen} from '../features/today/TodayScreen';
-import {LessonsScreen} from '../features/lessons/LessonsScreen';
-import {LessonScreen} from '../features/lessons/LessonScreen';
-import {WordsScreen} from '../features/words/WordsScreen';
-import {WordScreen} from '../features/words/WordScreen';
-import {WordEditorScreen} from '../features/words/WordEditorScreen';
-import {SessionScreen} from '../features/learning/SessionScreen';
-import {ResultScreen} from '../features/learning/ResultScreen';
-import {MoreScreen} from '../features/more/MoreScreen';
-import {StatsScreen} from '../features/progress/StatsScreen';
-import {SettingsScreen} from '../features/more/SettingsScreen';
-import {ImportScreen} from '../features/more/ImportScreen';
-import {BackupScreen} from '../features/backup/BackupScreen';
 import ui from '../shared/ui.module.css';
+
+const named=<K extends string>(key:K,load:()=>Promise<Record<K,React.ComponentType>>)=>
+ lazy(()=>load().then(module=>({default:module[key]})));
+const LessonsScreen=named('LessonsScreen',()=>import('../features/lessons/LessonsScreen'));
+const LessonScreen=named('LessonScreen',()=>import('../features/lessons/LessonScreen'));
+const WordsScreen=named('WordsScreen',()=>import('../features/words/WordsScreen'));
+const WordScreen=named('WordScreen',()=>import('../features/words/WordScreen'));
+const WordEditorScreen=named('WordEditorScreen',()=>import('../features/words/WordEditorScreen'));
+const SessionScreen=named('SessionScreen',()=>import('../features/learning/SessionScreen'));
+const ResultScreen=named('ResultScreen',()=>import('../features/learning/ResultScreen'));
+const MoreScreen=named('MoreScreen',()=>import('../features/more/MoreScreen'));
+const StatsScreen=named('StatsScreen',()=>import('../features/progress/StatsScreen'));
+const SettingsScreen=named('SettingsScreen',()=>import('../features/more/SettingsScreen'));
+const ImportScreen=named('ImportScreen',()=>import('../features/more/ImportScreen'));
+const BackupScreen=named('BackupScreen',()=>import('../features/backup/BackupScreen'));
 
 export function App(){
  const {pathname}=useLocation();

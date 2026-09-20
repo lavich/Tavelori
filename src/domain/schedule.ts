@@ -12,6 +12,14 @@ export function lessonOrder(a:Lesson,b:Lesson):number{
  return a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id);
 }
 
+/**
+ * Порядок показа в списках: сначала наборы с датой по возрастанию, затем без даты по времени создания.
+ * Это не порядок расписания — даты назначает `lessonOrder` по номерам в названии; два правила лежат
+ * рядом, чтобы не разъехались.
+ */
+export const byTargetDate=(a:{targetDate:string|null;createdAt:string},b:{targetDate:string|null;createdAt:string}):number=>
+ Number(!!b.targetDate)-Number(!!a.targetDate)||(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt);
+
 export const isoWeekday=(day:string)=>new Date(`${day}T00:00:00Z`).getUTCDay()||7;
 export const scheduleSet=(schedule:Schedule)=>!!schedule.startDate&&schedule.weekdays.length>0;
 /** Ближайший день расписания начиная с `day` — включительно или строго после него. */

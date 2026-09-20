@@ -8,6 +8,8 @@
 .eyebrow{color:var(--muted-foreground);font-size:15px;margin:2px 0 4px}
 .muted{color:var(--muted-foreground)}
 .small{font-size:14px}
+/* Мелкая приглушённая подпись — самая частая роль текста в приложении; раньше её писали парой .small + .muted. */
+.note{font-size:14px;color:var(--muted-foreground)}
 .hint{color:var(--muted-foreground);font-size:14px;text-align:center;margin-top:10px}
 .error{color:var(--destructive);font-size:14px;margin-top:8px}
 

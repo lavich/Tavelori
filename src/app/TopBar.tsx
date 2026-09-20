@@ -19,7 +19,7 @@ export function BrandBar({subtitle}:{subtitle?:string}){
  return (
   <header className={cx(top.topbar, compact&&top.compact)}>
    {!compact&&<><span className={top.brand}>lexi</span><span aria-hidden style={{fontSize:22}}>🇬🇷</span></>}
-   {subtitle&&<span className={cx(ui.small, ui.muted)}>{subtitle}</span>}
+   {subtitle&&<span className={ui.note}>{subtitle}</span>}
    <span className={top.spacer}/>
    {!compact&&<Button variant="ghost" size="icon-lg" className="size-11" onClick={()=>navigate('/more')} aria-label="Ещё"><Menu/></Button>}
   </header>

@@ -3,6 +3,7 @@ import {Button} from '@/components/ui/button';
 import {X} from 'lucide-react';
 import {useLiveQuery} from 'dexie-react-hooks';
 import {useNavigate} from 'react-router-dom';
+import {useAction} from '../../shared/action';
 import {stopAudio} from '../../shared/audio';
 import {useActiveSession, useSettings} from '../../shared/store';
 import {Progress} from '@/components/ui/progress';
@@ -31,14 +32,14 @@ export function SessionScreen(){
   active.current={ms:session.activeTimeMs,since:Date.now()}; // время прошлых заходов не теряется
  },[session?.id]);
  const [cursor,setCursor]=useState<number|null>(null);
- const [introducing,setIntroducing]=useState(false);
+ // Одна жалоба на экран: её ставят и знакомство, и сохранение ответа, и пропуск. `busy` здесь — идущее знакомство.
+ const {busy:introducing,problem,setProblem,run}=useAction('Не удалось сохранить знакомство. Попробуйте ещё раз.');
  const [preparing,setPreparing]=useState(false);
  useEffect(()=>{
   if(!session||session.objectiveVersion===1)return;
   setPreparing(true);
   prepareObjectiveSession(session.id).catch(()=>setProblem('Не удалось подготовить занятие. Обновите страницу.')).finally(()=>setPreparing(false));
  },[session?.id,session?.objectiveVersion]);
- const [problem,setProblem]=useState('');
  const shown=useRef(Date.now());
  const active=useRef({ms:0,since:Date.now()});
  const previous=useRef<string|undefined>(undefined);
@@ -107,12 +108,10 @@ export function SessionScreen(){
    return false;
   }
  };
- const introduce=async()=>{
+ const introduce=()=>{
   if(!introduction||introducing)return;
-  setProblem('');setIntroducing(true);
-  try{await markIntroduced(session.id,introduction.unitKey,activeMs());shown.current=Date.now()}
-  catch{setProblem('Не удалось сохранить знакомство. Попробуйте ещё раз.')}
-  finally{setIntroducing(false)}
+  return run(async()=>{await markIntroduced(session.id,introduction.unitKey,activeMs());shown.current=Date.now()},
+   ()=>'Не удалось сохранить знакомство. Попробуйте ещё раз.');
  };
  const next=()=>{
   const following=position+1;

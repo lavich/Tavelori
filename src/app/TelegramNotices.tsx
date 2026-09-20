@@ -2,11 +2,11 @@ import {useEffect, useState} from 'react';
 import {useLiveQuery} from 'dexie-react-hooks';
 import {AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle} from '@/components/ui/alert-dialog';
 import {Button} from '@/components/ui/button';
-import {exportFull, restoreBackup} from '../features/backup/backup';
 import {db, LexiDatabase} from '../storage/db';
 import {currentProfile, WEB_DATABASE} from '../storage/profile';
 import {sync, useSyncStatus} from '../sync';
 import {META, readMeta, writeMeta} from '../sync/snapshot';
+import {useAction} from '../shared/action';
 import {CARDS, withCount, WORDS} from '../shared/format';
 import ui from '../shared/ui.module.css';
 
@@ -30,21 +30,18 @@ export function TelegramWelcome(){
  const profile=currentProfile();
  const welcomed=useLiveQuery(()=>profile.kind==='telegram'?db.meta.get(META.welcomed).then(row=>!!row):true,[profile.kind]);
  const [legacy,setLegacy]=useState(0);
- const [busy,setBusy]=useState(false);
- const [problem,setProblem]=useState('');
+ const {busy,problem,run}=useAction('Перенос не удался, данные не изменены.');
  useEffect(()=>{if(welcomed===false&&profile.kind==='telegram'&&profile.databaseName!==WEB_DATABASE)legacyWebWords().then(setLegacy).catch(()=>setLegacy(0))},[welcomed,profile.kind]);
  if(profile.kind!=='telegram'||welcomed!==false)return null;
  const finish=async()=>{await writeMeta(db,META.welcomed,new Date().toISOString())};
- const transfer=async()=>{
-  setBusy(true);setProblem('');
-  try{
-   const web=new LexiDatabase(WEB_DATABASE);
-   await web.open();
-   try{await restoreBackup(await exportFull(web),db)}finally{web.close()}
-   await finish();
-  }catch(error){setProblem(error instanceof Error?error.message:'Перенос не удался, данные не изменены.')}
-  finally{setBusy(false)}
- };
+ const transfer=()=>run(async()=>{
+  // Чтение и запись полной копии нужны только здесь и на экране копий: модуль с ними в стартовую загрузку не входит.
+  const {exportFull,restoreBackup}=await import('../features/backup/backup');
+  const web=new LexiDatabase(WEB_DATABASE);
+  await web.open();
+  try{await restoreBackup(await exportFull(web),db)}finally{web.close()}
+  await finish();
+ });
  return (
   <AlertDialog open>
    <AlertDialogContent>
@@ -99,7 +96,7 @@ export function SyncConflictDialog(){
      ))}
     </div>
     <AlertDialogFooter>
-     <Button variant="quiet" size="md" disabled={saving||!!busy} onClick={async()=>{setSaving(true);try{const {transferFile,backupName}=await import('../features/backup/backup');await transferFile(await exportFull(),backupName())}finally{setSaving(false)}}}>{saving?'Готовим копию…':'Сначала сохранить полную копию'}</Button>
+     <Button variant="quiet" size="md" disabled={saving||!!busy} onClick={async()=>{setSaving(true);try{const {transferFile,backupName,exportFull}=await import('../features/backup/backup');await transferFile(await exportFull(),backupName())}finally{setSaving(false)}}}>{saving?'Готовим копию…':'Сначала сохранить полную копию'}</Button>
      <AlertDialogCancel onClick={()=>setDismissed(key)}>Решить позже</AlertDialogCancel>
     </AlertDialogFooter>
    </AlertDialogContent>
