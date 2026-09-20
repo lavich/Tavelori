@@ -213,9 +213,7 @@ export function Recognition(props:Props&{autoSpeak?:boolean}){
 
 interface Replay {text:string;kind:ReturnType<typeof useAudioKind>;failed:boolean;play:()=>void}
 /**
- * Звуковая часть аудирования и понимания на слух: что звучит, доступно ли это вообще и не отказало ли
- * воспроизведение. Автозапуск один на карточку — карточки перемонтируются по `key`, а ссылка-флаг
- * защищает от повтора при перерисовке той же карточки.
+ * Звуковая часть аудирования и понимания на слух: что звучит, доступно ли это и не отказало ли воспроизведение.
  * Пропуск сюда не приходит: `listening` и `comprehension` создаются только для слов и фраз (`domain/learning.ts`).
  */
 function useReplay(card:SessionCard,itemId:string,autoSpeak:boolean|undefined):Replay{

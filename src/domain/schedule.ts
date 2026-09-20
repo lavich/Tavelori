@@ -13,9 +13,9 @@ export function lessonOrder(a:Lesson,b:Lesson):number{
 }
 
 /**
- * Порядок уроков в списках экранов: сначала наборы с датой по возрастанию, затем наборы без даты
- * по времени создания. Это порядок показа, а не порядок расписания: даты назначает `lessonOrder`
- * по номерам в названии, и разъехаться эти два правила не должны — поэтому оба живут здесь.
+ * Порядок показа в списках: сначала наборы с датой по возрастанию, затем без даты по времени создания.
+ * Это не порядок расписания — даты назначает `lessonOrder` по номерам в названии; два правила лежат
+ * рядом, чтобы не разъехались.
  */
 export const byTargetDate=(a:{targetDate:string|null;createdAt:string},b:{targetDate:string|null;createdAt:string}):number=>
  Number(!!b.targetDate)-Number(!!a.targetDate)||(a.targetDate??'').localeCompare(b.targetDate??'')||a.createdAt.localeCompare(b.createdAt);

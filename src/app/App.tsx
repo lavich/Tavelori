@@ -11,14 +11,10 @@ import {localDay} from '../domain/learning';
 import {useNow} from '../shared/clock';
 import {useSettings} from '../shared/store';
 import {settleLessons} from '../storage/ops';
+// «Сегодня» открывается первым и в браузере, и в Mini App, поэтому грузится сразу: иначе первый кадр пустой.
 import {TodayScreen} from '../features/today/TodayScreen';
 import ui from '../shared/ui.module.css';
 
-/**
- * «Сегодня» — стартовый экран и в браузере, и в Mini App: он остаётся в стартовом чанке, иначе первый
- * кадр был бы пустым. Остальные экраны загружаются при переходе, поэтому занятие с упражнениями,
- * разбор слова и работа с копией не занимают место в стартовой загрузке.
- */
 const named=<K extends string>(key:K,load:()=>Promise<Record<K,React.ComponentType>>)=>
  lazy(()=>load().then(module=>({default:module[key]})));
 const LessonsScreen=named('LessonsScreen',()=>import('../features/lessons/LessonsScreen'));
