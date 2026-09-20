@@ -10,7 +10,7 @@ import {Field, FieldDescription, FieldLabel} from '@/components/ui/field';
 import {Input} from '@/components/ui/input';
 import {Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle} from '@/components/ui/item';
 import {Skeleton} from '@/components/ui/skeleton';
-import {BackBar} from '../../app/TopBar';
+import {Screen} from '../../app/Screen';
 import {downloadLessonMedia, installLesson, type InstallResult} from '../../content/client';
 import {fillGap, splitTemplate} from '../../domain/cloze';
 import {isCheckable} from '../../domain/learning';
@@ -49,7 +49,7 @@ export const targetLabel=(cloze:Cloze)=>cloze.target?`Цель: ${cloze.target.k
 function PhraseRow({phrase,checkable,onRemove}:{phrase:Phrase;checkable:boolean;onRemove:()=>void}){
  const [open,setOpen]=useState(false);
  return (
-  <Item variant="outline" className="min-h-16 flex-wrap rounded-[var(--radius-card)] bg-card" data-testid="phrase-row">
+  <Item variant="row" data-testid="phrase-row">
    <ItemContent>
     <ItemTitle className="text-base"><button type="button" className="text-left text-foreground" aria-expanded={open} onClick={()=>setOpen(!open)}>{phrase.text}</button></ItemTitle>
     <ItemDescription>{phrase.translation??'Перевода в материале нет'}{!checkable&&<> · <Badge variant="soft" className="h-6 px-2 text-xs" data-testid="unavailable-badge">Нет доступного упражнения</Badge></>}</ItemDescription>
@@ -74,7 +74,7 @@ function ClozeRow({cloze,onRemove}:{cloze:Cloze;onRemove:()=>void}){
  const [open,setOpen]=useState(false);
  const {before,after}=splitTemplate(cloze.template);
  return (
-  <Item variant="outline" className="min-h-16 flex-wrap rounded-[var(--radius-card)] bg-card" data-testid="cloze-row">
+  <Item variant="row" data-testid="cloze-row">
    <ItemContent>
     <ItemTitle className="text-base"><button type="button" className="text-left text-foreground" aria-expanded={open} onClick={()=>setOpen(!open)}>{before}<span className={wordCss.target}>{cloze.answer}</span>{after}</button></ItemTitle>
     <ItemDescription>{cloze.context??'Задание с пропуском'}</ItemDescription>
@@ -123,24 +123,21 @@ export function LessonScreen(){
   if(detail===null&&entry&&phase.phase==='idle')install();
  },[detail===null,entry?.id,phase.phase]);
 
- if(detail===undefined||(detail===null&&catalog===undefined))return <><BackBar title="Урок"/><main className={ui.screen}><div className="flex flex-col gap-3 py-2"><Skeleton className="h-28 w-full"/><Skeleton className="h-14 w-full"/><Skeleton className="h-14 w-full"/></div></main></>;
+ if(detail===undefined||(detail===null&&catalog===undefined))return <Screen back="Урок"><div className="flex flex-col gap-3 py-2"><Skeleton className="h-28 w-full"/><Skeleton className="h-14 w-full"/><Skeleton className="h-14 w-full"/></div></Screen>;
  if(detail===null){
-  if(!entry)return <><BackBar title="Урок"/><main className={ui.screen}><p className={ui.muted}>Урок не найден.</p></main></>;
+  if(!entry)return <Screen back="Урок"><p className={ui.muted}>Урок не найден.</p></Screen>;
   return (
-   <>
-    <BackBar title={entry.title}/>
-    <main className={ui.screen}>
-     <Card className="mb-3 bg-soft ring-0">
-      <CardHeader>
-       <CardDescription className="flex items-center gap-2 text-accent-foreground">{phase.phase==='error'?<CloudOff/>:<CloudDownload/>}{phase.phase==='loading'?'Загружаем карточки урока…':phase.phase==='error'?'Пакет не загружен':'Урок не загружен на устройство'}</CardDescription>
-       <CardTitle className="text-xl font-semibold">{compositionLabel({word:entry.wordCount,phrase:entry.phraseCount,cloze:entry.clozeCount})}</CardTitle>
-       <CardDescription>{phase.phase==='error'?phase.message:'Карточки и связи сохранятся локально после проверки пакета. Картинки подгружаются при просмотре.'}</CardDescription>
-      </CardHeader>
-      {phase.phase==='error'&&<CardContent><Button size="md" variant="soft" onClick={install}><RefreshCw data-icon="inline-start"/>Повторить загрузку</Button></CardContent>}
-     </Card>
-     {phase.phase==='loading'&&<div className="flex flex-col gap-3" aria-busy="true" role="status" aria-label="Загрузка урока"><Skeleton className="h-14 w-full"/><Skeleton className="h-14 w-full"/><Skeleton className="h-14 w-full"/></div>}
-    </main>
-   </>
+   <Screen back={entry.title}>
+    <Card className="mb-3 bg-soft ring-0">
+     <CardHeader>
+      <CardDescription className="flex items-center gap-2 text-accent-foreground">{phase.phase==='error'?<CloudOff/>:<CloudDownload/>}{phase.phase==='loading'?'Загружаем карточки урока…':phase.phase==='error'?'Пакет не загружен':'Урок не загружен на устройство'}</CardDescription>
+      <CardTitle className="text-xl font-semibold">{compositionLabel({word:entry.wordCount,phrase:entry.phraseCount,cloze:entry.clozeCount})}</CardTitle>
+      <CardDescription>{phase.phase==='error'?phase.message:'Карточки и связи сохранятся локально после проверки пакета. Картинки подгружаются при просмотре.'}</CardDescription>
+     </CardHeader>
+     {phase.phase==='error'&&<CardContent><Button size="md" variant="soft" onClick={install}><RefreshCw data-icon="inline-start"/>Повторить загрузку</Button></CardContent>}
+    </Card>
+    {phase.phase==='loading'&&<div className="flex flex-col gap-3" aria-busy="true" role="status" aria-label="Загрузка урока"><Skeleton className="h-14 w-full"/><Skeleton className="h-14 w-full"/><Skeleton className="h-14 w-full"/></div>}
+   </Screen>
   );
  }
  const {items,cards,words,phrases,clozes,states}=detail;
@@ -174,96 +171,93 @@ export function LessonScreen(){
  const remove=(item:LessonItem)=>removeFromLesson(lesson!.id,item.ref);
  const rowsOf=(kind:CardKind)=>items.filter(item=>item.ref.kind===kind).map(item=>[item,cards.get(item.unitKey)!] as [LessonItem,SessionCard]);
  return (
-  <>
-   <BackBar title={lesson!.title}/>
-   <main className={ui.screen}>
-    <Card className="mb-3 bg-soft ring-0">
+  <Screen back={lesson!.title}>
+   <Card className="mb-3 bg-soft ring-0">
+    <CardHeader>
+     <CardDescription className="text-accent-foreground">{lesson!.targetDate?`Занятие ${dayMonth(lesson!.targetDate)}`:'Дата не назначена'}</CardDescription>
+     <CardTitle className="text-xl font-semibold" data-testid="composition">{compositionLabel(counts)}, новых {notStarted}</CardTitle>
+     <CardDescription>
+      {deadline
+       ?deadline.daysLeft===0?'Сегодня день занятия — идёт догоняющая подготовка.':`${withCount(deadline.daysLeft,DAYS)} на подготовку, нужный темп — ${withCount(deadline.requiredPerDay,CARDS)} в день`
+       :lesson!.status==='completed'?'Набор проведён, карточки остаются в обычной очереди повторений.':'Дата в прошлом или не задана — карточки идут в общей очереди.'}
+      {unavailable>0&&` ${withCount(unavailable,PHRASES)} без доступного упражнения: не в квоте и не в темпе.`}
+     </CardDescription>
+    </CardHeader>
+   </Card>
+   {readiness?.installed&&(
+    <Card className="mb-3" data-testid="lesson-offline">
      <CardHeader>
-      <CardDescription className="text-accent-foreground">{lesson!.targetDate?`Занятие ${dayMonth(lesson!.targetDate)}`:'Дата не назначена'}</CardDescription>
-      <CardTitle className="text-xl font-semibold" data-testid="composition">{compositionLabel(counts)}, новых {notStarted}</CardTitle>
+      <CardTitle className="text-base">{offlineReady?'Готов офлайн':readiness.missing.length?'Карточки доступны локально':'Карточки и медиа на устройстве'}</CardTitle>
       <CardDescription>
-       {deadline
-        ?deadline.daysLeft===0?'Сегодня день занятия — идёт догоняющая подготовка.':`${withCount(deadline.daysLeft,DAYS)} на подготовку, нужный темп — ${withCount(deadline.requiredPerDay,CARDS)} в день`
-        :lesson!.status==='completed'?'Набор проведён, карточки остаются в обычной очереди повторений.':'Дата в прошлом или не задана — карточки идут в общей очереди.'}
-       {unavailable>0&&` ${withCount(unavailable,PHRASES)} без доступного упражнения: не в квоте и не в темпе.`}
+       {readiness.required
+        ?`Медиа: ${readiness.present} из ${readiness.required}${readiness.missing.length?' — остальное подгружается при просмотре карточек.':'.'}`
+        :'У этого урока нет обязательных медиа: текстовые задания работают без голоса.'}
+       {!shell.ready&&!shell.checking?' Оболочка приложения ещё не закеширована для работы без сети.':''}
+       {readiness.updateAvailable?' Доступна новая версия урока.':''}
       </CardDescription>
      </CardHeader>
-    </Card>
-    {readiness?.installed&&(
-     <Card className="mb-3" data-testid="lesson-offline">
-      <CardHeader>
-       <CardTitle className="text-base">{offlineReady?'Готов офлайн':readiness.missing.length?'Карточки доступны локально':'Карточки и медиа на устройстве'}</CardTitle>
-       <CardDescription>
-        {readiness.required
-         ?`Медиа: ${readiness.present} из ${readiness.required}${readiness.missing.length?' — остальное подгружается при просмотре карточек.':'.'}`
-         :'У этого урока нет обязательных медиа: текстовые задания работают без голоса.'}
-        {!shell.ready&&!shell.checking?' Оболочка приложения ещё не закеширована для работы без сети.':''}
-        {readiness.updateAvailable?' Доступна новая версия урока.':''}
-       </CardDescription>
-      </CardHeader>
-      {(readiness.missing.length>0||readiness.updateAvailable||phase.phase==='error')&&(
-       <CardContent className="flex flex-col gap-2">
-        {readiness.missing.length>0&&<Button size="md" variant="soft" disabled={downloading} onClick={download}><CloudDownload data-icon="inline-start"/>{downloading?'Скачиваем…':'Скачать для офлайн'}</Button>}
-        {readiness.updateAvailable&&<Button size="md" variant="quiet" disabled={phase.phase==='loading'} onClick={install}><RefreshCw data-icon="inline-start"/>{phase.phase==='loading'?'Обновляем…':'Обновить урок'}</Button>}
-        {phase.phase==='error'&&<p className={ui.error} role="alert">{phase.message}</p>}
-       </CardContent>
-      )}
-      {mediaProblem&&<CardContent><p className={ui.error} role="alert">{mediaProblem}</p></CardContent>}
-     </Card>
-    )}
-    <Field>
-     <FieldLabel htmlFor="date">Дата занятия</FieldLabel>
-     <Input id="date" type="date" value={date} onChange={event=>{setDate(event.target.value);setSaved(false)}}/>
-     {lesson!.dateSource==='schedule'&&<FieldDescription>Дата по расписанию. Своя дата сдвинет следующие уроки.</FieldDescription>}
-     {lesson!.dateSource==='manual'&&lesson!.status!=='completed'&&(
-      <Button size="sm" variant="quiet" className="w-auto justify-self-start" onClick={()=>{updateLesson(lesson!.id,{targetDate:null});setSaved(false)}}>Вернуть в расписание</Button>
+     {(readiness.missing.length>0||readiness.updateAvailable||phase.phase==='error')&&(
+      <CardContent className="flex flex-col gap-2">
+       {readiness.missing.length>0&&<Button size="md" variant="soft" disabled={downloading} onClick={download}><CloudDownload data-icon="inline-start"/>{downloading?'Скачиваем…':'Скачать для офлайн'}</Button>}
+       {readiness.updateAvailable&&<Button size="md" variant="quiet" disabled={phase.phase==='loading'} onClick={install}><RefreshCw data-icon="inline-start"/>{phase.phase==='loading'?'Обновляем…':'Обновить урок'}</Button>}
+       {phase.phase==='error'&&<p className={ui.error} role="alert">{phase.message}</p>}
+      </CardContent>
      )}
-    </Field>
-    <div className="mt-3 grid grid-cols-2 gap-2.5">
-     <Button size="md" onClick={applyDate}>Сохранить дату</Button>
-     <Button size="md" variant="quiet" className="whitespace-normal leading-tight" onClick={toggle}>{lesson!.status==='completed'?'Вернуть в предстоящие':'Отметить проведённым'}</Button>
-    </div>
-    {saved&&<p className="mt-2 text-sm text-(--ok)" role="status">Дата сохранена, план пересчитан. История ответов не изменилась.</p>}
-    {total>0&&<Button size="xl" variant="soft" className="mt-3" onClick={()=>practice()}>Потренировать набор</Button>}
-    {practiceProblem&&<p className={ui.error} role="alert">{practiceProblem}</p>}
-    {GROUPS.filter(group=>counts[group.kind]>0).map(group=>(
-     <section key={group.kind} data-testid={`group-${group.kind}`}>
-      <div className="mt-4 mb-2 flex items-center justify-between gap-2">
-       <h2 className="m-0">{group.title} · {counts[group.kind]}</h2>
-       {(counts.phrase>0||counts.cloze>0)&&<Button size="sm" variant="quiet" className="w-auto" onClick={()=>practice(group.kind)}>Потренировать группу</Button>}
-      </div>
-      <ItemGroup className="gap-2.5">
-       {rowsOf(group.kind).map(([item,card])=>card.kind==='word'?(
-        <Item key={item.unitKey} variant="outline" className="relative min-h-16 rounded-[var(--radius-card)] bg-card">
-         <ItemContent>
-          <ItemTitle className="text-base">
-           <Link to={`/words/${card.word.id}`} className="text-foreground no-underline after:absolute after:inset-0">{card.word.greek}</Link>
-          </ItemTitle>
-          <ItemDescription>{card.word.russian}</ItemDescription>
-         </ItemContent>
-         <ItemActions>
-          <Button size="sm" variant="quiet" className="relative z-10" onClick={()=>remove(item)}>Убрать</Button>
-          <ChevronRight className="text-muted-foreground"/>
-         </ItemActions>
-        </Item>
-       ):card.kind==='phrase'
-        ?<PhraseRow key={item.unitKey} phrase={card.phrase} checkable={checkable(card.phrase)} onRemove={()=>remove(item)}/>
-        :<ClozeRow key={item.unitKey} cloze={card.cloze} onRemove={()=>remove(item)}/>)}
-      </ItemGroup>
-     </section>
-    ))}
-    {!total&&(
-     <Empty>
-      <EmptyHeader>
-       <EmptyMedia variant="icon"><Inbox/></EmptyMedia>
-       <EmptyTitle>В наборе пока нет карточек</EmptyTitle>
-       <EmptyDescription>Импортируйте список из Quizlet или добавьте слова вручную.</EmptyDescription>
-      </EmptyHeader>
-      <Button size="md" variant="soft" className="w-auto" render={<Link to="/more/import"/>}>Импортировать слова</Button>
-     </Empty>
+     {mediaProblem&&<CardContent><p className={ui.error} role="alert">{mediaProblem}</p></CardContent>}
+    </Card>
+   )}
+   <Field>
+    <FieldLabel htmlFor="date">Дата занятия</FieldLabel>
+    <Input id="date" type="date" value={date} onChange={event=>{setDate(event.target.value);setSaved(false)}}/>
+    {lesson!.dateSource==='schedule'&&<FieldDescription>Дата по расписанию. Своя дата сдвинет следующие уроки.</FieldDescription>}
+    {lesson!.dateSource==='manual'&&lesson!.status!=='completed'&&(
+     <Button size="sm" variant="quiet" className="w-auto justify-self-start" onClick={()=>{updateLesson(lesson!.id,{targetDate:null});setSaved(false)}}>Вернуть в расписание</Button>
     )}
-   </main>
-  </>
+   </Field>
+   <div className="mt-3 grid grid-cols-2 gap-2.5">
+    <Button size="md" onClick={applyDate}>Сохранить дату</Button>
+    <Button size="md" variant="quiet" className="whitespace-normal leading-tight" onClick={toggle}>{lesson!.status==='completed'?'Вернуть в предстоящие':'Отметить проведённым'}</Button>
+   </div>
+   {saved&&<p className="mt-2 text-sm text-(--ok)" role="status">Дата сохранена, план пересчитан. История ответов не изменилась.</p>}
+   {total>0&&<Button size="xl" variant="soft" className="mt-3" onClick={()=>practice()}>Потренировать набор</Button>}
+   {practiceProblem&&<p className={ui.error} role="alert">{practiceProblem}</p>}
+   {GROUPS.filter(group=>counts[group.kind]>0).map(group=>(
+    <section key={group.kind} data-testid={`group-${group.kind}`}>
+     <div className="mt-4 mb-2 flex items-center justify-between gap-2">
+      <h2 className="m-0">{group.title} · {counts[group.kind]}</h2>
+      {(counts.phrase>0||counts.cloze>0)&&<Button size="sm" variant="quiet" className="w-auto" onClick={()=>practice(group.kind)}>Потренировать группу</Button>}
+     </div>
+     <ItemGroup className="gap-2.5">
+      {rowsOf(group.kind).map(([item,card])=>card.kind==='word'?(
+       <Item key={item.unitKey} variant="row" className="relative">
+        <ItemContent>
+         <ItemTitle className="text-base">
+          <Link to={`/words/${card.word.id}`} className="text-foreground no-underline after:absolute after:inset-0">{card.word.greek}</Link>
+         </ItemTitle>
+         <ItemDescription>{card.word.russian}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
+         <Button size="sm" variant="quiet" className="relative z-10" onClick={()=>remove(item)}>Убрать</Button>
+         <ChevronRight className="text-muted-foreground"/>
+        </ItemActions>
+       </Item>
+      ):card.kind==='phrase'
+       ?<PhraseRow key={item.unitKey} phrase={card.phrase} checkable={checkable(card.phrase)} onRemove={()=>remove(item)}/>
+       :<ClozeRow key={item.unitKey} cloze={card.cloze} onRemove={()=>remove(item)}/>)}
+     </ItemGroup>
+    </section>
+   ))}
+   {!total&&(
+    <Empty>
+     <EmptyHeader>
+      <EmptyMedia variant="icon"><Inbox/></EmptyMedia>
+      <EmptyTitle>В наборе пока нет карточек</EmptyTitle>
+      <EmptyDescription>Импортируйте список из Quizlet или добавьте слова вручную.</EmptyDescription>
+     </EmptyHeader>
+     <Button size="md" variant="soft" className="w-auto" render={<Link to="/more/import"/>}>Импортировать слова</Button>
+    </Empty>
+   )}
+  </Screen>
  );
 }
 export const keyOf=(ref:LearningRef)=>unitKey(ref);

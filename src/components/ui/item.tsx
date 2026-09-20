@@ -42,6 +42,8 @@ const itemVariants = cva(
         default: "border-transparent",
         outline: "border-border",
         muted: "border-transparent bg-muted/50",
+        // Строка списка Lexi: уроки, слова, разделы «Ещё» и карточки урока выглядят одинаково во всех списках.
+        row: "min-h-16 rounded-[var(--radius-card)] border-border bg-card text-foreground",
       },
       size: {
         default: "gap-2.5 px-3 py-2.5",

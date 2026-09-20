@@ -12,7 +12,7 @@ export function CourseHeader({group,onLearn}:{group:CourseGroup;onLearn:()=>void
  return (
   <>
    <h2 className="mb-0.5">{group.title}</h2>
-   <p className={`${ui.small} ${ui.muted}`}>
+   <p className={ui.note}>
     {withCount(total,LESSONS_COUNT)}{group.lessons.length&&group.lessons.length<total?` · ${group.lessons.length} на устройстве`:''}
     {group.source?` · ${group.source}`:''}
    </p>

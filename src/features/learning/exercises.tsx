@@ -58,8 +58,8 @@ export function SpeakText({text,audioAssetId,label}:{text:string;audioAssetId?:s
     onClick={()=>playText(text,audioAssetId).then(result=>setFailed(result==='none'||result==='error'?result:null))}>
     <Volume2 aria-hidden/>
    </Button>
-   {(kind==='none'||failed==='none')&&<span className={cx(ui.small, ui.muted)}>Озвучка недоступна: нет файла и греческого голоса</span>}
-   {failed==='error'&&<span className={cx(ui.small, ui.muted)} role="status">Не удалось воспроизвести. Нажмите ещё раз.</span>}
+   {(kind==='none'||failed==='none')&&<span className={ui.note}>Озвучка недоступна: нет файла и греческого голоса</span>}
+   {failed==='error'&&<span className={ui.note} role="status">Не удалось воспроизвести. Нажмите ещё раз.</span>}
   </div>
  );
 }
@@ -98,14 +98,14 @@ function PhraseReveal({phrase,speak}:{phrase:Phrase;speak?:boolean}){
    <div className={cx(ui.row, ui.between)} style={{width:'100%',gap:12}}>
     <div className={ui.grow} style={{minWidth:0,textAlign:'left'}}>
      <p className={wordCss.greek} style={{margin:0}} data-testid="phrase-text">{phrase.text}</p>
-     {phrase.translation?<p style={{fontSize:19,margin:'6px 0 0'}}>{phrase.translation}</p>:<p className={cx(ui.small, ui.muted)} style={{margin:'6px 0 0'}}>Перевода в материале нет</p>}
+     {phrase.translation?<p style={{fontSize:19,margin:'6px 0 0'}}>{phrase.translation}</p>:<p className={ui.note} style={{margin:'6px 0 0'}}>Перевода в материале нет</p>}
     </div>
     {speak&&<SpeakText text={phrase.text} audioAssetId={phrase.audioAssetId} label="Послушать фразу"/>}
    </div>
    {(phrase.usage||phrase.note)&&(
     <div style={{width:'100%',textAlign:'left'}}>
      {phrase.usage&&<p className={ui.small} style={{margin:'0 0 6px'}}>{phrase.usage}</p>}
-     {phrase.note&&<p className={cx(ui.small, ui.muted)} style={{margin:0}}>{phrase.note}</p>}
+     {phrase.note&&<p className={ui.note} style={{margin:0}}>{phrase.note}</p>}
     </div>
    )}
   </>
@@ -211,6 +211,46 @@ export function Recognition(props:Props&{autoSpeak?:boolean}){
   after={word.examples[0]&&<div style={{width:'100%',textAlign:'left'}}><ExampleBox example={word.examples[0]}/></div>}/>;
 }
 
+interface Replay {text:string;kind:ReturnType<typeof useAudioKind>;failed:boolean;play:()=>void}
+/**
+ * Звуковая часть аудирования и понимания на слух: что звучит, доступно ли это вообще и не отказало ли
+ * воспроизведение. Автозапуск один на карточку — карточки перемонтируются по `key`, а ссылка-флаг
+ * защищает от повтора при перерисовке той же карточки.
+ * Пропуск сюда не приходит: `listening` и `comprehension` создаются только для слов и фраз (`domain/learning.ts`).
+ */
+function useReplay(card:SessionCard,itemId:string,autoSpeak:boolean|undefined):Replay{
+ const word=card.kind==='word'?card.word:null;
+ const phrase=card.kind==='phrase'?card.phrase:null;
+ const audioAssetId=word?word.audioAssetId:phrase?.audioAssetId;
+ const wordKind=useAudioKind(word??undefined);
+ const textKind=useTextAudioKind(audioAssetId);
+ const played=useRef(false);
+ const [failed,setFailed]=useState(false);
+ const text=word?word.greek:phrase?.text??'';
+ const play=()=>(word?playWord(word):playText(text,audioAssetId)).then(result=>setFailed(result==='error'||result==='none'));
+ useEffect(()=>{if(autoSpeak&&!played.current){played.current=true;play()}},[itemId,autoSpeak]);
+ if(!word&&!phrase)throw new Error('Аудиоупражнение получило карточку с пропуском');
+ return {text,kind:word?wordKind:textKind,failed,play};
+}
+/** Кнопка повтора над вариантами и сообщение об отказе воспроизведения — одинаковые в обоих аудиоупражнениях. */
+function ReplayHead({replay,onSkip}:{replay:Replay;onSkip?:()=>void}){
+ return (
+  <div className="flex w-full flex-col items-center gap-3">
+   <Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8"
+    disabled={replay.kind==='none'} aria-label="Повторить аудио" onClick={replay.play}><Volume2 aria-hidden/></Button>
+   {replay.failed&&(
+    <div data-testid="audio-failed" role="alert" className="w-full rounded-[14px] p-3 text-left" style={{background:'var(--almost-bg)',color:'var(--almost-fg)'}}>
+     <p className="m-0 text-sm">Аудио не воспроизвелось. Это не влияет на прогресс: попробуйте ещё раз или продолжите без аудирования.</p>
+     <div className="mt-2 flex gap-2">
+      <Button size="sm" variant="outline" onClick={replay.play}>Повторить</Button>
+      {onSkip&&<Button size="sm" variant="outline" onClick={onSkip}>Продолжить без аудио</Button>}
+     </div>
+    </div>
+   )}
+  </div>
+ );
+}
+
 /**
  * Аудирование. Отказ воспроизведения не засчитывается как ошибка знания: можно повторить или продолжить без аудио —
  * упражнение пропускается без события и без сдвига интервалов. Варианты для фразы — фразы, для слова — слова.
@@ -219,28 +259,9 @@ export function Recognition(props:Props&{autoSpeak?:boolean}){
  */
 export function Listening(props:Props&{autoSpeak?:boolean}){
  const {card}=props.item;
- const text=card.kind==='phrase'?card.phrase.text:wordOf(card).greek;
- const audioAssetId=card.kind==='phrase'?card.phrase.audioAssetId:wordOf(card).audioAssetId;
- const wordKind=useAudioKind(card.kind==='word'?card.word:undefined);
- const textKind=useTextAudioKind(audioAssetId);
- const kind=card.kind==='word'?wordKind:textKind;
- const played=useRef(false);
- const [failed,setFailed]=useState(false);
- const play=()=>(card.kind==='word'?playWord(card.word):playText(text,audioAssetId)).then(result=>setFailed(result==='error'||result==='none'));
- useEffect(()=>{if(props.autoSpeak&&!played.current){played.current=true;play()}},[props.item.id,props.autoSpeak]);
- return <Choice {...props} prompt="Что прозвучало?" correct={text} options={props.item.options}
-  head={<div className="flex w-full flex-col items-center gap-3">
-   <Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={play}><Volume2 aria-hidden/></Button>
-   {failed&&(
-    <div data-testid="audio-failed" role="alert" className="w-full rounded-[14px] p-3 text-left" style={{background:'var(--almost-bg)',color:'var(--almost-fg)'}}>
-     <p className="m-0 text-sm">Аудио не воспроизвелось. Это не влияет на прогресс: попробуйте ещё раз или продолжите без аудирования.</p>
-     <div className="mt-2 flex gap-2">
-      <Button size="sm" variant="outline" onClick={play}>Повторить</Button>
-      {props.onSkip&&<Button size="sm" variant="outline" onClick={props.onSkip}>Продолжить без аудио</Button>}
-     </div>
-    </div>
-   )}
-  </div>}
+ const replay=useReplay(card,props.item.id,props.autoSpeak);
+ return <Choice {...props} prompt="Что прозвучало?" correct={replay.text} options={props.item.options}
+  head={<ReplayHead replay={replay} onSkip={props.onSkip}/>}
   after={<div data-testid="reveal" style={{width:'100%'}}>
    {card.kind==='phrase'?<PhraseReveal phrase={card.phrase}/>:<WordReveal word={wordOf(card)}/>}
   </div>}/>;
@@ -253,32 +274,12 @@ export function Listening(props:Props&{autoSpeak?:boolean}){
  */
 export function Comprehension(props:Props&{autoSpeak?:boolean}){
  const {card}=props.item;
- const word=card.kind==='word'?card.word:null;
- const text=word?word.greek:card.kind==='phrase'?card.phrase.text:'';
- const audioAssetId=word?word.audioAssetId:card.kind==='phrase'?card.phrase.audioAssetId:undefined;
- const correct=word?word.russian:card.kind==='phrase'?(card.phrase.translation??''):'';
- const wordKind=useAudioKind(word??undefined);
- const textKind=useTextAudioKind(audioAssetId);
- const kind=word?wordKind:textKind;
- const played=useRef(false);
- const [failed,setFailed]=useState(false);
- const play=()=>(word?playWord(word):playText(text,audioAssetId)).then(result=>setFailed(result==='error'||result==='none'));
- useEffect(()=>{if(props.autoSpeak&&!played.current){played.current=true;play()}},[props.item.id,props.autoSpeak]);
+ const replay=useReplay(card,props.item.id,props.autoSpeak);
+ const correct=card.kind==='word'?card.word.russian:card.kind==='phrase'?(card.phrase.translation??''):'';
  return <Choice {...props} prompt="Что это значит?" correct={correct} options={props.item.options}
-  head={<div className="flex w-full flex-col items-center gap-3">
-   <Button size="icon-xl" className="size-[76px] rounded-full [&_svg:not([class*='size-'])]:size-8" disabled={kind==='none'} aria-label="Повторить аудио" onClick={play}><Volume2 aria-hidden/></Button>
-   {failed&&(
-    <div data-testid="audio-failed" role="alert" className="w-full rounded-[14px] p-3 text-left" style={{background:'var(--almost-bg)',color:'var(--almost-fg)'}}>
-     <p className="m-0 text-sm">Аудио не воспроизвелось. Это не влияет на прогресс: попробуйте ещё раз или продолжите без аудирования.</p>
-     <div className="mt-2 flex gap-2">
-      <Button size="sm" variant="outline" onClick={play}>Повторить</Button>
-      {props.onSkip&&<Button size="sm" variant="outline" onClick={props.onSkip}>Продолжить без аудио</Button>}
-     </div>
-    </div>
-   )}
-  </div>}
+  head={<ReplayHead replay={replay} onSkip={props.onSkip}/>}
   after={<div data-testid="reveal" style={{width:'100%'}}>
-   {word?<WordReveal word={word}/>:card.kind==='phrase'?<PhraseReveal phrase={card.phrase}/>:null}
+   {card.kind==='word'?<WordReveal word={card.word}/>:card.kind==='phrase'?<PhraseReveal phrase={card.phrase}/>:null}
   </div>}/>;
 }
 

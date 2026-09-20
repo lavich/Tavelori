@@ -34,7 +34,7 @@ export function CrashScreen({title,description,error,reportId,testId}:Props){
     <Button size="xl" className="mt-4" onClick={()=>location.reload()}>Перезапустить</Button>
     <Button size="xl" variant="outline" className="mt-2" onClick={copy}>Скопировать диагностику</Button>
     {copied==='done'&&<p className={`${ui.small} mt-2`} role="status" style={{color:'var(--ok)'}}>Диагностика скопирована.</p>}
-    {copied==='manual'&&<pre className={`${ui.small} ${ui.muted} mt-2 whitespace-pre-wrap`} data-testid="diagnostics">{text}</pre>}
+    {copied==='manual'&&<pre className={`${ui.note} mt-2 whitespace-pre-wrap`} data-testid="diagnostics">{text}</pre>}
    </main>
   </div>
  );

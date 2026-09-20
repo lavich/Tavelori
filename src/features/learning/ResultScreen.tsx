@@ -4,10 +4,12 @@ import {Button} from '@/components/ui/button';
 import {Card, CardContent} from '@/components/ui/card';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useLiveQuery} from 'dexie-react-hooks';
+import {Screen} from '../../app/Screen';
 import {formatDay, localDay} from '../../domain/learning';
 import type {CardKind, LearningRef} from '../../domain/types';
 import {useNow} from '../../shared/clock';
 import {CARDS, CLOZES, minutes, PHRASES, plural, withCount, WORDS} from '../../shared/format';
+import {StatTile} from '../../shared/StatTile';
 import {useSettings} from '../../shared/store';
 import {statesOf} from '../../storage/queries';
 import {db} from '../../storage/db';
@@ -48,18 +50,12 @@ export function ResultScreen(){
   navigate(created?'/session':'/');
  };
  return (
-  <main className={`${ui.screen} ${ui.roomy}`}>
+  <Screen bare roomy>
    <h1>Занятие завершено</h1>
    <div className={ui.tiles}>
-    <Card size="sm"><CardContent>
-     <div className="text-[30px] leading-tight font-bold text-primary">{unique.size}</div>
-     <div className="text-sm text-muted-foreground">{plural(unique.size,mixed?CARDS:WORDS)} в занятии</div>
-     {mixed&&<div className="mt-1 text-sm text-muted-foreground" data-testid="composition">{compositionText(byKind)}</div>}
-    </CardContent></Card>
-    <Card size="sm"><CardContent>
-     <div className="text-[30px] leading-tight font-bold text-primary">{events.length}</div>
-     <div className="text-sm text-muted-foreground">упражнений выполнено</div>
-    </CardContent></Card>
+    <StatTile value={unique.size} label={`${plural(unique.size,mixed?CARDS:WORDS)} в занятии`}
+     testId="composition" note={mixed&&compositionText(byKind)}/>
+    <StatTile value={events.length} label="упражнений выполнено"/>
    </div>
    <Card className="mb-3"><CardContent className="flex flex-col gap-1.5">
     <p className="m-0">Ошибок: <b>{mistakes.length}</b></p>
@@ -76,6 +72,6 @@ export function ResultScreen(){
      :<Alert className="mb-3"><Info/><AlertDescription>Карточки с ошибками вернутся{nextDue?` ${formatDay(localDay(nextDue,settings.timezone))}`:' в ближайшем занятии'} — так интервалы остаются честными.</AlertDescription></Alert>
    )}
    <Button size="xl" style={{marginTop:12}} onClick={()=>navigate('/')}>Готово</Button>
-  </main>
+  </Screen>
  );
 }
