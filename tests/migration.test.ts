@@ -127,7 +127,8 @@ describe('миграция схемы без сети',()=>{
   expect('wordId' in (await db.events.get('e1'))!).toBe(false);
   expect((await lessonItems('lesson-1-2',db)).map(link=>link.ref.id)).toEqual(wordsOf('lesson-1-2').map(w=>w.id));
   expect((await db.packages.get('lesson-1-2'))!.version).toBe(packageOf('lesson-1-2').version);
-  expect(fetcher.requests).toEqual(['content/catalog.json',content.catalog.lessons[1].url]);
+  // Урок ищется по идентификатору: положение в каталоге меняется при добавлении уроков.
+  expect(fetcher.requests).toEqual(['content/catalog.json',content.catalog.lessons.find(entry=>entry.id==='lesson-1-2')!.url]);
   db.close();
  });
 });
