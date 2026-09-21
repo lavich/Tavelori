@@ -1,10 +1,9 @@
 import {Component, type ErrorInfo, type ReactNode} from 'react';
 import {lifecycle, reportError} from '../reporting/reporting';
-import {isStorageError, reopenDatabase} from '../storage/recovery';
+import {isStorageError, RECOVERY_ATTEMPTS, RECOVERY_WINDOW_MS, reopenDatabase} from '../storage/recovery';
 import {CrashScreen} from './CrashScreen';
 import ui from '../shared/ui.module.css';
 
-const MAX_ATTEMPTS=3, WINDOW_MS=60000;
 interface State {error:unknown;recovering:boolean;generation:number;reportId:string|null}
 
 /**
@@ -22,8 +21,8 @@ export class Recovery extends Component<{children:ReactNode},State>{
   const componentStack=info.componentStack??'';
   const report=()=>reportError(error,{category:'ui',extra:{componentStack}});
   const now=Date.now();
-  this.attempts=this.attempts.filter(at=>now-at<WINDOW_MS);
-  if(!isStorageError(error)||this.attempts.length>=MAX_ATTEMPTS){this.setState({reportId:report()});return}
+  this.attempts=this.attempts.filter(at=>now-at<RECOVERY_WINDOW_MS);
+  if(!isStorageError(error)||this.attempts.length>=RECOVERY_ATTEMPTS){this.setState({reportId:report()});return}
   this.attempts.push(now);
   const attempt=this.attempts.length;
   this.setState({recovering:true});
