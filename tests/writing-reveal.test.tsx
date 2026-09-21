@@ -8,7 +8,7 @@ import type {Phrase, SessionItem, Word} from '../src/domain/types';
 // jsdom не реализует прокрутку, а раскрытый ответ подводится к верху области.
 if(!Element.prototype.scrollIntoView)Element.prototype.scrollIntoView=()=>undefined;
 
-/** Что прозвучало: настоящий проигрыватель здесь не нужен, важен сам факт и число запусков. */
+/** Что прозвучало: важен факт и число запусков, а не сам проигрыватель. */
 const spoken:string[]=[];
 vi.mock('../src/shared/audio',async importOriginal=>{
  const original=await importOriginal<typeof import('../src/shared/audio')>();
@@ -56,7 +56,6 @@ const reveal=(host:HTMLElement)=>host.querySelector('[data-testid="reveal"]');
 const feedback=(host:HTMLElement)=>host.querySelector('[data-testid="feedback"]');
 const speakButton=(host:Element)=>host.querySelector('[aria-label="Послушать слово"],[aria-label="Послушать фразу"],[aria-label="Озвучка недоступна"]');
 
-/** Написать ответ и проверить его. */
 const type=async(host:HTMLElement,text:string)=>{
  const input=host.querySelector('input') as HTMLInputElement;
  await act(async()=>{
@@ -66,7 +65,6 @@ const type=async(host:HTMLElement,text:string)=>{
  });
  await press(button(host,'Проверить'));
 };
-/** Собрать слово из всех плиток по порядку показа. */
 const assemble=async(host:HTMLElement)=>{
  for(const tile of Array.from(host.querySelectorAll('[data-testid="tile"]')))await press(tile);
  await press(button(host,'Проверить'));
@@ -203,7 +201,7 @@ describe('озвучка раскрытия после письменного о
   const host=await showSpelling(wordItem(),false);
   await type(host,'λάθος');
   expect(spoken).toEqual([]);
-  expect(speakButton(reveal(host)!)).not.toBeNull(); // кнопка остаётся
+  expect(speakButton(reveal(host)!)).not.toBeNull();
  });
 
  it('следующая карточка звучит заново, даже если упражнение переиспользовали без key',async()=>{

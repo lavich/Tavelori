@@ -48,14 +48,10 @@ function useAutoSpeak(card:SessionCard,enabled:boolean){
 }
 
 /**
- * Один автозапуск озвучки раскрытия после письменного ответа. Звук до ответа там запрещён — он продиктовал бы
- * написание, — поэтому запуск привязан не к открытию карточки, а к появлению результата, любого: написавший
- * слово верно тоже мог не держать в голове его звучание.
- *
- * `itemId` и `card` намеренно не в зависимостях. Ответ сбрасывается эффектом по `item.id`, и в первом кадре
- * с новой карточкой `answered` ещё истинно; зависимость от карточки запустила бы озвучку нового слова до того,
- * как его написали. Флаг-ссылка хранит карточку, которая уже прозвучала: так повтор не случается ни при
- * перерисовке, ни при переиспользовании упражнения без `key`.
+ * Один автозапуск озвучки раскрытия: до ответа в письме звук запрещён, поэтому запуск привязан не к открытию
+ * карточки, а к появлению результата. `itemId` и `card` намеренно не в зависимостях — ответ сбрасывается
+ * эффектом по `item.id`, и в первом кадре с новой карточкой `answered` ещё истинно: зависимость от карточки
+ * озвучила бы новое слово до того, как его написали.
  */
 function useRevealSpeech(card:SessionCard,itemId:string,answered:boolean,enabled:boolean){
  const spoken=useRef<string|null>(null);
@@ -303,8 +299,7 @@ export function Comprehension(props:Props&{autoSpeak?:boolean}){
 
 /**
  * Ступень перед свободным написанием: слово собирается из перемешанных слогов. Только для слов.
- * После ответа задание сменяется раскрытием, как в написании; строка со слогами остаётся в плашке —
- * деления на слоги в карточке нет, а собирали именно его.
+ * Строка со слогами остаётся в плашке над раскрытием: деления на слоги в карточке нет, а собирали именно его.
  */
 export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak?:boolean}){
  const [placed,setPlaced]=useState<number[]>([]);
@@ -381,8 +376,7 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
 
 /**
  * Написание слова по переводу или фразы целиком по её переводу. У фразы проверка без послаблений артиклю.
- * После сохранённого ответа задание уходит с экрана, а на его месте — плашка с разбором и раскрытие материала:
- * перевод и картинка входят в карточку, поэтому отдельно они не нужны. Раскрытие ничего не сохраняет.
+ * После ответа задание уходит с экрана: перевод и картинка входят в раскрытие, отдельно они задвоились бы.
  */
 export function Spelling({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak?:boolean}){
  const [value,setValue]=useState('');
@@ -424,7 +418,6 @@ export function Spelling({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
      <div style={{width:'100%'}} ref={revealed}>
       <div data-testid="feedback" className={cx(s.feedback, result.status==='correct'?s.ok:result.status==='almost'?s.almost:s.bad)} style={{marginTop:0}}>
        <div>{result.message}</div>
-       {/* Сравнивать есть что только после промаха с введённым ответом: при верном совпало всё, при «Не знаю» вводить было нечего. */}
        {result.status!=='correct'&&!result.skipped&&(
         <>
          <p className={s.chars} data-testid="chars" style={{margin:'6px 0 0'}}>
