@@ -95,10 +95,21 @@ describe('подсказка длины ответа',()=>{
   await type(host,'κ');
   expect(shown(host)).toBe('κ____');
  });
- it('пробелы набора ячейки не занимают',async()=>{
+ it('пробел переводит набор к следующему слову',async()=>{
   const host=await showSpelling(wordItem());
   await type(host,'το σπ');
   expect(shown(host)).toBe('το σπ___');
+ });
+ it('без пробела буквы остаются в первом слове, а не выглядят как ответ с пробелом',async()=>{
+  const host=await showSpelling(wordItem());
+  await type(host,'ηγάτα');
+  expect(shown(host)).toBe('ηγάτα σ____');
+  expect((host.querySelector('input') as HTMLInputElement).value).toBe('ηγάτα');
+ });
+ it('ответ без артикля ложится в первое слово и ввод не ломает',async()=>{
+  const host=await showSpelling(wordItem());
+  await type(host,'σπίτι');
+  expect(shown(host)).toBe('σπίτι σ____');
  });
  it('лишние символы показаны за маской',async()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));

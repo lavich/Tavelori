@@ -5,7 +5,7 @@ import type {Cloze, Phrase, SessionCard, SessionItem, Word} from '../../domain/t
 import {checkAnswer} from '../../domain/import';
 import {checkTextAnswer, fillGap, splitTemplate, type TextAnswerResult} from '../../domain/cloze';
 import {diffChars} from '../../domain/spelling';
-import {agreedMask, assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitWriting, type WritingMask} from '../../domain/syllables';
+import {agreedMask, assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitWriting, type MaskSymbol, type WritingMask} from '../../domain/syllables';
 import {playText, playWord, useAudioKind, useTextAudioKind} from '../../shared/audio';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from '../words/WordCardView';
 import ui from '../../shared/ui.module.css';
@@ -376,36 +376,48 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
 
 /**
  * Подсказка длины ответа внутри поля ввода: ячейка на каждую букву, первая буква каждого слова открыта, знаки
- * показаны как есть, пробел разбивает маску на группы по словам. Набранное занимает ячейки слева направо, и
- * маска остаётся на экране до самого ответа: она и есть строка ввода, а собственный текст поля скрыт.
- * Пробелы набора в ячейки не идут — иначе пропуск пробела сдвигал бы весь ответ. Лишние символы показываются
- * за маской: поле ничего не ограничивает, ответить можно короче, длиннее и без артикля.
+ * показаны как есть, пробел разбивает маску на группы по словам. Набранное занимает ячейки, и маска остаётся
+ * на экране до самого ответа: она и есть строка ввода, а собственный текст поля скрыт.
+ *
+ * Слова набора ложатся в группы по порядку: пробел переводит набор к следующему слову, а буквы сверх длины
+ * слова показываются тут же, за его ячейками. Раскладывать набранное подряд, пропуская пробелы, нельзя: тогда
+ * «ηγάτα» выглядело бы как «η γάτα», хотя пробела в ответе нет и проверка засчитает пропуск. Маска показывает
+ * ровно то, что лежит в поле.
+ *
+ * Поле при этом ничего не ограничивает: ответить короче, длиннее и без артикля по-прежнему можно.
  * Диктору маска отдаётся числом слов и букв и открытыми буквами: разрывов между группами он не видит.
  */
 function AnswerMask({mask,value}:{mask:WritingMask|null;value:string}){
  if(!mask?.letters)return null;
  const {groups,letters}=mask;
- const typed=[...value.replace(/\s+/g,'')];
- let at=0;
- const filled=groups.map(group=>group.map(symbol=>({symbol,char:typed[at++],index:at-1})));
- const tail=typed.slice(at);
+ const typed=value.split(/\s/);
+ const caret={word:typed.length-1,at:(typed.at(-1)??'').length};
  const leads=groups.flat().filter(symbol=>symbol.kind==='lead').map(symbol=>symbol.char);
  const count=withCount(letters,['буквы','букв','букв']);
  const words=groups.length>1?`${withCount(groups.length,['слова','слов','слов'])}, `:'';
  const first=leads.length>1?`, первые буквы ${leads.join(', ')}`:leads.length?`, первая ${leads[0]}`:'';
- const cell=(text:string|undefined,kind:'typed'|'lead'|'empty',index:number)=>(
-  <b key={index} className={cx(s.maskLetter, kind==='typed'&&s.maskTyped, kind==='lead'&&s.maskLead, index===typed.length&&s.maskCaret)}>{text}</b>
+ const cell=(text:string|undefined,kind:'typed'|'lead'|'empty',key:number,current:boolean)=>(
+  <b key={key} className={cx(s.maskLetter, kind==='typed'&&s.maskTyped, kind==='lead'&&s.maskLead, current&&s.maskCaret)}>{text}</b>
  );
+ /** Слово набора в ячейках своей группы: что не поместилось — следом за ними. */
+ const word=(group:MaskSymbol[],text:string,index:number)=>[
+  ...group.map((symbol,at)=>{
+   const char=text[at];
+   const current=index===caret.word&&at===caret.at;
+   return symbol.kind==='mark'
+    ?<span key={at} className={cx(char&&s.maskTyped, current&&s.maskCaret)}>{char??symbol.char}</span>
+    :cell(char??(symbol.kind==='lead'?symbol.char:undefined),char?'typed':symbol.kind==='lead'?'lead':'empty',at,current);
+  }),
+  ...[...text.slice(group.length)].map((char,at)=>cell(char,'typed',group.length+at,index===caret.word&&group.length+at===caret.at)),
+ ];
  return (
   <>
    <div className={s.mask} data-testid="answer-mask" aria-hidden>
-    {filled.map((group,index)=>(
-     <span key={index} className={s.maskWord} data-testid="mask-word">
-      {group.map(({symbol,char,index:at})=>symbol.kind==='mark'
-       ?<span key={at} className={cx(char&&s.maskTyped)}>{char??symbol.char}</span>
-       :cell(char??(symbol.kind==='lead'?symbol.char:undefined),char?'typed':symbol.kind==='lead'?'lead':'empty',at))}
-      {index===filled.length-1&&tail.map((char,offset)=>cell(char,'typed',at+offset))}
-     </span>
+    {groups.map((group,index)=>(
+     <span key={index} className={s.maskWord} data-testid="mask-word">{word(group,typed[index]??'',index)}</span>
+    ))}
+    {typed.slice(groups.length).map((text,index)=>(
+     <span key={groups.length+index} className={s.maskWord} data-testid="mask-word">{word([],text,groups.length+index)}</span>
     ))}
    </div>
    <span className="sr-only">Ответ из {words}{count}{first}</span>
