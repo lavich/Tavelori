@@ -5,7 +5,7 @@ import type {Cloze, Phrase, SessionCard, SessionItem, Word} from '../../domain/t
 import {checkAnswer} from '../../domain/import';
 import {checkTextAnswer, fillGap, splitTemplate, type TextAnswerResult} from '../../domain/cloze';
 import {diffChars} from '../../domain/spelling';
-import {assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitWriting} from '../../domain/syllables';
+import {agreedMask, assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitWriting, type WritingMask} from '../../domain/syllables';
 import {playText, playWord, useAudioKind, useTextAudioKind} from '../../shared/audio';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from '../words/WordCardView';
 import ui from '../../shared/ui.module.css';
@@ -377,11 +377,13 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
 /**
  * Подсказка длины ответа над полем ввода: буквы скрыты подчёркиванием, знаки показаны как есть, пробел
  * разбивает маску на группы по словам. Маска статична — подставлять в неё набранное значило бы повторить
- * проверку, которая сравнивает ответ не посимвольно. Диктору маска отдаётся числом, а не подчёркиваниями.
+ * проверку, которая сравнивает ответ не посимвольно. Диктору маска отдаётся числом слов и букв: разрывы
+ * между группами он не видит, а из скольких слов ответ — такая же часть подсказки, как и счёт букв.
  */
-function AnswerMask({expected}:{expected:string}){
- const {groups,letters}=maskWriting(expected);
- if(!letters)return null;
+function AnswerMask({mask}:{mask:WritingMask|null}){
+ if(!mask?.letters)return null;
+ const {groups,letters}=mask;
+ const count=withCount(letters,['буквы','букв','букв']);
  return (
   <div>
    <div className={s.mask} data-testid="answer-mask" aria-hidden>
@@ -391,7 +393,7 @@ function AnswerMask({expected}:{expected:string}){
      </span>
     ))}
    </div>
-   <span className="sr-only">Ответ из {withCount(letters,['буквы','букв','букв'])}</span>
+   <span className="sr-only">Ответ из {groups.length>1?`${withCount(groups.length,['слова','слов','слов'])}, ${count}`:count}</span>
   </div>
  );
 }
@@ -458,7 +460,7 @@ export function Spelling({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
    <div className={s.dock}>
     {!result?(
      <form onSubmit={submit}>
-      <AnswerMask expected={expected}/>
+      <AnswerMask mask={maskWriting(expected)}/>
       <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
        autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Твой ответ по-гречески" lang="el"/>
       <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
@@ -547,7 +549,7 @@ export function ClozeExercise({item,onAnswer,onNext}:Props){
       </>
      ):(
       <form onSubmit={submit}>
-       <AnswerMask expected={cloze.answer}/>
+       <AnswerMask mask={agreedMask([cloze.answer,...cloze.acceptedAnswers])}/>
        <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
         autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Пропущенная часть предложения" lang="el" data-testid="cloze-input"/>
        <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>

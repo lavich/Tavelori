@@ -63,12 +63,12 @@ describe('подсказка длины ответа',()=>{
  it('слово с артиклем даёт две группы',async()=>{
   const host=await showSpelling(wordItem());
   expect(shown(host)).toBe('__ _____');
-  expect(note(host)).toBe('Ответ из 7 букв');
+  expect(note(host)).toBe('Ответ из 2 слов, 7 букв');
  });
  it('во фразе знак препинания показан как есть и в счёт не входит',async()=>{
   const host=await showSpelling(phraseItem());
   expect(shown(host)).toBe('___ __ ____;');
-  expect(note(host)).toBe('Ответ из 9 букв');
+  expect(note(host)).toBe('Ответ из 3 слов, 9 букв');
  });
  it('маска стоит над полем ввода и скрыта от экранного диктора',async()=>{
   const host=await showSpelling(wordItem());
@@ -97,11 +97,21 @@ describe('подсказка длины ответа',()=>{
   expect(host.querySelector('[data-testid="reveal"]')!.textContent).toContain('σπίτι');
   expect(answers).toBe(1);
  });
- it('в пропуске маска строится по каноническому ответу',async()=>{
-  const host=await showCloze(clozeItem({acceptedAnswers:['Γράφω','Εγώ γράφω']}));
+ it('в пропуске маска показана, когда все допустимые ответы одной структуры',async()=>{
+  const host=await showCloze(clozeItem({acceptedAnswers:['Γράφω','γράφω']}));
   expect(shown(host)).toBe('_____');
   expect(note(host)).toBe('Ответ из 5 букв');
   expect(host.textContent).not.toContain('Γράφω');
+ });
+ it('в пропуске маски нет, когда допустимые ответы различаются по структуре',async()=>{
+  const host=await showCloze(clozeItem({acceptedAnswers:['Γράφω','Εγώ γράφω']}));
+  expect(mask(host)).toBeNull();
+  expect(note(host)).toBeUndefined();
+  expect(host.querySelector('input')).not.toBeNull();
+ });
+ it('в пропуске маски нет, когда допустим вариант с артиклем',async()=>{
+  const host=await showCloze(clozeItem({answer:'τηλεόραση',acceptedAnswers:['τηλεόραση','την τηλεόραση']}));
+  expect(mask(host)).toBeNull();
  });
  it('в пропуске маска исчезает после ответа',async()=>{
   const host=await showCloze(clozeItem());

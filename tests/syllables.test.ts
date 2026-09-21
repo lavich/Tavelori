@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitSyllables, splitWriting, tiles} from '../src/domain/syllables';
+import {agreedMask, assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitSyllables, splitWriting, tiles} from '../src/domain/syllables';
 import {buildContent} from '../content/build';
 const seedWords=buildContent().words;
 
@@ -92,8 +92,30 @@ describe('маска ожидаемого написания',()=>{
   expect(maskWriting('Πώς σε λένε;').groups.map(group=>group.length)).toEqual([3,2,5]);
   expect(maskWriting('Πώς σε λένε;').groups[2].at(-1)).toEqual({char:';',hidden:false});
  });
+ it('скрытая буква не хранит саму букву',()=>{
+  expect(maskWriting('φως').groups[0]).toEqual([{hidden:true},{hidden:true},{hidden:true}]);
+ });
  it('пустое написание даёт пустую маску',()=>{
   expect(maskWriting('')).toEqual({groups:[],letters:0});
   expect(maskWriting('   ')).toEqual({groups:[],letters:0});
+ });
+});
+
+describe('общая маска допустимых ответов',()=>{
+ it('одинаковая структура даёт маску',()=>{
+  expect(agreedMask(['Γράφω','γράφω'])?.letters).toBe(5);
+  expect(agreedMask(['Πώς σε λένε;','πως σε λενε;'])?.groups.map(group=>group.length)).toEqual([3,2,5]);
+ });
+ it('разная длина или разное число слов маски не даёт',()=>{
+  expect(agreedMask(['τηλεόραση','την τηλεόραση'])).toBeNull();
+  expect(agreedMask(['Γράφω','Εγώ γράφω'])).toBeNull();
+  expect(agreedMask(['καφέ','καφέδες'])).toBeNull();
+ });
+ it('разные знаки препинания маски не дают',()=>{
+  expect(agreedMask(['σιγά-σιγά','σιγά σιγά'])).toBeNull();
+ });
+ it('пустой список и пустые написания дают null',()=>{
+  expect(agreedMask([])).toBeNull();
+  expect(agreedMask(['   '])).toBeNull();
  });
 });

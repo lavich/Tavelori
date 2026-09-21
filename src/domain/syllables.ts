@@ -111,16 +111,32 @@ export function formatSyllables(greek:string):string{
  return writing.article?`${writing.article} · ${word}`:word;
 }
 
-export interface MaskSymbol {char:string;hidden:boolean}
+export type MaskSymbol={hidden:true}|{hidden:false;char:string};
 export interface WritingMask {
  /** Группы по словам исходного написания: пробел не символ маски, а граница группы. */
  groups:MaskSymbol[][];
  letters:number;
 }
 
-/** Маска подсказки длины: буквы и цифры скрыты, знаки показаны — подчёркивание обещало бы букву там, где её нет. */
+/**
+ * Маска подсказки длины: буквы и цифры скрыты, знаки показаны — подчёркивание обещало бы букву там, где её нет.
+ * Скрытый символ не хранит собственную букву: до ответа ожидаемое написание не должно жить и в модели.
+ */
 export function maskWriting(greek:string):WritingMask{
  const groups=greek.normalize('NFC').trim().split(/\s+/).filter(Boolean)
-  .map(token=>[...token].map(char=>({char,hidden:/[\p{L}\p{N}]/u.test(char)})));
+  .map(token=>[...token].map((char):MaskSymbol=>/[\p{L}\p{N}]/u.test(char)?{hidden:true}:{hidden:false,char}));
  return {groups,letters:groups.flat().filter(symbol=>symbol.hidden).length};
+}
+
+const maskShape=(mask:WritingMask)=>mask.groups.map(group=>group.map(symbol=>symbol.hidden?'_':symbol.char).join('')).join(' ');
+
+/**
+ * Общая маска допустимых ответов или её отсутствие. Разные по структуре варианты общей маски не имеют, а маска
+ * по одному из них отсекала бы остальные: «τηλεόραση» и «την τηλεόραση» одинаково верны, и подсказка из девяти
+ * букв заставила бы отбросить ответ из двух слов. Тогда лучше не подсказывать вовсе.
+ */
+export function agreedMask(forms:readonly string[]):WritingMask|null{
+ const masks=forms.filter(form=>form.trim()).map(maskWriting);
+ if(!masks.length)return null;
+ return masks.every(mask=>maskShape(mask)===maskShape(masks[0]))?masks[0]:null;
 }
