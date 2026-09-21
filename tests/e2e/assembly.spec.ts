@@ -221,6 +221,9 @@ test("старая сессия без артикля в вариантах до
       }),
   );
   await page.reload();
+  // Ждём сами плитки: проверка на отсутствие артикля проходит и на ещё пустой странице,
+  // поэтому гонкой она не управляет, а allInnerTexts читает разово и вернул бы [].
+  await expect(page.getByTestId("tile")).toHaveCount(3);
   await expect(page.getByTestId("fixed-article")).toHaveCount(0);
   expect((await page.getByTestId("tile").allInnerTexts()).sort()).toEqual(["σπί", "τι", "το"].sort());
   for (const tile of ["το", "σπί", "τι"])
