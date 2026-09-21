@@ -49,13 +49,14 @@ export function SessionScreen() {
             .first(),
     [sessionId],
   );
+  const [cursor, setCursor] = useState<number | null>(null);
+  const active = useRef({ ms: 0, since: Date.now() });
   useEffect(() => {
     if (!session || sessionId) return;
     setSessionId(session.id);
     setCursor(session.items.findIndex((entry) => !entry.eventId && !entry.skipped)); // продолжаем с первого неотвеченного
     active.current = { ms: session.activeTimeMs, since: Date.now() }; // время прошлых заходов не теряется
   }, [session?.id]);
-  const [cursor, setCursor] = useState<number | null>(null);
   // Одна жалоба на экран: её ставят и знакомство, и сохранение ответа, и пропуск. `busy` здесь — идущее знакомство.
   const {
     busy: introducing,
@@ -72,7 +73,6 @@ export function SessionScreen() {
       .finally(() => setPreparing(false));
   }, [session?.id, session?.objectiveVersion]);
   const shown = useRef(Date.now());
-  const active = useRef({ ms: 0, since: Date.now() });
   const previous = useRef<string | undefined>(undefined);
   const position = cursor ?? session?.items.findIndex((entry) => !entry.eventId && !entry.skipped) ?? 0;
   const haptic = useHaptics();

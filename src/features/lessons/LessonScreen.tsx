@@ -218,9 +218,10 @@ export function LessonScreen() {
         .catch(() => undefined);
   };
   // Открытие неустановленного урока из каталога загружает его пакет; без сети покажется ошибка с повтором.
+  const notInstalled = detail === null;
   useEffect(() => {
-    if (detail === null && entry && phase.phase === "idle") install();
-  }, [detail === null, entry?.id, phase.phase]);
+    if (notInstalled && entry && phase.phase === "idle") install();
+  }, [notInstalled, entry?.id, phase.phase]);
 
   if (detail === undefined || (detail === null && catalog === undefined))
     return (
