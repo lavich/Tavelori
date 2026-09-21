@@ -55,11 +55,8 @@
 .maskLetter{min-width:.8em;height:1.15em;border-bottom:2px solid currentColor;text-align:center}
 .maskLead{color:var(--muted-foreground);opacity:.75}
 .maskTyped{color:var(--foreground);border-color:var(--foreground)}
-/*
- * Место пробела между словами и место за концом слова: своя узкая площадка на общей линии. Без линии каретка
- * висела бы в воздухе; площадка уже буквенной ячейки и бледнее, чтобы не читаться лишней буквой.
- */
-.maskGap{display:block;width:.5em;height:1.15em;border-bottom:2px solid currentColor;opacity:.45}
 /* Каретка рисуется сама: собственная каретка поля стоит по скрытому тексту и в ячейки не попадает. */
-.field:focus-within .maskCaret{animation:caret 1.1s step-end infinite}
-@keyframes caret{0%,50%{box-shadow:inset 2px 0 0 -1px var(--primary)}50.01%,100%{box-shadow:none}}
+.field:focus-within .maskCaretAfter{animation:caretAfter 1.1s step-end infinite}
+.field:focus-within .maskCaretBefore{animation:caretBefore 1.1s step-end infinite}
+@keyframes caretAfter{0%,50%{box-shadow:inset -2px 0 0 -1px var(--primary)}50.01%,100%{box-shadow:none}}
+@keyframes caretBefore{0%,50%{box-shadow:inset 2px 0 0 -1px var(--primary)}50.01%,100%{box-shadow:none}}
