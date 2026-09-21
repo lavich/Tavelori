@@ -30,13 +30,13 @@ test('«Учить курс» ставит все уроки курса, а но
   database.close();
   return keys.sort();
  });
- await expect.poll(installed).toEqual(['lesson-1-1','lesson-1-1-extra','lesson-1-2','lesson-1-3','lesson-1-4','lesson-2-1','lesson-2-2','lesson-2-3','lesson-2-4','lesson-3-1']);
+ await expect.poll(installed).toEqual(['lesson-1-1','lesson-1-1-extra','lesson-1-2','lesson-1-3','lesson-1-4','lesson-2-1','lesson-2-2','lesson-2-3','lesson-2-4','lesson-3-1','lesson-3-2']);
 
  // Урок опубликован: подписанный курс доустанавливает его сам, без нажатий.
  await page.unroute('**/content/catalog.json');
  await page.goto('/');
  await ready(page);
- await expect.poll(installed,{timeout:20000}).toEqual(['lesson-1-1','lesson-1-1-extra','lesson-1-2','lesson-1-3','lesson-1-4','lesson-2-1','lesson-2-2','lesson-2-3','lesson-2-4','lesson-3-1','lesson-3-2']);
+ await expect.poll(installed,{timeout:20000}).toEqual(['lesson-1-1','lesson-1-1-extra','lesson-1-2','lesson-1-3','lesson-1-4','lesson-2-1','lesson-2-2','lesson-2-3','lesson-2-4','lesson-3-1','lesson-3-2','lesson-3-3']);
 });
 
 test('свой набор попадает в «Мои слова» отдельной группой',async({page})=>{
