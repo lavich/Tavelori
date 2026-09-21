@@ -28,7 +28,8 @@ test('хвост пройденного урока виден на «Сегод�
  await expect(page.getByTestId('backlog')).toContainText('Хвост прошедших занятий');
  // Часть слов урока 1.1 повторяется в уроках со сроком: они готовятся к сроку, а не висят в хвосте.
  const cards=await lessonCards(page);
- const upcoming=new Set(['lesson-1-2','lesson-1-3','lesson-1-4'].flatMap(id=>cards[id]??[]));
+ // Любой более поздний урок, а не только 1.2-1.4: слово 1.1 может повториться и в наборе третьего уровня.
+ const upcoming=new Set(Object.entries(cards).filter(([id])=>id!=='lesson-1-1').flatMap(([,keys])=>keys));
  const tail=cards['lesson-1-1'].filter(key=>!upcoming.has(key)).length;
  expect(tail).toBeLessThan(cards['lesson-1-1'].length);
  await expect(page.getByTestId('backlog')).toContainText(String(tail));
