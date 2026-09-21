@@ -54,11 +54,14 @@ describe('разброс интервалов',()=>{
  });
 });
 
-it('считает сборку по слогам без артикля и сохраняет только их',()=>{
+it('кладёт в пул сборки артикль обычной плиткой, а доступность считает по слогам без него',()=>{
  const history=[wordEvent('w',{id:'r',sessionId:'s',itemId:'i',snapshot:{greek:'',russian:''},type:'recognition' as const,mode:'scheduled' as const,rating:3 as const,correct:true,answer:'',createdAt:now.toISOString(),localDate:'2026-09-15',responseTimeMs:100})];
  const skills={cleanAssemblies:0,lastTypes:['recognition' as const],types:{recognition:{recent:[true],lastAt:now.toISOString()}}};
  const family={...words[0],id:'family',greek:'η οικογένεια'};
- expect(objectiveExercise(family,[],skills,()=>0)).toEqual({type:'assembly',options:['κο','γέ','νεια','οι']});
+ const exercise=objectiveExercise(family,[],skills,()=>0);
+ expect(exercise).toEqual({type:'assembly',options:['οι','κο','γέ','νεια','η']});
+ expect([...exercise.options].sort()).toEqual(['γέ','η','κο','νεια','οι']); // артикль лежит в пуле наравне со слогами
+ expect(exercise.options.join('')).not.toBe('ηοικογένεια'); // и порядок пула отличается от правильного
  const light={...words[0],id:'light',greek:'το φως'};
  expect(objectiveExercise(light,[],skills,()=>0).type).toBe('spelling');
  expect(history).toHaveLength(1); // форма события остаётся совместимой
@@ -140,8 +143,8 @@ describe('дополнительная попытка на ступень про
  it('под написанием стоит сборка, а не повторный набор',()=>{
   const step=easierExercise(cardOfWord(family),'spelling',pools(),()=>0)!;
   expect(step.type).toBe('assembly');
-  expect([...step.options].sort()).toEqual(['γέ','κο','νεια','οι']); // артикль лишней плиткой не остаётся
-  expect(step.options.join('')).not.toBe('οικογένεια');
+  expect([...step.options].sort()).toEqual(['γέ','η','κο','νεια','οι']); // артикль ставит пользователь
+  expect(step.options.join('')).not.toBe('ηοικογένεια');
  });
  it('слову без слогов остаётся узнавание, а без вариантов — то же задание',()=>{
   const step=easierExercise(cardOfWord(light),'spelling',pools(),()=>0.5)!;

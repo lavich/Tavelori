@@ -78,8 +78,9 @@
      "wordId": "w22",
      "type": "assembly",
      "options": [
+      "λέ",
       "ξη22",
-      "λέ"
+      "το"
      ],
      "isNew": false,
      "mode": "scheduled",
@@ -244,8 +245,9 @@
      "wordId": "w22",
      "type": "assembly",
      "options": [
+      "λέ",
       "ξη22",
-      "λέ"
+      "το"
      ],
      "isNew": false,
      "mode": "scheduled",
@@ -1102,6 +1104,7 @@
      "type": "assembly",
      "options": [
       "ξη2",
+      "το",
       "λέ"
      ],
      "isNew": true,
@@ -1114,7 +1117,8 @@
      "type": "assembly",
      "options": [
       "ξη0",
-      "λέ"
+      "λέ",
+      "το"
      ],
      "isNew": false,
      "mode": "scheduled",
@@ -1125,8 +1129,9 @@
      "wordId": "w1",
      "type": "assembly",
      "options": [
-      "ξη1",
-      "λέ"
+      "λέ",
+      "το",
+      "ξη1"
      ],
      "isNew": true,
      "mode": "scheduled",
@@ -1143,6 +1148,7 @@
      "type": "assembly",
      "options": [
       "ξη2",
+      "το",
       "λέ"
      ],
      "isNew": true,
@@ -1155,7 +1161,8 @@
      "type": "assembly",
      "options": [
       "ξη0",
-      "λέ"
+      "λέ",
+      "το"
      ],
      "isNew": false,
      "mode": "scheduled",
@@ -1166,8 +1173,9 @@
      "wordId": "w1",
      "type": "assembly",
      "options": [
-      "ξη1",
-      "λέ"
+      "λέ",
+      "το",
+      "ξη1"
      ],
      "isNew": true,
      "mode": "scheduled",
@@ -1183,6 +1191,7 @@
      "wordId": "w0",
      "type": "assembly",
      "options": [
+      "το",
       "ξη0",
       "λέ"
      ],
@@ -1195,6 +1204,7 @@
      "wordId": "w1",
      "type": "assembly",
      "options": [
+      "το",
       "ξη1",
       "λέ"
      ],
@@ -1208,6 +1218,7 @@
      "type": "assembly",
      "options": [
       "ξη2",
+      "το",
       "λέ"
      ],
      "isNew": true,

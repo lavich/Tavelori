@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {assemblyOptions, formatSyllables, restoreWriting, splitSyllables, splitWriting, tiles} from '../src/domain/syllables';
+import {assemblyOptions, checkAssembly, formatSyllables, restoreAssembly, restoreWriting, splitSyllables, splitWriting, tiles} from '../src/domain/syllables';
 import {buildContent} from '../content/build';
 const seedWords=buildContent().words;
 
@@ -63,11 +63,39 @@ describe('деление на слоги',()=>{
   expect(formatSyllables('η οικογένεια')).toBe('η · οι-κο-γέ-νεια');
   expect(formatSyllables('διαβάζω')).toBe('δια-βά-ζω');
  });
- it('убирает артикль из старой сессии, не затрагивая новые варианты',()=>{
-  expect(assemblyOptions('η οικογένεια',['κο','η','νεια','οι','γέ'])).toEqual(['κο','νεια','οι','γέ']);
-  expect(assemblyOptions('η οικογένεια',['κο','νεια','οι','γέ'])).toEqual(['κο','νεια','οι','γέ']);
+ it('дополняет артиклем пул старой сессии, не трогая пул с артиклем',()=>{
+  expect(assemblyOptions('η οικογένεια',['κο','νεια','οι','γέ'])).toEqual(['η','κο','νεια','οι','γέ']);
+  expect(assemblyOptions('η οικογένεια',['κο','η','νεια','οι','γέ'])).toEqual(['κο','η','νεια','οι','γέ']);
   expect(assemblyOptions('διαβάζω',['βά','δια','ζω'])).toEqual(['βά','δια','ζω']);
-  expect(assemblyOptions('το φρούτο',['φρού','το'])).toEqual(['φρού','το']);
-  expect(assemblyOptions('το φρούτο',['το','φρού','το'])).toEqual(['φρού','το']);
+  expect(assemblyOptions('το φρούτο',['το','φρού'])).toEqual(['το','το','φρού']);
+  expect(assemblyOptions('το φρούτο',['το','φρού','το'])).toEqual(['το','φρού','το']);
+ });
+ it('восстанавливает написание из выложенных плиток, считая первую местом артикля',()=>{
+  expect(restoreAssembly('η οικογένεια',['η','οι','κο','γέ','νεια'])).toBe('η οικογένεια');
+  expect(restoreAssembly('το φρούτο',['το','φρού','το'])).toBe('το φρούτο');
+  expect(restoreAssembly('η οικογένεια',['οι','κο','γέ','νεια','η'])).toBe('οι κογένειαη');
+  expect(restoreAssembly('διαβάζω',['δια','βά','ζω'])).toBe('διαβάζω');
+  expect(restoreAssembly('καλή μέρα',['κα','λή','μέ','ρα'])).toBe('καλή μέρα');
+ });
+});
+
+describe('проверка сборки',()=>{
+ it('верное написание засчитывается',()=>{
+  expect(checkAssembly('η οικογένεια',['η','οι','κο','γέ','νεια'])).toEqual({status:'correct',answer:'η οικογένεια',message:'Правильно!'});
+  expect(checkAssembly('διαβάζω',['δια','βά','ζω']).status).toBe('correct');
+  expect(checkAssembly('το φρούτο',['το','φρού','το']).status).toBe('correct');
+ });
+ it('верные слоги и артикль не на месте дают «Почти»',()=>{
+  const result=checkAssembly('η οικογένεια',['οι','κο','γέ','νεια','η']);
+  expect(result.status).toBe('almost');
+  expect(result.message).toBe('Почти! Проверь артикль.');
+  expect(checkAssembly('η οικογένεια',['οι','κο','η','γέ','νεια']).status).toBe('almost');
+  expect(checkAssembly('το φρούτο',['φρού','το','το']).status).toBe('almost');
+ });
+ it('неверный порядок слогов остаётся ошибкой',()=>{
+  expect(checkAssembly('η οικογένεια',['η','κο','οι','γέ','νεια'])).toEqual({status:'wrong',answer:'η κοοιγένεια',message:'Пока не сходится — посмотри написание.'});
+  expect(checkAssembly('η οικογένεια',['κο','οι','γέ','νεια','η']).status).toBe('wrong');
+  expect(checkAssembly('το φρούτο',['το','το','φρού']).status).toBe('wrong');
+  expect(checkAssembly('διαβάζω',['βά','δια','ζω'])).toEqual({status:'wrong',answer:'βάδιαζω',message:'Пока не сходится — посмотри порядок слогов.'});
  });
 });

@@ -2,7 +2,7 @@ import {createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, ty
 import type {TextAnswerStatus} from './cloze';
 import {unitKey, wordRef} from './refs';
 import {emptySkills, summarizeEvents, type SkillSummary} from './skills';
-import {assemblyOptions, splitWriting} from './syllables';
+import {splitWriting} from './syllables';
 import {LOCAL_COURSE, type CardKind, type Cloze, type Course, type ExerciseType, type LearningRef, type LearningState, type Lesson, type Phrase, type ReviewEvent, type Session, type SessionCard, type SessionItem, type Settings, type Word} from './types';
 
 /**
@@ -450,15 +450,13 @@ export function easierExercise(card:SessionCard,type:ExerciseType,pools:OptionPo
  }
  return null;
 }
-/** Сборка слова: `null` — слогов меньше двух. Артикль остаётся условием задания, лишней плиткой не ложится. */
+/** Сборка слова: `null` — слогов меньше двух. Артикль ложится в пул обычной плиткой и ставится наравне со слогами. */
 function assemblyExercise(word:Word,random:()=>number):Pick<SessionItem,'type'|'options'>|null{
  const writing=splitWriting(word.greek);
  const parts=writing.syllables;
  if(parts.length<2)return null;
- // Перемешивание полной старой последовательности сохраняет детерминированный поток random для остальных заданий.
- const shuffled=shuffleTiles(writing.article?[writing.article,...parts]:parts,random);
- const options=assemblyOptions(word.greek,shuffled);
- return {type:'assembly',options:options.join('')===parts.join('')?[...options.slice(1),options[0]]:options};
+ // Перемешивается весь пул целиком: отсюда и детерминированный поток random для остальных заданий, и порядок, отличный от правильного.
+ return {type:'assembly',options:shuffleTiles(writing.article?[writing.article,...parts]:parts,random)};
 }
 /** Упражнение для карточки любого вида; `null` — фразу нечем объективно проверить. */
 export function exerciseFor(card:SessionCard,pools:ExercisePools,skills:SkillSummary,random:()=>number,hasVoice:boolean):Pick<SessionItem,'type'|'options'>|null{
