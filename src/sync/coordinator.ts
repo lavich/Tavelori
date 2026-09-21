@@ -34,8 +34,12 @@ export interface CoordinatorOptions {
  online?:()=>boolean;
  /** Планировщик повторов; тесты подменяют. */
  schedule?:(run:()=>void,delayMs:number)=>()=>void;
+ /** Лечение отказа хранилища: `true` — база переоткрыта, обмен можно повторить; `false` — отказ невылечен. */
+ recover?:(error:unknown)=>Promise<boolean>;
  retryBaseMs?:number;
 }
+/** Страховка от бесконечного повтора: сам предел попыток лечения задаёт тот, кто его подключает. */
+const MAX_RECOVERIES=3;
 const INITIAL:SyncStatus={phase:'idle',lastConfirmedAt:null,dirty:false,error:null,conflict:null,keys:null,reason:null};
 const randomDevice=()=>Array.from({length:8},()=>'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random()*36)]).join('');
 
@@ -50,12 +54,13 @@ export class SyncCoordinator {
  private retryMs:number;
  private cancelRetry:(()=>void)|null=null;
  private stopHandlers:(()=>void)[]=[];
- private options:Required<Pick<CoordinatorOptions,'now'|'label'|'lock'|'online'|'schedule'>>&CoordinatorOptions;
+ private options:Required<Pick<CoordinatorOptions,'now'|'label'|'lock'|'online'|'schedule'|'recover'>>&CoordinatorOptions;
  constructor(options:CoordinatorOptions){
   this.options={
    now:()=>new Date(),label:'',online:()=>typeof navigator==='undefined'||navigator.onLine!==false,
    lock:async run=>{await run();return 'acquired'},
    schedule:(run,delay)=>{const id=setTimeout(run,delay);return()=>clearTimeout(id)},
+   recover:async()=>false,
    ...options,
   };
   this.retryMs=options.retryBaseMs??30000;
@@ -90,27 +95,39 @@ export class SyncCoordinator {
   this.running=this.run().finally(()=>{this.running=null});
   return this.running;
  }
+ /**
+  * Обмен идёт вне дерева React, поэтому граница восстановления его не прикрывает: отказ хранилища после сна
+  * WebView лечится здесь переоткрытием базы и повтором захода. Отчёт о сбое уходит, когда лечение не помогло.
+  */
  private async run():Promise<SyncStatus>{
-  const {adapter,database}=this.options;
   this.cancelRetry?.();this.cancelRetry=null;
+  for(let round=0;;round++){
+   try{await this.cycle();break}
+   catch(error){
+    if(round>=MAX_RECOVERIES||!await this.options.recover(error)){this.fail(error);break}
+   }
+  }
+  return this.status;
+ }
+ /** Один заход обмена: отказ пробрасывается наверх, где решается — лечить хранилище или сообщать о сбое. */
+ private async cycle():Promise<void>{
+  const {adapter}=this.options;
   const flags=await this.flags();
   this.update({dirty:flags.dirty||!!flags.restored,lastConfirmedAt:flags.lastOk});
-  if(!adapter.capabilities().available){this.update({phase:'disabled',reason:null});return this.status}
-  if(!this.options.online()){this.update({phase:'paused',reason:'Нет сети: изменения ждут на устройстве.'});return this.status}
+  if(!adapter.capabilities().available){this.update({phase:'disabled',reason:null});return}
+  if(!this.options.online()){this.update({phase:'paused',reason:'Нет сети: изменения ждут на устройстве.'});return}
   let writes=true;
   const lock=await this.options.lock(async()=>{
    this.update({phase:'syncing',error:null,reason:null});
-   try{await this.decide(writes,0)}
-   catch(error){this.fail(error)}
+   await this.decide(writes,0);
   });
-  if(lock==='busy'){this.update({phase:'paused',reason:'Синхронизацией занята другая вкладка.'});return this.status}
+  if(lock==='busy'){this.update({phase:'paused',reason:'Синхронизацией занята другая вкладка.'});return}
   if(lock==='unsupported'){
    // Без блокировки нельзя гарантировать одного писателя: читаем и применяем, но не публикуем.
    writes=false;
    this.update({phase:'syncing',error:null});
-   try{await this.decide(writes,0)}catch(error){this.fail(error)}
+   await this.decide(writes,0);
   }
-  return this.status;
  }
  private fail(error:unknown){
   const kind:SyncErrorKind|'unknown'=error instanceof SyncError?error.kind:'unknown';
