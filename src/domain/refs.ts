@@ -1,42 +1,75 @@
 // Расширения `.ts` обязательны: этот модуль загружает и Node при сборке контента (`node content/build.ts`),
 // а его резолвер требует точный путь. В остальном коде приложения расширения не пишутся.
-import {normalize} from './import.ts';
-import {CARD_KINDS, type CardKind, type CardSnapshot, type LearningRef, type LessonItem, type LessonWord, type SessionCard} from './types.ts';
+import { normalize } from "./import.ts";
+import {
+  CARD_KINDS,
+  type CardKind,
+  type CardSnapshot,
+  type LearningRef,
+  type LessonItem,
+  type LessonWord,
+  type SessionCard,
+} from "./types.ts";
 
-export type {LearningRef} from './types.ts';
+export type { LearningRef } from "./types.ts";
 
 /** Ключ единицы повторения: сериализованная пара, чтобы ID разных видов не сталкивались и разделитель внутри ID не ломал разбор. */
-export const unitKey=(ref:LearningRef):string=>JSON.stringify([ref.kind,ref.id]);
-export const wordRef=(id:string):LearningRef=>({kind:'word',id});
-export const phraseRef=(id:string):LearningRef=>({kind:'phrase',id});
-export const clozeRef=(id:string):LearningRef=>({kind:'cloze',id});
-export const wordKeyOf=(id:string)=>unitKey(wordRef(id));
-export const isCardKind=(value:unknown):value is CardKind=>typeof value==='string'&&(CARD_KINDS as readonly string[]).includes(value);
+export const unitKey = (ref: LearningRef): string => JSON.stringify([ref.kind, ref.id]);
+export const wordRef = (id: string): LearningRef => ({ kind: "word", id });
+export const phraseRef = (id: string): LearningRef => ({ kind: "phrase", id });
+export const clozeRef = (id: string): LearningRef => ({ kind: "cloze", id });
+export const wordKeyOf = (id: string) => unitKey(wordRef(id));
+export const isCardKind = (value: unknown): value is CardKind =>
+  typeof value === "string" && (CARD_KINDS as readonly string[]).includes(value);
 /** Ключ старой словарной записи: голый ID слова без сериализации. */
-export const isUnitKey=(value:string)=>value.startsWith('["');
+export const isUnitKey = (value: string) => value.startsWith('["');
 
-export function parseUnitKey(key:string):LearningRef{
- let parsed:unknown;
- try{parsed=JSON.parse(key)}catch{throw new Error(`Некорректный ключ карточки: ${key}`)}
- if(!Array.isArray(parsed)||parsed.length!==2||typeof parsed[1]!=='string')throw new Error(`Некорректный ключ карточки: ${key}`);
- const [kind,id]=parsed;
- if(!isCardKind(kind))throw new Error(`Неизвестный вид карточки «${String(kind)}»`);
- return {kind,id};
+export function parseUnitKey(key: string): LearningRef {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(key);
+  } catch {
+    throw new Error(`Некорректный ключ карточки: ${key}`);
+  }
+  if (!Array.isArray(parsed) || parsed.length !== 2 || typeof parsed[1] !== "string")
+    throw new Error(`Некорректный ключ карточки: ${key}`);
+  const [kind, id] = parsed;
+  if (!isCardKind(kind)) throw new Error(`Неизвестный вид карточки «${String(kind)}»`);
+  return { kind, id };
 }
 
 /** Словарная связь прежнего вида — типизированная связь того же порядка. */
-export const itemOfLink=(link:LessonWord):LessonItem=>({lessonId:link.lessonId,unitKey:wordKeyOf(link.wordId),ref:wordRef(link.wordId),position:link.position});
+export const itemOfLink = (link: LessonWord): LessonItem => ({
+  lessonId: link.lessonId,
+  unitKey: wordKeyOf(link.wordId),
+  ref: wordRef(link.wordId),
+  position: link.position,
+});
 
 /** Ссылка на содержимое сессии и снимок для события ответа. */
-export const refOfCard=(card:SessionCard):LearningRef=>card.kind==='word'?wordRef(card.word.id):card.kind==='phrase'?phraseRef(card.phrase.id):clozeRef(card.cloze.id);
-export const snapshotOf=(card:SessionCard):CardSnapshot=>card.kind==='word'?{greek:card.word.greek,russian:card.word.russian}
- :card.kind==='phrase'?{text:card.phrase.text,...(card.phrase.translation?{translation:card.phrase.translation}:{})}
- :{template:card.cloze.template,answer:card.cloze.answer,...(card.cloze.target?{target:card.cloze.target}:{})};
+export const refOfCard = (card: SessionCard): LearningRef =>
+  card.kind === "word"
+    ? wordRef(card.word.id)
+    : card.kind === "phrase"
+      ? phraseRef(card.phrase.id)
+      : clozeRef(card.cloze.id);
+export const snapshotOf = (card: SessionCard): CardSnapshot =>
+  card.kind === "word"
+    ? { greek: card.word.greek, russian: card.word.russian }
+    : card.kind === "phrase"
+      ? { text: card.phrase.text, ...(card.phrase.translation ? { translation: card.phrase.translation } : {}) }
+      : {
+          template: card.cloze.template,
+          answer: card.cloze.answer,
+          ...(card.cloze.target ? { target: card.cloze.target } : {}),
+        };
 /** Поставленная пакетом карточка имеет ревизию; у пользовательских слов её нет. */
-export const isShippedCard=(card:SessionCard)=>(card.kind==='word'?card.word:card.kind==='phrase'?card.phrase:card.cloze).revision!==undefined;
+export const isShippedCard = (card: SessionCard) =>
+  (card.kind === "word" ? card.word : card.kind === "phrase" ? card.phrase : card.cloze).revision !== undefined;
 
 /** Дубликат фразы — тот же текст с тем же переводом; фраза без перевода не равна фразе с переводом. */
-export const phraseKey=(text:string,translation:string|undefined)=>`${normalize(text)} ${translation===undefined?'':normalize(translation)}`;
+export const phraseKey = (text: string, translation: string | undefined) =>
+  `${normalize(text)} ${translation === undefined ? "" : normalize(translation)}`;
 /** Дубликат cloze — тот же шаблон, канонический ответ и множество допустимых ответов; цель и порядок ответов не учитываются. */
-export const clozeKey=(template:string,answer:string,acceptedAnswers:string[])=>
- [normalize(template),normalize(answer),[...new Set(acceptedAnswers.map(normalize))].sort().join('')].join(' ');
+export const clozeKey = (template: string, answer: string, acceptedAnswers: string[]) =>
+  [normalize(template), normalize(answer), [...new Set(acceptedAnswers.map(normalize))].sort().join("")].join(" ");
