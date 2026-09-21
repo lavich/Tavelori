@@ -55,7 +55,7 @@ export function BackupScreen() {
       .then(setStored)
       .catch(() => setStored([]));
   useEffect(() => {
-    refreshStored();
+    void refreshStored();
   }, []);
 
   const pick = async (picked: File | undefined) => {
@@ -204,7 +204,7 @@ export function BackupScreen() {
                 <AlertDialogAction
                   onClick={() => {
                     setConfirming(false);
-                    restore();
+                    void restore();
                   }}
                 >
                   Заменить

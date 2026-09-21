@@ -10,7 +10,7 @@ export function useGoBack() {
   const { pathname } = useLocation();
   return useCallback(() => {
     const index = (window.history.state as { idx?: number } | null)?.idx ?? 0;
-    if (index > 0) navigate(-1);
-    else navigate("/", { replace: true });
+    if (index > 0) void navigate(-1);
+    else void navigate("/", { replace: true });
   }, [navigate, pathname]);
 }

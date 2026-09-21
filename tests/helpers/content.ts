@@ -9,7 +9,7 @@ export const content: BuiltContent = buildContent();
 /** Источник контента в памяти: тесты устанавливают пакеты без сети и подменяют файлы для сценариев ошибок. */
 export function memoryFetcher(
   built: BuiltContent = content,
-  overrides: Record<string, unknown | Blob> = {},
+  overrides: Record<string, unknown> = {},
 ): ContentFetcher & { requests: string[] } {
   const files = new Map(built.files.map((file) => [file.path, file]));
   const requests: string[] = [];

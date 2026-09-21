@@ -32,7 +32,7 @@ export function useOfflineStatus(): OfflineStatus {
         return fallback;
       }
     };
-    (async () => {
+    void (async () => {
       try {
         const persisted = await attempt(() => navigator.storage?.persisted?.(), false);
         const granted = persisted || (await attempt(() => navigator.storage?.persist?.(), false));

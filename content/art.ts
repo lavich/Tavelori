@@ -19,7 +19,7 @@ export const PALETTE: Palette = JSON.parse(
 export const paletteColors = (palette = PALETTE) =>
   new Set([...Object.values(palette.backgrounds), ...Object.values(palette.colors)]);
 
-const fail = (message: string) => {
+const fail: (message: string) => never = (message) => {
   throw new ContentError(message);
 };
 /** Служебные значения цвета: не краска, а указание её не класть или взять снаружи. */

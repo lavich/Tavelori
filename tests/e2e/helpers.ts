@@ -24,6 +24,7 @@ export async function breakStorage(page: Page, permanent = false) {
     const READS = ["get", "getKey", "getAll", "getAllKeys", "count", "openCursor", "openKeyCursor"];
     patch(IDBObjectStore.prototype, READS);
     patch(IDBIndex.prototype, READS);
+    // eslint-disable-next-line typescript/unbound-method -- сохранённый метод вызывается через .call при монкипатче
     const open = IDBFactory.prototype.open;
     const marker = window as unknown as { __reopened?: number };
     IDBFactory.prototype.open = function (this: IDBFactory, ...args: [string, number?]) {

@@ -109,7 +109,8 @@ export function SessionScreen() {
     };
   }, []);
   useEffect(() => {
-    if (session && session.items.length && position < 0) navigate(`/session/result/${session.id}`, { replace: true });
+    if (session && session.items.length && position < 0)
+      void navigate(`/session/result/${session.id}`, { replace: true });
   }, [session?.id, position]);
 
   if (session === undefined || preparing)
@@ -179,14 +180,14 @@ export function SessionScreen() {
   };
   const leave = async () => {
     await endSession({ ...session, activeTimeMs: activeMs() });
-    navigate("/");
+    void navigate("/");
   };
   leaveRef.current = leave;
   const skip = async () => {
     setProblem("");
     try {
       await skipItem(session.id, item.id, activeMs());
-      next();
+      void next();
     } catch {
       setProblem("Не удалось пропустить упражнение. Попробуйте ещё раз.");
     }

@@ -101,6 +101,7 @@ describe("явные отчёты о критических отказах", () 
       json: async () => {
         throw new ContentError("Нет сети", "network");
       },
+      // eslint-disable-next-line typescript/unbound-method -- blob — замыкание тестового источника, this не использует
       blob: memoryFetcher().blob,
     };
     await expect(installLesson("lesson-1-2", db, offline)).rejects.toMatchObject({ kind: "network" });

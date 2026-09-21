@@ -44,7 +44,7 @@ export function TodayScreen() {
         return setProblem(
           "На сегодня очередь пуста. Можно потренировать карточки вручную на экране урока или слово в разделе «Слова».",
         );
-      navigate("/session");
+      void navigate("/session");
     });
 
   return (

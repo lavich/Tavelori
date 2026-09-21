@@ -135,7 +135,7 @@ export function SettingsScreen() {
             onChange={(event) => {
               const enabled = event.target.checked;
               setAutoSpeak(enabled);
-              saveSettings({ ...settings, autoSpeak: enabled });
+              void saveSettings({ ...settings, autoSpeak: enabled });
             }}
             style={{ width: 22, height: 22, minHeight: 0 }}
           />

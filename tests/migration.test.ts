@@ -156,7 +156,9 @@ describe("миграция схемы без сети", () => {
     expect(await db.states.count()).toBe(0);
     expect("wordIds" in (await db.lessons.get("lesson-1-2"))!).toBe(false);
     expect(await db.lessons.get("lesson-1-3")).toMatchObject({ title: "Урок 1.3 (мебель)" });
-    expect((await db.packages.toArray()).map((p) => [p.lessonId, p.version]).sort()).toEqual([
+    expect(
+      (await db.packages.toArray()).map((p) => [p.lessonId, p.version]).sort((a, b) => a[0].localeCompare(b[0])),
+    ).toEqual([
       ["lesson-1-2", "legacy"],
       ["lesson-1-3", "legacy"],
     ]);

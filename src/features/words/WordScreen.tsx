@@ -31,7 +31,7 @@ export function WordScreen() {
   const practice = async () => {
     const session = await startSession(now, { refs: [wordRef(word.id)], mode: "practice" });
     if (!session) return setProblem("Не удалось собрать тренировку для этого слова.");
-    navigate("/session");
+    void navigate("/session");
   };
   return (
     <Screen

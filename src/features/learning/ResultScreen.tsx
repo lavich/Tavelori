@@ -62,7 +62,7 @@ export function ResultScreen() {
 
   const repeat = async () => {
     const created = await startSession(now, { refs: readyAgain });
-    navigate(created ? "/session" : "/");
+    void navigate(created ? "/session" : "/");
   };
   return (
     <Screen bare roomy>
