@@ -47,6 +47,26 @@ function useAutoSpeak(card:SessionCard,enabled:boolean){
  },[card,enabled]);
 }
 
+/**
+ * Один автозапуск озвучки раскрытия после письменного ответа. Звук до ответа там запрещён — он продиктовал бы
+ * написание, — поэтому запуск привязан не к открытию карточки, а к появлению результата, любого: написавший
+ * слово верно тоже мог не держать в голове его звучание.
+ *
+ * `itemId` и `card` намеренно не в зависимостях. Ответ сбрасывается эффектом по `item.id`, и в первом кадре
+ * с новой карточкой `answered` ещё истинно; зависимость от карточки запустила бы озвучку нового слова до того,
+ * как его написали. Флаг-ссылка хранит карточку, которая уже прозвучала: так повтор не случается ни при
+ * перерисовке, ни при переиспользовании упражнения без `key`.
+ */
+function useRevealSpeech(card:SessionCard,itemId:string,answered:boolean,enabled:boolean){
+ const spoken=useRef<string|null>(null);
+ useEffect(()=>{
+  if(!answered||!enabled||spoken.current===itemId)return;
+  spoken.current=itemId;
+  if(card.kind==='word')playWord(card.word);
+  else if(card.kind==='phrase')playText(card.phrase.text,card.phrase.audioAssetId);
+ },[answered,enabled]);
+}
+
 /** Кнопка озвучки текста фразы или полного предложения; при отсутствии файла и голоса — подпись. */
 export function SpeakText({text,audioAssetId,label}:{text:string;audioAssetId?:string;label:string}){
  const kind=useTextAudioKind(audioAssetId);
@@ -281,14 +301,19 @@ export function Comprehension(props:Props&{autoSpeak?:boolean}){
   </div>}/>;
 }
 
-/** Ступень перед свободным написанием: слово собирается из перемешанных слогов. Только для слов. */
-export function Assembly({item,onAnswer,onNext}:Props){
+/**
+ * Ступень перед свободным написанием: слово собирается из перемешанных слогов. Только для слов.
+ * После ответа задание сменяется раскрытием, как в написании; строка со слогами остаётся в плашке —
+ * деления на слоги в карточке нет, а собирали именно его.
+ */
+export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak?:boolean}){
  const [placed,setPlaced]=useState<number[]>([]);
  const [result,setResult]=useState<'correct'|'wrong'|'skipped'|null>(null);
  const [saving,setSaving]=useState(false);
  useEffect(()=>{setPlaced([]);setResult(null);setSaving(false)},[item.id]);
  const revealed=useRevealed(!!result);
  const word=wordOf(item.card);
+ useRevealSpeech(item.card,item.id,!!result,autoSpeak);
  const writing=splitWriting(word.greek);
  const pool=assemblyOptions(word.greek,item.options);
  const ordered=placed.map(index=>pool[index]);
@@ -307,16 +332,20 @@ export function Assembly({item,onAnswer,onNext}:Props){
   <>
    <div className={s.center}>
     <p className={s.prompt} data-testid="prompt">Собери слово</p>
-    {writing.article&&<p className={s.prompt} data-testid="article-hint">Слово дано с артиклем</p>}
-    <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.russian}</p>
-    <WordArt word={word}/>
+    {!result&&(
+     <>
+      {writing.article&&<p className={s.prompt} data-testid="article-hint">Слово дано с артиклем</p>}
+      <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.russian}</p>
+      <WordArt word={word}/>
+     </>
+    )}
     {result&&(
      <div style={{width:'100%'}} ref={revealed}>
       <div data-testid="feedback" className={cx(s.feedback, result==='correct'?s.ok:s.bad)} style={{marginTop:0}}>
        <div>{result==='correct'?'Правильно!':result==='skipped'?(writing.article?'Правильное написание:':'Правильный порядок слогов:'):(writing.article?'Пока не сходится — посмотри написание.':'Пока не сходится — посмотри порядок слогов.')}</div>
        <p className="m-0 mt-1.5 text-[19px]">{formatSyllables(word.greek)}</p>
       </div>
-      {word.examples[0]&&<div style={{textAlign:'left',marginTop:12}}><ExampleBox example={word.examples[0]}/></div>}
+      <div data-testid="reveal" className="mt-3.5 flex w-full flex-col items-center gap-3.5"><WordReveal word={word} speak/></div>
      </div>
     )}
    </div>
@@ -350,8 +379,12 @@ export function Assembly({item,onAnswer,onNext}:Props){
  );
 }
 
-/** Написание слова по переводу или фразы целиком по её переводу. У фразы проверка без послаблений артиклю. */
-export function Spelling({item,onAnswer,onNext}:Props){
+/**
+ * Написание слова по переводу или фразы целиком по её переводу. У фразы проверка без послаблений артиклю.
+ * После сохранённого ответа задание уходит с экрана, а на его месте — плашка с разбором и раскрытие материала:
+ * перевод и картинка входят в карточку, поэтому отдельно они не нужны. Раскрытие ничего не сохраняет.
+ */
+export function Spelling({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak?:boolean}){
  const [value,setValue]=useState('');
  const [result,setResult]=useState<{status:'correct'|'almost'|'wrong';message:string;skipped?:boolean}|null>(null);
  const [saving,setSaving]=useState(false);
@@ -360,12 +393,13 @@ export function Spelling({item,onAnswer,onNext}:Props){
  const {card}=item;
  const expected=card.kind==='phrase'?card.phrase.text:wordOf(card).greek;
  const prompt=card.kind==='phrase'?card.phrase.translation??'':wordOf(card).russian;
+ useRevealSpeech(card,item.id,!!result,autoSpeak);
  const skip=async()=>{
   if(result||saving)return;
   setSaving(true);
   const saved=await onAnswer({correct:false,text:''});
   setSaving(false);
-  if(saved)setResult({status:'wrong',message:`Правильный ответ: ${expected}`,skipped:true});
+  if(saved)setResult({status:'wrong',message:'Ничего страшного — вот как это пишется.',skipped:true});
  };
  const submit=async(event:React.FormEvent)=>{
   event.preventDefault();
@@ -380,24 +414,29 @@ export function Spelling({item,onAnswer,onNext}:Props){
   <>
    <div className={s.center}>
     <p className={s.prompt} data-testid="prompt">Напиши по-гречески</p>
-    <p className={wordCss.greek} style={{margin:'6px 0'}}>{prompt}</p>
-    {card.kind==='word'&&<WordArt word={card.word}/>}
+    {!result&&(
+     <>
+      <p className={wordCss.greek} style={{margin:'6px 0'}}>{prompt}</p>
+      {card.kind==='word'&&<WordArt word={card.word}/>}
+     </>
+    )}
     {result&&(
      <div style={{width:'100%'}} ref={revealed}>
       <div data-testid="feedback" className={cx(s.feedback, result.status==='correct'?s.ok:result.status==='almost'?s.almost:s.bad)} style={{marginTop:0}}>
        <div>{result.message}</div>
+       {/* Сравнивать есть что только после промаха с введённым ответом: при верном совпало всё, при «Не знаю» вводить было нечего. */}
        {result.status!=='correct'&&!result.skipped&&(
         <>
          <p className={s.chars} data-testid="chars" style={{margin:'6px 0 0'}}>
           {diffChars(value,expected).map((part,index)=>part.type==='same'?<b key={index}>{part.text}</b>:part.type==='wrong'?<s key={index}>{part.text}</s>:<u key={index}>{part.text}</u>)}
          </p>
          <p className={ui.small} style={{margin:'4px 0 0',opacity:.85}}>Зелёное — совпало, красное — лишнее, подчёркнутое — пропущено.</p>
-         <p className={ui.small} style={{margin:'6px 0 0'}}>Правильно: {expected}</p>
         </>
        )}
       </div>
-      {card.kind==='word'&&card.word.examples[0]&&<div style={{textAlign:'left',marginTop:12}}><ExampleBox example={card.word.examples[0]}/></div>}
-      {card.kind==='phrase'&&<div className="mt-3 flex justify-center"><SpeakText text={card.phrase.text} audioAssetId={card.phrase.audioAssetId} label="Послушать фразу"/></div>}
+      <div data-testid="reveal" className="mt-3.5 flex w-full flex-col items-center gap-3.5">
+       {card.kind==='phrase'?<PhraseReveal phrase={card.phrase} speak/>:<WordReveal word={wordOf(card)} speak/>}
+      </div>
      </div>
     )}
    </div>

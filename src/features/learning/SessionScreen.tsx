@@ -135,8 +135,8 @@ export function SessionScreen(){
   :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='comprehension'?<Comprehension key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip} autoSpeak={settingsReady&&settings.autoSpeak}/>
-  :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next}/>
-  :<Spelling key={item.id} item={item} onAnswer={answer} onNext={next}/>;
+  :item.type==='assembly'?<Assembly key={item.id} item={item} onAnswer={answer} onNext={next} autoSpeak={settingsReady&&settings.autoSpeak}/>
+  :<Spelling key={item.id} item={item} onAnswer={answer} onNext={next} autoSpeak={settingsReady&&settings.autoSpeak}/>;
 
  return (
   <main className={s.session}>
