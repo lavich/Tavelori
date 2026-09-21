@@ -87,7 +87,7 @@ describe('сборка слова из плиток',()=>{
   expect(button(host,'Проверить')!.disabled).toBe(true); // пока не выложены все плитки, включая артикль
   await put(host,['νεια']);
   expect(button(host,'Проверить')!.disabled).toBe(false);
-  await press(placed(host)[0]); // поставленный артикль возвращается как любая другая плитка
+  await press(placed(host)[0]);
   expect(placed(host)).toHaveLength(4);
   expect(button(host,'Проверить')!.disabled).toBe(true);
  });

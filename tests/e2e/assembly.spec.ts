@@ -75,7 +75,7 @@ test('артикль ставит пользователь, а неверный 
  await expect(page.getByRole('button',{name:'Проверить'})).toBeDisabled(); // артикль тоже входит в пул
  await page.getByTestId('tile').filter({hasText:/^το$/}).click();
  await expect(page.getByRole('button',{name:'Проверить'})).toBeEnabled();
- await page.getByTestId('placed').filter({hasText:/^το$/}).click(); // плитка артикля возвращается как любая другая
+ await page.getByTestId('placed').filter({hasText:/^το$/}).click();
  await expect(page.getByRole('button',{name:'Проверить'})).toBeDisabled();
  await page.getByTestId('tile').filter({hasText:/^το$/}).click();
  await page.getByRole('button',{name:'Проверить'}).click();

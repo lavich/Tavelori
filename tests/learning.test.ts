@@ -60,8 +60,8 @@ it('кладёт в пул сборки артикль обычной плитк
  const family={...words[0],id:'family',greek:'η οικογένεια'};
  const exercise=objectiveExercise(family,[],skills,()=>0);
  expect(exercise).toEqual({type:'assembly',options:['οι','κο','γέ','νεια','η']});
- expect([...exercise.options].sort()).toEqual(['γέ','η','κο','νεια','οι']); // артикль лежит в пуле наравне со слогами
- expect(exercise.options.join('')).not.toBe('ηοικογένεια'); // и порядок пула отличается от правильного
+ expect([...exercise.options].sort()).toEqual(['γέ','η','κο','νεια','οι']);
+ expect(exercise.options.join('')).not.toBe('ηοικογένεια');
  const light={...words[0],id:'light',greek:'το φως'};
  expect(objectiveExercise(light,[],skills,()=>0).type).toBe('spelling');
  expect(history).toHaveLength(1); // форма события остаётся совместимой
