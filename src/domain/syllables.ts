@@ -108,7 +108,12 @@ export const ASSEMBLY_MESSAGES={
  almost:'Почти! Проверь артикль.',
  wrong:'Пока не сходится — посмотри написание.',
  wrongOrder:'Пока не сходится — посмотри порядок слогов.',
+ skipped:'Правильное написание:',
+ skippedOrder:'Правильный порядок слогов:',
 } as const;
+
+/** Подпись после «Не знаю»: у слова с артиклем показывается написание целиком, у слова без — порядок слогов. */
+export const assemblySkipMessage=(greek:string)=>splitWriting(greek).article?ASSEMBLY_MESSAGES.skipped:ASSEMBLY_MESSAGES.skippedOrder;
 
 const sameParts=(left:string[],right:string[])=>left.length===right.length&&left.every((part,index)=>part.normalize('NFC')===right[index].normalize('NFC'));
 

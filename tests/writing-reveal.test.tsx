@@ -30,14 +30,15 @@ const wordItem=(over:Partial<Word>={},id='i1'):SessionItem=>({id,ref:{kind:'word
  card:{kind:'word',word:word(over)},type:'spelling',options:[],isNew:false,mode:'scheduled',expectedVersion:1});
 const phraseItem=(over:Partial<Phrase>={}):SessionItem=>({id:'i2',ref:{kind:'phrase',id:'p1'},unitKey:'phrase:p1',
  card:{kind:'phrase',phrase:phrase(over)},type:'spelling',options:[],isNew:false,mode:'scheduled',expectedVersion:1});
-const assemblyItem=(over:Partial<Word>={}):SessionItem=>({...wordItem(over,'i3'),type:'assembly',options:[]});
+const assemblyItem=(over:Partial<Word>={},options:string[]=[]):SessionItem=>({...wordItem(over,'i3'),type:'assembly',options});
 
 let root:Root|null=null, container:HTMLElement|null=null;
 let answers=0;
-beforeEach(()=>{spoken.length=0;answers=0});
+const given:{correct:boolean;text:string;status?:string}[]=[];
+beforeEach(()=>{spoken.length=0;answers=0;given.length=0});
 afterEach(()=>{act(()=>root?.unmount());container?.remove();root=null;container=null});
 
-const onAnswer=async()=>{answers++;return true};
+const onAnswer=async(answer:{correct:boolean;text:string;status?:string})=>{answers++;given.push(answer);return true};
 const showSpelling=async(item:SessionItem,autoSpeak=false)=>{
  container=document.body.appendChild(document.createElement('div'));
  root=createRoot(container);
@@ -69,6 +70,53 @@ const assemble=async(host:HTMLElement)=>{
  for(const tile of Array.from(host.querySelectorAll('[data-testid="tile"]')))await press(tile);
  await press(button(host,'Проверить'));
 };
+const tiles=(host:HTMLElement)=>Array.from(host.querySelectorAll('[data-testid="tile"]')) as HTMLButtonElement[];
+const placed=(host:HTMLElement)=>Array.from(host.querySelectorAll('[data-testid="placed"]')) as HTMLButtonElement[];
+const tile=(host:HTMLElement,text:string)=>tiles(host).find(item=>item.textContent===text);
+const put=async(host:HTMLElement,order:string[])=>{for(const text of order)await press(tile(host,text))};
+const FAMILY={greek:'η οικογένεια',russian:'семья',examples:[]};
+const POOL=['οι','κο','γέ','νεια','η'];
+
+describe('сборка слова из плиток',()=>{
+ it('артикль лежит в пуле обычной плиткой и ставится пользователем',async()=>{
+  const host=await showAssembly(assemblyItem(FAMILY,POOL));
+  expect(host.querySelector('[data-testid="article-hint"]')).toBeNull();
+  expect(host.querySelector('[data-testid="fixed-article"]')).toBeNull();
+  expect(tiles(host).map(item=>item.textContent)).toEqual(POOL);
+  await put(host,['η','οι','κο','γέ','νεια'].slice(0,4));
+  expect(button(host,'Проверить')!.disabled).toBe(true); // пока не выложены все плитки, включая артикль
+  await put(host,['νεια']);
+  expect(button(host,'Проверить')!.disabled).toBe(false);
+  await press(placed(host)[0]); // поставленный артикль возвращается как любая другая плитка
+  expect(placed(host)).toHaveLength(4);
+  expect(button(host,'Проверить')!.disabled).toBe(true);
+ });
+
+ it('верный порядок засчитывается написанием слова',async()=>{
+  const host=await showAssembly(assemblyItem(FAMILY,POOL));
+  await put(host,['η','οι','κο','γέ','νεια']);
+  await press(button(host,'Проверить'));
+  expect(feedback(host)!.textContent).toContain('Правильно!');
+  expect(given).toEqual([{correct:true,text:'η οικογένεια',status:'correct'}]);
+ });
+
+ it('ошибка только в артикле даёт «Почти»',async()=>{
+  const host=await showAssembly(assemblyItem(FAMILY,POOL));
+  await put(host,['οι','κο','γέ','νεια','η']);
+  await press(button(host,'Проверить'));
+  expect(feedback(host)!.textContent).toContain('Почти! Проверь артикль.');
+  expect(feedback(host)!.textContent).toContain('η · οι-κο-γέ-νεια');
+  expect(given[0]).toMatchObject({correct:false,status:'almost'});
+ });
+
+ it('неверный порядок слогов остаётся ошибкой',async()=>{
+  const host=await showAssembly(assemblyItem(FAMILY,POOL));
+  await put(host,['η','κο','οι','γέ','νεια']);
+  await press(button(host,'Проверить'));
+  expect(feedback(host)!.textContent).toContain('Пока не сходится');
+  expect(given[0]).toMatchObject({correct:false,status:'wrong'});
+ });
+});
 
 describe('раскрытие материала после письменного ответа',()=>{
  it('после ошибки в написании показывает карточку слова с озвучкой и разбор ответа',async()=>{
