@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-09-21
+# `phrase-cloze-content` снимается целиком: все её требования сняты, а то, что относится
+# к фразам, переехало в новую `phrase-content`. Без маркера синхронизация откажется удалить спеку.
+retire_capabilities: true
