@@ -62,13 +62,13 @@ describe('подсказка длины ответа',()=>{
  });
  it('слово с артиклем даёт две группы',async()=>{
   const host=await showSpelling(wordItem());
-  expect(shown(host)).toBe('τ_ _____');
-  expect(note(host)).toBe('Ответ из 2 слов, 7 букв, первая τ');
+  expect(shown(host)).toBe('τ_ σ____');
+  expect(note(host)).toBe('Ответ из 2 слов, 7 букв, первые буквы τ, σ');
  });
  it('во фразе знак препинания показан как есть и в счёт не входит',async()=>{
   const host=await showSpelling(phraseItem());
-  expect(shown(host)).toBe('Π__ __ ____;');
-  expect(note(host)).toBe('Ответ из 3 слов, 9 букв, первая Π');
+  expect(shown(host)).toBe('Π__ σ_ λ___;');
+  expect(note(host)).toBe('Ответ из 3 слов, 9 букв, первые буквы Π, σ, λ');
  });
  it('маска лежит в самом поле ввода и скрыта от экранного диктора',async()=>{
   const host=await showSpelling(wordItem());
@@ -78,17 +78,32 @@ describe('подсказка длины ответа',()=>{
  });
  it('кроме первой буквы ожидаемое написание до ответа в DOM не попадает',async()=>{
   const host=await showSpelling(wordItem());
-  expect(shown(host)).toBe('τ_ _____');
+  expect(shown(host)).toBe('τ_ σ____');
   expect(host.textContent).not.toContain('σπίτι');
   expect(host.textContent).not.toContain('πίτι');
   expect(host.textContent).not.toContain('το ');
  });
- it('с первым введённым символом маска уходит из поля',async()=>{
+ it('набранное занимает ячейки, маска остаётся на месте',async()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));
   await type(host,'σπ');
-  expect(mask(host)).toBeNull();
-  expect(note(host)).toBeUndefined();
+  expect(shown(host)).toBe('σπ___');
+  expect(note(host)).toBe('Ответ из 5 букв, первая σ');
   expect((host.querySelector('input') as HTMLInputElement).value).toBe('σπ');
+ });
+ it('набранное показывается и там, где стояла открытая буква',async()=>{
+  const host=await showSpelling(wordItem({greek:'σπίτι'}));
+  await type(host,'κ');
+  expect(shown(host)).toBe('κ____');
+ });
+ it('пробелы набора ячейки не занимают',async()=>{
+  const host=await showSpelling(wordItem());
+  await type(host,'το σπ');
+  expect(shown(host)).toBe('το σπ___');
+ });
+ it('лишние символы показаны за маской',async()=>{
+  const host=await showSpelling(wordItem({greek:'σπίτι'}));
+  await type(host,'σπίτια');
+  expect(shown(host)).toBe('σπίτια');
  });
  it('после очистки поля маска возвращается прежней',async()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));

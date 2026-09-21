@@ -375,40 +375,41 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
 }
 
 /**
- * Подсказка длины ответа внутри поля ввода: буквы скрыты подчёркиванием, первая открыта, знаки показаны как
- * есть, пробел разбивает маску на группы по словам. Маска лежит в поле подложкой и уходит с первым введённым
- * символом: набранный ответ занимает то же место, и накладывать одно на другое нечем — ширины букв разные.
- * Диктору маска отдаётся числом слов и букв и открытой буквой: разрывов между группами он не видит.
+ * Подсказка длины ответа внутри поля ввода: ячейка на каждую букву, первая буква каждого слова открыта, знаки
+ * показаны как есть, пробел разбивает маску на группы по словам. Набранное занимает ячейки слева направо, и
+ * маска остаётся на экране до самого ответа: она и есть строка ввода, а собственный текст поля скрыт.
+ * Пробелы набора в ячейки не идут — иначе пропуск пробела сдвигал бы весь ответ. Лишние символы показываются
+ * за маской: поле ничего не ограничивает, ответить можно короче, длиннее и без артикля.
+ * Диктору маска отдаётся числом слов и букв и открытыми буквами: разрывов между группами он не видит.
  */
-function AnswerMask({mask}:{mask:WritingMask|null}){
+function AnswerMask({mask,value}:{mask:WritingMask|null;value:string}){
  if(!mask?.letters)return null;
  const {groups,letters}=mask;
- const lead=groups.flat().find(symbol=>symbol.kind==='lead');
+ const typed=[...value.replace(/\s+/g,'')];
+ let at=0;
+ const filled=groups.map(group=>group.map(symbol=>({symbol,char:typed[at++],index:at-1})));
+ const tail=typed.slice(at);
+ const leads=groups.flat().filter(symbol=>symbol.kind==='lead').map(symbol=>symbol.char);
  const count=withCount(letters,['буквы','букв','букв']);
  const words=groups.length>1?`${withCount(groups.length,['слова','слов','слов'])}, `:'';
+ const first=leads.length>1?`, первые буквы ${leads.join(', ')}`:leads.length?`, первая ${leads[0]}`:'';
+ const cell=(text:string|undefined,kind:'typed'|'lead'|'empty',index:number)=>(
+  <b key={index} className={cx(s.maskLetter, kind==='typed'&&s.maskTyped, kind==='lead'&&s.maskLead, index===typed.length&&s.maskCaret)}>{text}</b>
+ );
  return (
   <>
    <div className={s.mask} data-testid="answer-mask" aria-hidden>
-    {groups.map((group,index)=>(
+    {filled.map((group,index)=>(
      <span key={index} className={s.maskWord} data-testid="mask-word">
-      {group.map((symbol,at)=>symbol.kind==='hidden'?<b key={at} className={s.maskLetter}/>
-       :symbol.kind==='lead'?<b key={at} className={cx(s.maskLetter, s.maskLead)}>{symbol.char}</b>
-       :<span key={at}>{symbol.char}</span>)}
+      {group.map(({symbol,char,index:at})=>symbol.kind==='mark'
+       ?<span key={at} className={cx(char&&s.maskTyped)}>{char??symbol.char}</span>
+       :cell(char??(symbol.kind==='lead'?symbol.char:undefined),char?'typed':symbol.kind==='lead'?'lead':'empty',at))}
+      {index===filled.length-1&&tail.map((char,offset)=>cell(char,'typed',at+offset))}
      </span>
     ))}
    </div>
-   <span className="sr-only">Ответ из {words}{count}{lead?`, первая ${lead.char}`:''}</span>
+   <span className="sr-only">Ответ из {words}{count}{first}</span>
   </>
- );
-}
-
-/** Поле ответа с маской-подложкой: маска видна, пока поле пустое. */
-function AnswerField({mask,value,children}:{mask:WritingMask|null;value:string;children:React.ReactNode}){
- return (
-  <div className={s.field}>
-   {!value&&<AnswerMask mask={mask}/>}
-   {children}
-  </div>
  );
 }
 
@@ -424,6 +425,7 @@ export function Spelling({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
  const revealed=useRevealed(!!result);
  const {card}=item;
  const expected=card.kind==='phrase'?card.phrase.text:wordOf(card).greek;
+ const mask=maskWriting(expected,{lead:true});
  const prompt=card.kind==='phrase'?card.phrase.translation??'':wordOf(card).russian;
  useRevealSpeech(card,item.id,!!result,autoSpeak);
  const skip=async()=>{
@@ -474,10 +476,11 @@ export function Spelling({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
    <div className={s.dock}>
     {!result?(
      <form onSubmit={submit}>
-      <AnswerField mask={maskWriting(expected,{lead:true})} value={value}>
-       <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
+      <div className={s.field}>
+       <AnswerMask mask={mask} value={value}/>
+       <input className={cx(s.answer, mask&&s.masked)} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
         autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Твой ответ по-гречески" lang="el"/>
-      </AnswerField>
+      </div>
       <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
       <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>Не знаю</Button>
      </form>
@@ -504,6 +507,7 @@ export function ClozeExercise({item,onAnswer,onNext}:Props){
  const {card}=item;
  if(card.kind!=='cloze')throw new Error('Упражнение с пропуском получило другую карточку');
  const cloze=card.cloze;
+ const mask=agreedMask([cloze.answer,...cloze.acceptedAnswers]);
  const {before,after}=splitTemplate(cloze.template);
  const skip=async()=>{
   if(result||saving)return;
@@ -564,10 +568,11 @@ export function ClozeExercise({item,onAnswer,onNext}:Props){
       </>
      ):(
       <form onSubmit={submit}>
-       <AnswerField mask={agreedMask([cloze.answer,...cloze.acceptedAnswers])} value={value}>
-        <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
+       <div className={s.field}>
+        <AnswerMask mask={mask} value={value}/>
+        <input className={cx(s.answer, mask&&s.masked)} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
          autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Пропущенная часть предложения" lang="el" data-testid="cloze-input"/>
-       </AnswerField>
+       </div>
        <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
        <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>Не знаю</Button>
       </form>

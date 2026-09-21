@@ -96,9 +96,10 @@ describe('маска ожидаемого написания',()=>{
  it('скрытая буква не хранит саму букву',()=>{
   expect(maskWriting('φως').groups[0]).toEqual([{kind:'hidden'},{kind:'hidden'},{kind:'hidden'}]);
  });
- it('lead открывает первую букву, остальные остаются скрытыми',()=>{
+ it('lead открывает первую букву каждого слова, остальные остаются скрытыми',()=>{
   expect(shown('σπίτι',true)).toBe('σ____');
-  expect(shown('το σπίτι',true)).toBe('τ_ _____');
+  expect(shown('το σπίτι',true)).toBe('τ_ σ____');
+  expect(shown('Πώς σε λένε;',true)).toBe('Π__ σ_ λ___;');
   expect(maskWriting('σπίτι',{lead:true}).groups[0][0]).toEqual({kind:'lead',char:'σ'});
   expect(maskWriting('σπίτι',{lead:true}).letters).toBe(5);
  });

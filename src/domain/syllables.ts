@@ -123,19 +123,21 @@ const isLetter=(char:string)=>/[\p{L}\p{N}]/u.test(char);
 /**
  * Маска подсказки длины: буквы скрыты, знаки показаны — подчёркивание обещало бы букву там, где её нет.
  * Скрытый символ не хранит саму букву: до ответа ожидаемое написание не должно жить и в модели.
- * `lead` открывает первую букву — подсказка, с чего начать. У ответа из одной буквы она не открывается:
- * это был бы весь ответ целиком.
+ * `lead` открывает первую букву каждого слова — и артикля, и самого слова: подсказка, с чего начать каждое.
+ * У ответа из одной буквы она не открывается: это был бы весь ответ целиком.
  */
 export function maskWriting(greek:string,options:{lead?:boolean}={}):WritingMask{
  const tokens=greek.normalize('NFC').trim().split(/\s+/).filter(Boolean).map(token=>[...token]);
  const letters=tokens.flat().filter(isLetter).length;
  const lead=!!options.lead&&letters>1;
- let shown=false;
- const groups=tokens.map(token=>token.map((char):MaskSymbol=>{
-  if(!isLetter(char))return {kind:'mark',char};
-  if(lead&&!shown){shown=true;return {kind:'lead',char}}
-  return {kind:'hidden'};
- }));
+ const groups=tokens.map(token=>{
+  let shown=false;
+  return token.map((char):MaskSymbol=>{
+   if(!isLetter(char))return {kind:'mark',char};
+   if(lead&&!shown){shown=true;return {kind:'lead',char}}
+   return {kind:'hidden'};
+  });
+ });
  return {groups,letters};
 }
 
