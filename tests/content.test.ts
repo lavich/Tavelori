@@ -97,7 +97,7 @@ describe('наборы класса переносятся без потерь �
    expect(restoreWriting(word.greek,tiles(word.greek)),word.greek).toBe(word.greek.normalize('NFC').trim());
    expect(word.id).toMatch(/^w\d{2}-\d{2}$/);
   }
-  expect(seedWords.filter(word=>tiles(word.greek).length<2).map(word=>word.greek)).toEqual(['Γεια','η γη','και','ο γιος','πού','στο','το φως']);
+  expect(seedWords.filter(word=>tiles(word.greek).length<2).map(word=>word.greek)).toEqual(['Γεια','γκρι','η γη','και','μπλε','ο γιος','πού','Ροζ','στο','το φως']);
  });
 
  it('множественное число живёт в заметке, а не в самом слове',()=>{
