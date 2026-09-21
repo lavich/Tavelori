@@ -125,7 +125,7 @@ describe('наборы класса переносятся без потерь �
 describe('уроки принадлежат курсам',()=>{
  it('каталог отдаёт состав курса, а урок и пакет знают свой курс',()=>{
   const leeke=content.catalog.courses.find(course=>course.id==='leeke')!;
-  expect(leeke.title).toBe('LEEKE A2');
+  expect(leeke.title).toBe('Греческий A2');
   // Порядок состава задаёт файл курса, порядок пакетов — обход каталога уроков: совпадать они не обязаны.
   expect([...leeke.lessonIds].sort()).toEqual(content.packages.map(pack=>pack.id).sort());
   expect(leeke.lessonIds).toEqual(readFileSync('content/courses/leeke.yaml','utf8').split('\n')

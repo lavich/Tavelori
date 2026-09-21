@@ -53,7 +53,7 @@ describe('курсы',()=>{
   await db.courses.clear();
   await refreshCatalog(db,memoryFetcher());
   expect((await db.lessons.get('lesson-1-1'))!.courseId).toBe('leeke');
-  expect(await db.courses.get('leeke')).toMatchObject({title:'LEEKE A2',origin:'content',subscribed:true});
+  expect(await db.courses.get('leeke')).toMatchObject({title:'Греческий A2',origin:'content',subscribed:true});
  });
  it('новый курс получает предел новых карточек по умолчанию, а сохранённый предел обновление не трогает',async()=>{
   await refreshCatalog(db,memoryFetcher());
