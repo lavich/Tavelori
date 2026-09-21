@@ -19,8 +19,7 @@ test('«Учить курс» ставит все уроки курса, а но
  await page.goto('/');
  await ready(page);
  await page.getByRole('navigation').getByRole('link',{name:'Уроки'}).click();
- await expect(page.getByRole('heading',{name:'LEEKE A2'})).toBeVisible();
- await expect(page.getByText('Школа LEEKE, класс 26-27')).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Греческий A2'})).toBeVisible();
 
  await page.getByRole('button',{name:'Учить курс'}).click();
  await expect(page.getByRole('button',{name:'Учить курс'})).toHaveCount(0); // курс подписан
@@ -58,11 +57,11 @@ test('у курса своё расписание и свой предел; со
  await page.getByRole('button',{name:'Учить курс'}).click();
  await expect(page.getByRole('button',{name:'Учить курс'})).toHaveCount(0);
 
- // Свой набор живёт в «Мои слова» и по расписанию LEEKE дат не получает.
+ // Свой набор живёт в «Мои слова» и по расписанию курса дат не получает.
  await page.getByRole('button',{name:'Добавить занятие'}).click();
  await page.getByLabel('Название').fill('Мой набор');
  await page.getByRole('button',{name:'Создать'}).click();
- const leeke=page.locator('section').filter({has:page.getByRole('heading',{name:'LEEKE A2'})});
+ const leeke=page.locator('section').filter({has:page.getByRole('heading',{name:'Греческий A2'})});
  const mine=page.locator('section').filter({has:page.getByRole('heading',{name:'Мои слова'})});
 
  await leeke.getByRole('button',{name:'Задать расписание'}).click();

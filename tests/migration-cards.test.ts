@@ -51,7 +51,7 @@ async function seedV5(){
  await legacy.table('words').update('w12-02',{deletedAt:iso});
  await legacy.table('courses').bulkAdd([
   {id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:{startDate:null,weekdays:[]},newWordsPerDay:7,createdAt:iso,updatedAt:iso},
-  {id:'leeke',title:'LEEKE A2',origin:'content',subscribed:true,schedule:{startDate:'2026-09-14',weekdays:[1,4]},newWordsPerDay:12,createdAt:iso,updatedAt:iso},
+  {id:'leeke',title:'Греческий A2',origin:'content',subscribed:true,schedule:{startDate:'2026-09-14',weekdays:[1,4]},newWordsPerDay:12,createdAt:iso,updatedAt:iso},
  ]);
  await legacy.table('lessons').bulkAdd([
   {id:'lesson-1-2',courseId:'leeke',title:'Урок 1.2',targetDate:'2026-09-18',status:'upcoming',createdAt:LEGACY_CREATED,updatedAt:LEGACY_CREATED},
