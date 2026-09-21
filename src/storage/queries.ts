@@ -22,7 +22,6 @@ import {
   fillSettings,
   LOCAL_COURSE,
   type CardKind,
-  type Cloze,
   type LearningRef,
   type LearningState,
   type Lesson,
@@ -55,20 +54,15 @@ const deletedWordIds = async (database: LexiDatabase = db) =>
   new Set(await database.words.where("deletedAt").above("").primaryKeys());
 /** Ключи удалённых карточек всех видов: удалённых мало, множество дешевле точечных проверок. */
 export async function deletedKeys(database: LexiDatabase = db): Promise<Set<string>> {
-  const [words, phrases, clozes] = await Promise.all([
+  const [words, phrases] = await Promise.all([
     database.words.where("deletedAt").above("").primaryKeys(),
     database.phrases.where("deletedAt").above("").primaryKeys(),
-    database.clozes.where("deletedAt").above("").primaryKeys(),
   ]);
-  return new Set([
-    ...words.map(wordKeyOf),
-    ...phrases.map((id) => unitKey({ kind: "phrase", id })),
-    ...clozes.map((id) => unitKey({ kind: "cloze", id })),
-  ]);
+  return new Set([...words.map(wordKeyOf), ...phrases.map((id) => unitKey({ kind: "phrase", id }))]);
 }
 const byKind = (refs: LearningRef[]) => {
-  const groups: Record<CardKind, string[]> = { word: [], phrase: [], cloze: [] };
-  for (const ref of refs) groups[ref.kind].push(ref.id);
+  const groups: Record<CardKind, string[]> = { word: [], phrase: [] };
+  for (const ref of refs) groups[ref.kind]?.push(ref.id);
   return groups;
 };
 /** Ключи существующих не удалённых карточек: только ключи индексов, записи с текстами не читаются. */
@@ -76,7 +70,7 @@ export async function liveKeys(refs: LearningRef[], database: LexiDatabase = db)
   if (!refs.length) return new Set();
   const groups = byKind(refs);
   const live = new Set<string>();
-  const tables = { word: database.words, phrase: database.phrases, cloze: database.clozes } as const;
+  const tables = { word: database.words, phrase: database.phrases } as const;
   for (const kind of CARD_KINDS) {
     if (!groups[kind].length) continue;
     const [present, deleted] = await Promise.all([
@@ -98,8 +92,6 @@ export const liveWords = async (ids: string[], database: LexiDatabase = db): Pro
   (await database.words.bulkGet(ids)).filter((w): w is StoredWord => !!w && !w.deletedAt);
 export const livePhrases = async (ids: string[], database: LexiDatabase = db): Promise<Phrase[]> =>
   (await database.phrases.bulkGet(ids)).filter((p): p is Phrase => !!p && !p.deletedAt);
-export const liveClozes = async (ids: string[], database: LexiDatabase = db): Promise<Cloze[]> =>
-  (await database.clozes.bulkGet(ids)).filter((c): c is Cloze => !!c && !c.deletedAt);
 /** Полное содержимое перечисленных карточек; читаются только они. */
 export async function cardsOf(refs: LearningRef[], database: LexiDatabase = db): Promise<Map<string, SessionCard>> {
   const groups = byKind(refs);
@@ -109,9 +101,6 @@ export async function cardsOf(refs: LearningRef[], database: LexiDatabase = db):
   if (groups.phrase.length)
     for (const phrase of await livePhrases(groups.phrase, database))
       cards.set(unitKey({ kind: "phrase", id: phrase.id }), { kind: "phrase", phrase });
-  if (groups.cloze.length)
-    for (const cloze of await liveClozes(groups.cloze, database))
-      cards.set(unitKey({ kind: "cloze", id: cloze.id }), { kind: "cloze", cloze });
   return cards;
 }
 
@@ -192,7 +181,6 @@ export function dexieSource(database: LexiDatabase = db): SessionSource & StatsS
       const facts = new Map<string, CardFacts>();
       const groups = byKind(refs);
       for (const id of groups.word) facts.set(wordKeyOf(id), { kind: "word" });
-      for (const id of groups.cloze) facts.set(unitKey({ kind: "cloze", id }), { kind: "cloze" });
       // Признаки фразы лежат в её записи; читаются только записи кандидатов, а не таблица целиком.
       if (groups.phrase.length)
         for (const phrase of await livePhrases(groups.phrase, database))
@@ -207,13 +195,7 @@ export function dexieSource(database: LexiDatabase = db): SessionSource & StatsS
       (await database.phrases.count()) - (await database.phrases.where("deletedAt").above("").count()),
     cardsOf: (refs) => cardsOf(refs, database),
     skillsOf: async (card) => {
-      const key = unitKey(
-        card.kind === "word"
-          ? wordRef(card.word.id)
-          : card.kind === "phrase"
-            ? { kind: "phrase", id: card.phrase.id }
-            : { kind: "cloze", id: card.cloze.id },
-      );
+      const key = unitKey(card.kind === "word" ? wordRef(card.word.id) : { kind: "phrase", id: card.phrase.id });
       const base = await database.baseSummary.get("base");
       // Без базы или для пользовательской карточки сводка считается по всей локальной истории.
       const standard = card.kind === "word" ? isStandardWord(card.word) : isShippedCard(card);
@@ -252,17 +234,20 @@ export function dexieSource(database: LexiDatabase = db): SessionSource & StatsS
     },
     dueKeysBefore: (instant) => database.cardStates.where("card.due").below(instant).primaryKeys(),
     deletedKeys: () => deletedKeys(database),
-    cardCount: async () =>
-      (await database.words.count()) + (await database.phrases.count()) + (await database.clozes.count()),
+    cardCount: async () => (await database.words.count()) + (await database.phrases.count()),
     eachState: (visit) => database.cardStates.each(visit),
     labelsOf: async (refs) =>
       new Map([...(await cardsOf(refs, database))].map(([key, card]) => [key, cardLabel(card)])),
     totals: async () => {
       const base = await database.baseSummary.get("base");
       const count = (keys: Iterable<string>) => {
-        const byKind: Record<CardKind, number> = { word: 0, phrase: 0, cloze: 0 };
-        for (const key of keys) byKind[(JSON.parse(key) as [CardKind, string])[0]]++;
-        return { cards: byKind.word + byKind.phrase + byKind.cloze, byKind };
+        const byKind: Record<CardKind, number> = { word: 0, phrase: 0 };
+        // Ключи снятых видов остаются в старых событиях: своего разряда у них нет, в число карточек они не идут.
+        for (const key of keys) {
+          const kind = (JSON.parse(key) as [CardKind, string])[0];
+          if (kind in byKind) byKind[kind]++;
+        }
+        return { cards: byKind.word + byKind.phrase, byKind };
       };
       if (!base)
         return {
@@ -311,26 +296,11 @@ export async function phrasePool(want: number, database: LexiDatabase = db): Pro
   return [...seen.values()];
 }
 
-/** Пул карточек пропуска для вариантов ответа в дополнительной попытке; те же правила, что у слов и фраз. */
-export async function clozePool(want: number, database: LexiDatabase = db): Promise<Cloze[]> {
-  const total = await database.clozes.count();
-  if (total <= want) return (await database.clozes.toArray()).filter((cloze) => !cloze.deletedAt);
-  const chunk = Math.ceil(want / 4);
-  const seen = new Map<string, Cloze>();
-  for (let draw = 0; draw < 8 && seen.size < want; draw++) {
-    const offset = Math.floor(Math.random() * Math.max(1, total - chunk));
-    for (const cloze of await database.clozes.orderBy("id").offset(offset).limit(chunk).toArray())
-      if (!cloze.deletedAt) seen.set(cloze.id, cloze);
-  }
-  return [...seen.values()];
-}
-
 /** `cardCount` — живые карточки всех видов; `wordCount` и другие счётчики — по видам для подписей состава. */
 export interface LessonView extends Lesson {
   cardCount: number;
   wordCount: number;
   phraseCount: number;
-  clozeCount: number;
   progress?: LessonProgress;
 }
 /** С прогрессом состояния карточек урока читаются один раз здесь, по ключам связей; экраны получают группы готовыми. */
@@ -343,7 +313,6 @@ export async function lessonViews(database: LexiDatabase = db, withProgress = fa
         cardCount: items.length,
         wordCount: items.filter((i) => i.ref.kind === "word").length,
         phraseCount: items.filter((i) => i.ref.kind === "phrase").length,
-        clozeCount: items.filter((i) => i.ref.kind === "cloze").length,
       });
       const view: LessonView = { ...lesson, ...tally(links) };
       if (withProgress) {
@@ -373,7 +342,6 @@ export interface LessonDetail {
   cards: Map<string, SessionCard>;
   words: StoredWord[];
   phrases: Phrase[];
-  clozes: Cloze[];
   states: Map<string, LearningState>;
 }
 export async function lessonDetail(id: string, database: LexiDatabase = db): Promise<LessonDetail | null> {
@@ -394,7 +362,6 @@ export async function lessonDetail(id: string, database: LexiDatabase = db): Pro
     cards,
     words: pick("word", (card) => only<"word">(card).word as StoredWord),
     phrases: pick("phrase", (card) => only<"phrase">(card).phrase),
-    clozes: pick("cloze", (card) => only<"cloze">(card).cloze),
     states: await statesOf(
       live.map((link) => link.ref),
       database,

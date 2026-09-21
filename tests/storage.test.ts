@@ -23,10 +23,9 @@ import { installLessons, wordsOf } from "./helpers/content";
 import { installMixed, mixedPackage } from "./helpers/mixed";
 import { unitKey } from "./helpers/cards";
 import { applyPackage } from "../src/content/client";
-import { checkTextAnswer } from "../src/domain/cloze";
+import { checkTextAnswer } from "../src/domain/text-answer";
 import { tiles } from "../src/domain/syllables";
-import { clozeRevisionOf } from "../content/build";
-import type { Cloze } from "../src/domain/types";
+import { phraseRevisionOf } from "../content/build";
 
 const now = new Date("2026-09-15T09:00:00Z");
 let db: LexiDatabase;
@@ -449,17 +448,17 @@ describe("операции над уроками при расписании", (
   });
 });
 
-/** Смешанный урок: карточки трёх видов в одной базе; каждая — своя единица повторения. */
+/** Смешанный урок: слова и фразы в одной базе; каждая карточка — своя единица повторения. */
 describe("запись ответа на смешанном уроке", () => {
-  const K = (kind: "word" | "phrase" | "cloze", id: string) => unitKey({ kind, id });
+  const K = (kind: "word" | "phrase", id: string) => unitKey({ kind, id });
   const prepare = async (
     refs = [
-      { kind: "cloze" as const, id: "c-grafo" },
+      { kind: "phrase" as const, id: "p-vouno" },
       { kind: "word" as const, id: "w11-27" },
       { kind: "phrase" as const, id: "p-grafo" },
-      { kind: "cloze" as const, id: "c-gramma" },
-      { kind: "cloze" as const, id: "c-paidi" },
-      { kind: "cloze" as const, id: "c-anoixi" },
+      { kind: "phrase" as const, id: "p-paidi" },
+      { kind: "phrase" as const, id: "p-anoixi" },
+      { kind: "phrase" as const, id: "p-ilios" },
     ],
   ) => {
     await installMixed(db);
@@ -485,78 +484,73 @@ describe("запись ответа на смешанном уроке", () => {
       database: db,
       ...extra,
     });
-  it("ошибка в пропуске даёт попытку с четырьмя вариантами ответа", async () => {
+  it("ошибка во фразе добавляет ровно одну дополнительную попытку в режиме тренировки", async () => {
     const { session, item } = await prepare();
-    const target = item("c-grafo");
+    const target = item("p-vouno");
     await answer(session, target, { correct: false, answer: "διαβάζω" });
-    const retry = (await db.sessions.get(session.id))!.items.find((entry) => entry.retryOf === target.id)!;
-    expect(retry.type).toBe("cloze"); // тот же пропуск, но с готовыми ответами
-    expect(retry.mode).toBe("practice");
-    expect(retry.options).toHaveLength(4);
-    expect(retry.options).toContain("Γράφω");
-    expect(new Set(retry.options).size).toBe(4);
+    const retries = (await db.sessions.get(session.id))!.items.filter((entry) => entry.retryOf === target.id);
+    expect(retries).toHaveLength(1);
+    expect(retries[0]).toMatchObject({ mode: "practice", isNew: false, ref: target.ref });
   });
-  it("слово, фраза и два пропуска одного предложения независимы; ошибка в пропуске не трогает слово", async () => {
+  it("слово и фразы независимы; ошибка во фразе не трогает слово и соседние фразы", async () => {
     const { session, item } = await prepare();
-    expect(item("c-grafo").type).toBe("cloze");
-    expect(item("c-grafo").card.kind).toBe("cloze");
+    expect(item("p-vouno").card.kind).toBe("phrase");
     await answer(session, item("w11-27"));
     const word = await db.cardStates.get(K("word", "w11-27"));
     expect(word!.version).toBe(1);
-    const event = await answer(session, item("c-grafo"), { correct: false, answer: "γραφω" });
+    const event = await answer(session, item("p-vouno"), { correct: false, answer: "κάτι" });
     expect(event.rating).toBe(Rating.Again);
     expect(event).toMatchObject({
-      ref: { kind: "cloze", id: "c-grafo" },
-      unitKey: K("cloze", "c-grafo"),
-      snapshot: { template: "{{gap}} ένα γράμμα.", answer: "Γράφω", target: { kind: "verb-form" } },
+      ref: { kind: "phrase", id: "p-vouno" },
+      unitKey: K("phrase", "p-vouno"),
+      snapshot: { text: "Το βουνό είναι ψηλό.", translation: "Гора высокая." },
     });
     expect(await db.cardStates.get(K("word", "w11-27"))).toEqual(word); // слово не изменилось
-    expect(await db.cardStates.get(K("cloze", "c-gramma"))).toBeUndefined(); // другое скрытое место того же предложения
     expect(await db.cardStates.get(K("phrase", "p-grafo"))).toBeUndefined();
-    const good = await answer(session, item("c-gramma"));
+    const good = await answer(session, item("p-grafo"), { responseTimeMs: 9000 }); // неспешный верный ответ — Good
     expect(good.rating).toBe(Rating.Good);
-    expect(good.snapshot).toEqual({ template: "Γράφω ένα {{gap}}.", answer: "γράμμα" }); // цели нет — поле отсутствует
-    // Again и Good дают разные интервалы; у каждого пропуска своё состояние.
-    const again = (await db.cardStates.get(K("cloze", "c-grafo")))!,
-      goodState = (await db.cardStates.get(K("cloze", "c-gramma")))!;
+    expect(good.snapshot).toEqual({ text: "Γράφω ένα γράμμα.", translation: "Я пишу письмо." });
+    // Again и Good дают разные интервалы; у каждой фразы своё состояние.
+    const again = (await db.cardStates.get(K("phrase", "p-vouno")))!,
+      goodState = (await db.cardStates.get(K("phrase", "p-grafo")))!;
     expect(new Date(goodState.card.due).getTime()).toBeGreaterThan(new Date(again.card.due).getTime());
     expect(again.version).toBe(1);
     expect(goodState.version).toBe(1);
   });
-  it("две карточки с одинаковой целью сохраняют независимые состояния", async () => {
+  it("две фразы одного урока сохраняют независимые состояния", async () => {
     const { session, item } = await prepare();
-    await answer(session, item("c-paidi"));
-    expect(await db.cardStates.get(K("cloze", "c-paidi"))).toBeTruthy();
-    expect(await db.cardStates.get(K("cloze", "c-anoixi"))).toBeUndefined();
-    const first = (await db.cardStates.get(K("cloze", "c-paidi")))!;
-    await answer(session, item("c-anoixi"), { correct: false });
-    expect(await db.cardStates.get(K("cloze", "c-paidi"))).toEqual(first); // ответ на вторую карточку не тронул первую
-    const second = (await db.cardStates.get(K("cloze", "c-anoixi")))!;
+    await answer(session, item("p-paidi"));
+    expect(await db.cardStates.get(K("phrase", "p-paidi"))).toBeTruthy();
+    expect(await db.cardStates.get(K("phrase", "p-anoixi"))).toBeUndefined();
+    const first = (await db.cardStates.get(K("phrase", "p-paidi")))!;
+    await answer(session, item("p-anoixi"), { correct: false });
+    expect(await db.cardStates.get(K("phrase", "p-paidi"))).toEqual(first); // ответ на вторую карточку не тронул первую
+    const second = (await db.cardStates.get(K("phrase", "p-anoixi")))!;
     expect(second.unitKey).not.toBe(first.unitKey);
     expect(new Date(second.card.due).getTime()).toBeLessThan(new Date(first.card.due).getTime());
   });
   it("двойное нажатие и вторая вкладка: одно событие, не более одной дополнительной попытки, конфликт версии", async () => {
     const { session, item } = await prepare();
-    const cloze = item("c-grafo");
-    await Promise.all([answer(session, cloze, { correct: false }), answer(session, cloze, { correct: false })]);
+    const target = item("p-vouno");
+    await Promise.all([answer(session, target, { correct: false }), answer(session, target, { correct: false })]);
     expect(await db.events.count()).toBe(1);
     const stored = (await db.sessions.get(session.id))!;
-    expect(stored.items.filter((entry) => entry.retryOf === cloze.id)).toHaveLength(1);
+    expect(stored.items.filter((entry) => entry.retryOf === target.id)).toHaveLength(1);
     expect(stored.items).toHaveLength(session.items.length + 1);
-    const stale = { ...cloze, id: `${cloze.id}-copy` };
+    const stale = { ...target, id: `${target.id}-copy` };
     await expect(answer(session, stale)).rejects.toBeInstanceOf(ConflictError);
     expect(await db.events.count()).toBe(1);
-    expect((await db.cardStates.get(K("cloze", "c-grafo")))!.version).toBe(1);
+    expect((await db.cardStates.get(K("phrase", "p-vouno")))!.version).toBe(1);
   });
   it("дополнительная и ручная тренировки сохраняют результат без сдвига расписания", async () => {
     const { session, item } = await prepare();
-    await answer(session, item("c-grafo"), { correct: false });
-    const before = await db.cardStates.get(K("cloze", "c-grafo"));
+    await answer(session, item("p-vouno"), { correct: false });
+    const before = await db.cardStates.get(K("phrase", "p-vouno"));
     const stored = (await db.sessions.get(session.id))!;
-    const retry = stored.items.find((entry) => entry.retryOf === item("c-grafo").id)!;
-    expect(retry).toMatchObject({ mode: "practice", isNew: false, expectedVersion: 1, type: "cloze" });
+    const retry = stored.items.find((entry) => entry.retryOf === item("p-vouno").id)!;
+    expect(retry).toMatchObject({ mode: "practice", isNew: false, expectedVersion: 1 });
     await answer(stored, retry, { correct: false });
-    expect(await db.cardStates.get(K("cloze", "c-grafo"))).toEqual(before);
+    expect(await db.cardStates.get(K("phrase", "p-vouno"))).toEqual(before);
     expect((await db.sessions.get(session.id))!.items).toHaveLength(stored.items.length); // второй попытки нет
     const practice = await makeSession({
       source: source(),
@@ -576,86 +570,69 @@ describe("запись ответа на смешанном уроке", () => {
       throw new Error("storage failed");
     };
     db.sessions.hook("updating", fail);
-    await expect(answer(session, item("c-grafo"), { correct: false })).rejects.toThrow("storage failed");
+    await expect(answer(session, item("p-vouno"), { correct: false })).rejects.toThrow("storage failed");
     db.sessions.hook("updating").unsubscribe(fail);
     expect(await db.events.count()).toBe(0);
     expect(await db.cardStates.count()).toBe(0);
     expect(await db.sessions.get(session.id)).toEqual(session);
-    await answer(session, item("c-grafo"), { correct: false });
+    await answer(session, item("p-vouno"), { correct: false });
     expect(await db.events.count()).toBe(1);
   });
-  it("исправление пакета во время занятия: сессия проверяет снимок, событие хранит цель из снимка, новая сессия — обновлённый пакет", async () => {
+  it("исправление пакета во время занятия: сессия проверяет снимок, новая сессия — обновлённый пакет", async () => {
     const { session, item } = await prepare([
-      { kind: "cloze", id: "c-grafo" },
-      { kind: "cloze", id: "c-gramma" },
+      { kind: "phrase", id: "p-vouno" },
+      { kind: "phrase", id: "p-paidi" },
     ]);
     const pack = mixedPackage();
-    const bump = (cloze: (typeof pack.clozes)[number], patch: Partial<(typeof pack.clozes)[number]>) => {
-      const { revision: _r, ...rest } = cloze;
+    const bump = (phrase: (typeof pack.phrases)[number], patch: Partial<(typeof pack.phrases)[number]>) => {
+      const { revision: _r, ...rest } = phrase;
       const next = { ...rest, ...patch };
-      return { ...next, revision: clozeRevisionOf(next) };
+      return { ...next, revision: phraseRevisionOf(next) };
     };
     const next = {
       ...pack,
       version: `${pack.version}-fix`,
-      clozes: pack.clozes.map((c) =>
-        c.id === "c-grafo"
-          ? bump(c, {
-              acceptedAnswers: ["Γράφω", "γράφω"],
-              target: { kind: "verb-form", ref: "w11-27", features: { tense: "present", person: 1, number: "plural" } },
-            })
-          : c.id === "c-gramma"
-            ? bump(c, { target: { kind: "noun-form" } })
-            : c,
+      phrases: pack.phrases.map((p) =>
+        p.id === "p-vouno" ? bump(p, { text: "Το βουνό είναι πολύ ψηλό.", note: "Исправлено" }) : p,
       ),
     };
     await applyPackage(next, db);
-    // Активная сессия хранит прежние допустимые ответы и прежнюю цель.
+    // Активная сессия хранит прежний текст: проверка идёт по снимку задания.
     const live = (await db.sessions.get(session.id))!;
-    const grafo = live.items.find((entry) => entry.ref.id === "c-grafo")!;
-    expect(grafo.card.kind === "cloze" && grafo.card.cloze.acceptedAnswers).toEqual(["Γράφω"]);
-    expect(checkTextAnswer("γραφω", (grafo.card as { cloze: Cloze }).cloze.acceptedAnswers).status).toBe("almost");
-    const event = await answer(live, grafo, { correct: false, answer: "γράφω" });
-    expect(event.snapshot).toEqual({
-      template: "{{gap}} ένα γράμμα.",
-      answer: "Γράφω",
-      target: { kind: "verb-form", ref: "w11-27", features: { tense: "present", person: 1, number: "singular" } },
-    });
-    const late = await answer(
-      live,
-      live.items.find((entry) => entry.ref.id === "c-gramma")!,
-    );
-    expect(late.snapshot).toEqual({ template: "Γράφω ένα {{gap}}.", answer: "γράμμα" }); // поздняя разметка не приписана прошлому снимку
-    // Новая сессия читает исправленный пакет: варианты и цель новые, состояние и история прежние.
+    const vouno = live.items.find((entry) => entry.ref.id === "p-vouno")!;
+    expect(vouno.card.kind === "phrase" && vouno.card.phrase.text).toBe("Το βουνό είναι ψηλό.");
+    expect(checkTextAnswer("το βουνο ειναι ψηλο.", ["Το βουνό είναι ψηλό."]).status).toBe("almost");
+    const event = await answer(live, vouno, { correct: false, answer: "Το βουνό είναι πολύ ψηλό." });
+    expect(event.snapshot).toEqual({ text: "Το βουνό είναι ψηλό.", translation: "Гора высокая." });
+    // Новая сессия читает исправленный пакет: текст новый, состояние и история прежние.
     const fresh = await makeSession({
       source: source(),
       now: new Date("2026-09-15T10:00:00Z"),
       random: () => 0.1,
       mode: "practice",
       refs: [
-        { kind: "cloze", id: "c-grafo" },
-        { kind: "cloze", id: "c-gramma" },
+        { kind: "phrase", id: "p-vouno" },
+        { kind: "phrase", id: "p-paidi" },
       ],
     });
-    const updated = fresh.items.find((entry) => entry.ref.id === "c-grafo")!.card as { cloze: Cloze };
-    expect(updated.cloze.acceptedAnswers).toEqual(["Γράφω", "γράφω"]);
-    expect(updated.cloze.target?.features).toEqual({ tense: "present", person: 1, number: "plural" });
-    expect(fresh.items.find((entry) => entry.ref.id === "c-grafo")!.expectedVersion).toBe(1);
-    expect(await db.events.count()).toBe(2);
-    expect(item("c-grafo").expectedVersion).toBe(0);
+    const updated = fresh.items.find((entry) => entry.ref.id === "p-vouno")!.card as { phrase: { text: string } };
+    expect(updated.phrase.text).toBe("Το βουνό είναι πολύ ψηλό.");
+    expect(fresh.items.find((entry) => entry.ref.id === "p-vouno")!.expectedVersion).toBe(1);
+    expect(await db.events.count()).toBe(1);
+    expect(item("p-vouno").expectedVersion).toBe(0);
   });
   it("знакомство сохраняется по ключу карточки любого вида без события и без сдвига интервала", async () => {
     const { session, item } = await prepare();
-    await markIntroduced(session.id, K("cloze", "c-grafo"), 3000, db);
+    await markIntroduced(session.id, K("phrase", "p-vouno"), 3000, db);
     await markIntroduced(session.id, K("phrase", "p-grafo"), 4000, db);
-    await markIntroduced(session.id, K("cloze", "c-grafo"), 5000, db);
+    await markIntroduced(session.id, K("phrase", "p-vouno"), 5000, db);
     expect((await db.sessions.get(session.id))!.introducedKeys).toEqual([
-      K("cloze", "c-grafo"),
+      K("phrase", "p-vouno"),
       K("phrase", "p-grafo"),
     ]);
     expect(await db.events.count()).toBe(0);
     expect(await db.cardStates.count()).toBe(0);
-    await expect(markIntroduced(session.id, K("cloze", "нет"), 1, db)).rejects.toThrow(/недоступна/);
+    await expect(markIntroduced(session.id, K("phrase", "нет"), 1, db)).rejects.toThrow(/недоступна/);
     expect(item("p-grafo").isNew).toBe(true);
   });
 });

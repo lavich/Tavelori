@@ -28,7 +28,11 @@ const CODE_TYPE = Object.fromEntries(Object.entries(TYPE_CODE).map(([type, code]
   string,
   ExerciseType
 >;
-const KIND_CODE: Record<CardKind, string> = { word: "w", phrase: "p", cloze: "c" };
+/**
+ * Коды видов карточек. Код `c` принадлежал снятому виду и SHALL NOT переиспользоваться:
+ * снимки старых клиентов продолжают его содержать, а ссылку с неизвестным кодом читатель пропускает.
+ */
+const KIND_CODE: Record<CardKind, string> = { word: "w", phrase: "p" };
 const CODE_KIND = Object.fromEntries(Object.entries(KIND_CODE).map(([kind, code]) => [code, kind])) as Record<
   string,
   CardKind
@@ -38,13 +42,20 @@ const iso = (value: number) => new Date(value).toISOString();
 const bits = (recent: boolean[]) => recent.map((flag) => (flag ? "1" : "0")).join("");
 const unbits = (text: string) => [...text].map((char) => char === "1");
 export const encodeRef = (ref: LearningRef) => `${KIND_CODE[ref.kind]}${ref.id}`;
-export function decodeRef(wire: string): LearningRef {
+/**
+ * `null` — ссылка на карточку снятого вида из снимка старого клиента: её прогресс отбрасывается молча,
+ * иначе одна незнакомая ссылка отменила бы синхронизацию слов и фраз. Пустая ссылка — повреждённый снимок.
+ */
+export function decodeRef(wire: string): LearningRef | null {
+  if (wire.length < 2) throw new SnapshotFormatError(`Некорректная ссылка на карточку: ${wire}`);
   const kind = CODE_KIND[wire[0]];
-  if (!kind || wire.length < 2) throw new SnapshotFormatError(`Некорректная ссылка на карточку: ${wire}`);
-  return { kind, id: wire.slice(1) };
+  return kind ? { kind, id: wire.slice(1) } : null;
 }
 const encodeKey = (key: string) => encodeRef(parseUnitKey(key));
-const decodeKey = (wire: string) => unitKey(decodeRef(wire));
+const decodeKey = (wire: string) => {
+  const ref = decodeRef(wire);
+  return ref && unitKey(ref);
+};
 
 type WireState = [
   string,
@@ -99,7 +110,7 @@ const encodeState = (state: CompactState): WireState => {
     state.version,
   ];
 };
-const decodeState = (wire: WireState, ref: (raw: string) => LearningRef): CompactState => {
+const decodeState = (wire: WireState, ref: (raw: string) => LearningRef | null): CompactState | null => {
   const [
     raw,
     due,
@@ -127,7 +138,8 @@ const decodeState = (wire: WireState, ref: (raw: string) => LearningRef): Compac
     learning_steps,
     ...(last ? { last_review: iso(last) } : {}),
   };
-  return { ref: ref(raw), card, introducedAt: iso(intro), version };
+  const target = ref(raw);
+  return target && { ref: target, card, introducedAt: iso(intro), version };
 };
 const encodeSkill = (ref: LearningRef, skills: SkillSummary): WireSkill => [
   encodeRef(ref),
@@ -141,22 +153,25 @@ const encodeSkill = (ref: LearningRef, skills: SkillSummary): WireSkill => [
 ];
 const decodeSkill = (
   wire: WireSkill,
-  ref: (raw: string) => LearningRef,
-): { ref: LearningRef; skills: SkillSummary } => {
+  ref: (raw: string) => LearningRef | null,
+): { ref: LearningRef; skills: SkillSummary } | null => {
   const [raw, last, cleanAssemblies, types] = wire;
-  return {
-    ref: ref(raw),
-    skills: {
-      lastTypes: [...last].map((code) => CODE_TYPE[code]).filter(Boolean),
-      cleanAssemblies,
-      types: Object.fromEntries(
-        Object.entries(types).map(([code, [recent, at]]) => [
-          CODE_TYPE[code],
-          { recent: unbits(recent), lastAt: iso(at) },
-        ]),
-      ),
-    },
-  };
+  const target = ref(raw);
+  return (
+    target && {
+      ref: target,
+      skills: {
+        lastTypes: [...last].map((code) => CODE_TYPE[code]).filter(Boolean),
+        cleanAssemblies,
+        types: Object.fromEntries(
+          Object.entries(types).map(([code, [recent, at]]) => [
+            CODE_TYPE[code],
+            { recent: unbits(recent), lastAt: iso(at) },
+          ]),
+        ),
+      },
+    }
+  );
 };
 const encodeStats = (stats: StatsSummary): Wire["x"] => ({
   d: stats.days.map((day) => [day.date, day.answers, day.keys.map(encodeKey)]),
@@ -168,12 +183,14 @@ const encodeStats = (stats: StatsSummary): Wire["x"] => ({
   n: stats.answers,
   w: stats.answeredKeys.map(encodeKey),
 });
-const decodeStats = (wire: Wire["x"], key: (raw: string) => string): StatsSummary => ({
-  days: wire.d.map(([date, answers, keys]) => ({ date, answers, keys: keys.map(key) })),
+const decodeStats = (wire: Wire["x"], key: (raw: string) => string | null): StatsSummary => ({
+  days: wire.d.map(([date, answers, keys]) => ({ date, answers, keys: keys.map(key).filter(alive) })),
   recentByType: Object.fromEntries(Object.entries(wire.r).map(([code, recent]) => [CODE_TYPE[code], unbits(recent)])),
   answers: wire.n,
-  answeredKeys: wire.w.map(key),
+  answeredKeys: wire.w.map(key).filter(alive),
 });
+/** Ключи и состояния снятых видов выпадают из снимка: карточки под ними нет и не будет. */
+const alive = <T>(value: T | null): value is T => value !== null;
 
 export function encodeSnapshot(snapshot: CompactSnapshot): string {
   const wire: Wire = {
@@ -229,8 +246,8 @@ export function decodeSnapshot(text: string): CompactSnapshot {
       updatedAt: iso(updatedAt),
     })),
     packages: wire.p,
-    states: wire.st.map((state) => decodeState(state, ref)),
-    skills: wire.sk.map((skill) => decodeSkill(skill, ref)),
+    states: wire.st.map((state) => decodeState(state, ref)).filter(alive),
+    skills: wire.sk.map((skill) => decodeSkill(skill, ref)).filter(alive),
     stats: decodeStats(wire.x, key),
   };
 }

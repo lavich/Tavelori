@@ -272,20 +272,3 @@ export function maskWriting(greek: string, options: { lead?: boolean } = {}): Wr
   });
   return { groups, letters };
 }
-
-/** Структура маски без открытой буквы: по ней сравниваются допустимые ответы. */
-const maskShape = (mask: WritingMask) =>
-  mask.groups.map((group) => group.map((symbol) => (symbol.kind === "mark" ? symbol.char : "_")).join("")).join(" ");
-
-/**
- * Общая маска допустимых ответов или её отсутствие. Разные по структуре варианты общей маски не имеют, а маска
- * по одному из них отсекала бы остальные: «τηλεόραση» и «την τηλεόραση» одинаково верны, и подсказка из девяти
- * букв заставила бы отбросить ответ из двух слов. Тогда лучше не подсказывать вовсе. Открытая буква берётся из
- * канонического написания: варианты могут различаться регистром, а на структуру это не влияет.
- */
-export function agreedMask(forms: readonly string[]): WritingMask | null {
-  const usable = forms.filter((form) => form.trim());
-  if (!usable.length) return null;
-  const shapes = usable.map((form) => maskShape(maskWriting(form)));
-  return shapes.every((shape) => shape === shapes[0]) ? maskWriting(usable[0], { lead: true }) : null;
-}

@@ -122,17 +122,6 @@ beforeAll(async () => {
       updatedAt: at,
     })),
   );
-  await db.clozes.bulkAdd(
-    Array.from({ length: 500 }, (_, i) => ({
-      id: `c${pad(i)}`,
-      template: `Εγώ {{gap}} ${i}.`,
-      answer: `κάνω${i}`,
-      acceptedAnswers: [`κάνω${i}`],
-      provenance: { ...provenance, operation: "cloze-from-source" as const },
-      createdAt: at,
-      updatedAt: at,
-    })),
-  );
   await db.lessons.add({
     id: "lesson-mixed",
     title: "Смешанный",
@@ -142,11 +131,7 @@ beforeAll(async () => {
     updatedAt: iso,
   });
   const mixedRefs = Array.from({ length: 35 }, (_, i) =>
-    i % 3 === 0
-      ? { kind: "phrase" as const, id: `p${pad(i)}` }
-      : i % 3 === 1
-        ? { kind: "cloze" as const, id: `c${pad(i)}` }
-        : { kind: "word" as const, id: `w${pad(i * 7 + 1)}` },
+    i % 3 === 2 ? { kind: "word" as const, id: `w${pad(i * 7 + 1)}` } : { kind: "phrase" as const, id: `p${pad(i)}` },
   );
   await db.lessonItems.bulkAdd(
     mixedRefs.map((ref, position) => ({
@@ -204,16 +189,14 @@ describe("ограниченные выборки на большой базе",
     expect(reads.events).toBe(0);
     expect(reads.sessions).toBe(0);
     expect(reads.cardStates).toBeLessThan(STATES);
-    expect(reads.clozes).toBe(0); // признаки пропуска не требуют чтения записи
-    expect(reads.phrases).toBeLessThanOrEqual(12); // только фразы-кандидаты урока, не таблица целиком
+    expect(reads.phrases).toBeLessThanOrEqual(24); // только фразы-кандидаты урока, не таблица целиком
   }, 60_000);
   it("сессия загружает полные карточки только для своих карточек и пула вариантов, историю — только своих карточек", async () => {
     track();
     const session = await makeSession({ source: dexieSource(db), now, random: () => 0.37 });
     expect(session.items).toHaveLength(20);
     expect(reads.words).toBeLessThanOrEqual(20 + 48 * 2);
-    expect(reads.phrases).toBeLessThanOrEqual(20 + 48 * 2 + 12); // выбранные фразы, пул вариантов и признаки кандидатов
-    expect(reads.clozes).toBeLessThanOrEqual(20); // только выбранные пропуски: ключи ответов остальных не читаются
+    expect(reads.phrases).toBeLessThanOrEqual(20 + 48 * 2 + 24); // выбранные фразы, пул вариантов и признаки кандидатов
     const reviewed = session.items.filter((item) => !item.isNew).length;
     expect(reads.events).toBeLessThanOrEqual(reviewed * Math.ceil(EVENTS / STATES) + reviewed);
     expect(reads.sessions).toBe(0);
@@ -250,12 +233,10 @@ describe("ограниченные выборки на большой базе",
     expect(views).toHaveLength(LESSONS + 1);
     expect(views.find((view) => view.id === "lesson-mixed")).toMatchObject({
       cardCount: 35,
-      phraseCount: 12,
-      clozeCount: 12,
+      phraseCount: 24,
       wordCount: 11,
     });
     expect(reads.phrases).toBe(0);
-    expect(reads.clozes).toBe(0);
     expect(
       views.every((view) => view.progress!.solid + view.progress!.review + view.progress!.fresh === view.cardCount),
     ).toBe(true);
@@ -271,7 +252,6 @@ describe("ограниченные выборки на большой базе",
       title: `Урок ${i}`,
       wordCount: 34,
       phraseCount: 0,
-      clozeCount: 0,
       cardCount: 34,
       version: `v${i}`,
       url: `content/packages/cat-${pad(i)}@v${i}.json`,

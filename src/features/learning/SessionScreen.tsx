@@ -19,16 +19,7 @@ import {
   prepareObjectiveSession,
   skipItem,
 } from "../../storage/ops";
-import {
-  Assembly,
-  ClozeExercise,
-  Comprehension,
-  Introduction,
-  Listening,
-  Recognition,
-  Spelling,
-  type Answer,
-} from "./exercises";
+import { Assembly, Comprehension, Introduction, Listening, Recognition, Spelling, type Answer } from "./exercises";
 import ui from "../../shared/ui.module.css";
 import s from "./session.module.css";
 
@@ -202,8 +193,6 @@ export function SessionScreen() {
         saving={introducing}
         autoSpeak={settingsReady && settings.autoSpeak}
       />
-    ) : item.type === "cloze" ? (
-      <ClozeExercise key={item.id} item={item} onAnswer={answer} onNext={next} />
     ) : item.type === "recognition" ? (
       <Recognition
         key={item.id}

@@ -2,8 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { Assembly, ClozeExercise, Spelling } from "../src/features/learning/exercises";
-import type { Cloze, Phrase, SessionItem, Word } from "../src/domain/types";
+import { Assembly, Spelling } from "../src/features/learning/exercises";
+import type { Phrase, SessionItem, Word } from "../src/domain/types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => undefined;
@@ -29,16 +29,6 @@ const phrase = (over: Partial<Phrase> = {}): Phrase => ({
   updatedAt: "",
   ...over,
 });
-const cloze = (over: Partial<Cloze> = {}): Cloze => ({
-  id: "c1",
-  template: "{{gap}} ένα γράμμα.",
-  answer: "Γράφω",
-  acceptedAnswers: ["Γράφω"],
-  provenance: { sourceLabel: "тест", operation: "cloze-from-source" },
-  createdAt: "",
-  updatedAt: "",
-  ...over,
-});
 
 const wordItem = (over: Partial<Word> = {}): SessionItem => ({
   id: "i1",
@@ -60,17 +50,6 @@ const phraseItem = (): SessionItem => ({
   options: [],
   isNew: false,
   mode: "scheduled",
-  expectedVersion: 1,
-});
-const clozeItem = (over: Partial<Cloze> = {}, options: string[] = []): SessionItem => ({
-  id: "i3",
-  ref: { kind: "cloze", id: "c1" },
-  unitKey: '["cloze","c1"]',
-  card: { kind: "cloze", cloze: cloze(over) },
-  type: "cloze",
-  options,
-  isNew: false,
-  mode: "practice",
   expectedVersion: 1,
 });
 const assemblyItem = (): SessionItem => ({ ...wordItem(), id: "i4", type: "assembly", options: ["τι", "σπί"] });
@@ -104,8 +83,6 @@ const show = async (element: React.ReactElement) => {
   return container;
 };
 const showSpelling = (item: SessionItem) => show(<Spelling item={item} onAnswer={onAnswer} onNext={() => undefined} />);
-const showCloze = (item: SessionItem) =>
-  show(<ClozeExercise item={item} onAnswer={onAnswer} onNext={() => undefined} />);
 const press = async (element: Element | undefined | null) => {
   await act(async () => {
     (element as HTMLElement).click();
@@ -260,45 +237,14 @@ describe("подсказка длины ответа", () => {
     expect(host.querySelector('[data-testid="reveal"]')!.textContent).toContain("σπίτι");
     expect(answers).toBe(1);
   });
-  it("в пропуске маска показана, когда все допустимые ответы одной структуры", async () => {
-    const host = await showCloze(clozeItem({ acceptedAnswers: ["Γράφω", "γράφω"] }));
-    expect(shown(host)).toBe("Γ____");
-    expect(note(host)).toBe("Ответ из 5 букв, первая Γ");
-    expect(host.textContent).not.toContain("Γράφω");
-    expect(host.textContent).not.toContain("ράφω");
-  });
-  it("в пропуске маски нет, когда допустимые ответы различаются по структуре", async () => {
-    const host = await showCloze(clozeItem({ acceptedAnswers: ["Γράφω", "Εγώ γράφω"] }));
-    expect(mask(host)).toBeNull();
-    expect(note(host)).toBeUndefined();
-    expect(host.querySelector("input")).not.toBeNull();
-  });
-  it("в пропуске маски нет, когда допустим вариант с артиклем", async () => {
-    const host = await showCloze(clozeItem({ answer: "τηλεόραση", acceptedAnswers: ["τηλεόραση", "την τηλεόραση"] }));
-    expect(mask(host)).toBeNull();
-  });
-  it("в пропуске маска исчезает после ответа", async () => {
-    const host = await showCloze(clozeItem());
-    await type(host, "Γράφω");
-    await press(button(host, "Проверить"));
-    expect(mask(host)).toBeNull();
-    expect(answers).toBe(1);
-  });
-  it("вариант пропуска с кнопками маски не показывает", async () => {
-    const host = await showCloze(clozeItem({}, ["Γράφω", "Διαβάζω", "Τρώω", "Πίνω"]));
-    expect(host.querySelectorAll('[data-testid="cloze-option"]')).toHaveLength(4);
-    expect(mask(host)).toBeNull();
+  it("ответ из одной буквы её не открывает и склоняется в подписи", async () => {
+    const host = await showSpelling(wordItem({ greek: "ή", russian: "или" }));
+    expect(shown(host)).toBe("_");
+    expect(note(host)).toBe("Ответ из 1 буквы");
   });
   it("сборка из слогов маски не показывает", async () => {
     const host = await show(<Assembly item={assemblyItem()} onAnswer={onAnswer} onNext={() => undefined} />);
     expect(host.querySelectorAll('[data-testid="tile"]').length).toBeGreaterThan(1);
     expect(mask(host)).toBeNull();
-  });
-  it("ответ из одной буквы её не открывает и склоняется в подписи", async () => {
-    const host = await showCloze(
-      clozeItem({ template: "{{gap}} γιος είναι εδώ.", answer: "ο", acceptedAnswers: ["ο"] }),
-    );
-    expect(shown(host)).toBe("_");
-    expect(note(host)).toBe("Ответ из 1 буквы");
   });
 });

@@ -8,7 +8,6 @@ import {
   DEFAULT_NEW_ITEMS_PER_DAY,
   LOCAL_COURSE,
   type Asset,
-  type Cloze,
   type Course,
   type InstalledPackage,
   type Schedule,
@@ -73,7 +72,6 @@ export interface LegacySkill {
 export class LexiDatabase extends Dexie {
   words!: Table<StoredWord, string>;
   phrases!: Table<Phrase, string>;
-  clozes!: Table<Cloze, string>;
   lessons!: Table<Lesson, string>;
   lessonItems!: Table<LessonItem, [string, string]>;
   courses!: Table<Course, string>;
@@ -95,6 +93,8 @@ export class LexiDatabase extends Dexie {
   states!: Table<LegacyState, string>;
   baseSkills!: Table<LegacySkill, string>;
   syncStash!: Table<LegacyStash, string>;
+  /** Хранилище снятого вида карточек: после миграции пусто, читается только при восстановлении копии схемы ≤6. */
+  clozes!: Table<{ id: string }, string>;
   constructor(name = "lexi") {
     super(name);
     this.version(1).stores({
@@ -158,16 +158,22 @@ export class LexiDatabase extends Dexie {
         cardStash: "unitKey",
       })
       .upgrade((tx) => migrateCards(tx));
+    /**
+     * Схема 7: вид карточек «заполни пропуск» снят. Ключи снятого вида уходят из связей уроков, состояний
+     * повторений, навыков, отложенного облачного прогресса и элементов незавершённых сессий: иначе они висели бы
+     * ссылками без карточек и попадали в счётчики урока. События ответов не трогаются — событие это запись
+     * о том, что было. Само хранилище остаётся пустой площадкой для восстановления прежних копий.
+     */
+    this.version(7).upgrade((tx) => migrateDropCloze(tx));
   }
 }
 /** База текущего профиля: обычный браузер — `lexi`, Telegram — отдельная база на бота и пользователя. */
 export const db = new LexiDatabase(currentProfile().databaseName);
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 /** Таблицы пользовательских данных: входят в полную копию. Каталог — кеш, а не данные пользователя; альтернативные версии облака — тоже. */
 export const TABLES = [
   "words",
   "phrases",
-  "clozes",
   "lessons",
   "courses",
   "lessonItems",
@@ -240,8 +246,8 @@ export const LEGACY_TABLES = [
   "settings",
   "meta",
 ] as const;
-/** Прежние словарные хранилища: пусты после миграции, в копию схемы 6 не входят, читаются при восстановлении старых копий. */
-export const LEGACY_STORES = ["lessonWords", "states", "baseSkills", "syncStash"] as const;
+/** Снятые хранилища: пусты после миграции, в копию не входят, читаются при восстановлении старых копий. */
+export const LEGACY_STORES = ["lessonWords", "states", "baseSkills", "syncStash", "clozes"] as const;
 export { LOCAL_COURSE } from "../domain/types";
 export const SEED_LESSON = /^lesson-1-[1-4]$/,
   SEED_WORD = /^w1[1-4]-\d{2}$/;
@@ -329,7 +335,6 @@ export async function migrateLegacy(tx: Pick<Transaction, "table">): Promise<voi
         installedAt: now,
         words: [],
         phrases: [],
-        clozes: [],
         items: [],
         media: [],
         removed: [],
@@ -428,7 +433,6 @@ export async function migrateCards(tx: Pick<Transaction, "table">): Promise<void
   const packages = tx.table("packages") as Table<InstalledPackage, string>;
   await packages.toCollection().modify((pack) => {
     pack.phrases ??= [];
-    pack.clozes ??= [];
     // Прежняя запись не хранила состав: у словарного пакета это его слова, у установки старой версии он неизвестен.
     pack.items ??= pack.words.map((word, position) => ({ kind: "word" as const, id: word.id, position }));
     pack.removed = (pack.removed ?? []).map((key) => (isUnitKey(key) ? key : unitKey(wordRef(key))));
@@ -469,6 +473,45 @@ const migrateStats = ({ answeredWordIds, answeredKeys, days, ...rest }: LegacySt
   })),
   answeredKeys: answeredKeys ?? (answeredWordIds ?? []).map((id) => unitKey(wordRef(id))),
 });
+/** Ключ снятого вида: сериализованная пара начинается его именем. Сам вид из `CardKind` уже убран. */
+const DROPPED_KIND = "cloze";
+const isDroppedKey = (key: string) => key.startsWith(`["${DROPPED_KIND}",`);
+const isDroppedRef = (ref: { kind: string } | undefined) => ref?.kind === DROPPED_KIND;
+/**
+ * Схема 7: ключи снятого вида уходят отовсюду, где они были ссылкой на карточку. События ответов не трогаются:
+ * событие — запись о том, что было. Незавершённая сессия продолжается с ближайшего оставшегося задания;
+ * сессия, состоявшая только из снятых заданий, завершается — её сохранённые ответы уже в истории.
+ */
+export async function migrateDropCloze(tx: Pick<Transaction, "table">): Promise<void> {
+  const clozes = tx.table("clozes") as Table<{ id: string }, string>;
+  await clozes.clear();
+  const items = tx.table("lessonItems") as Table<LessonItem, [string, string]>;
+  for (const item of await items.toArray())
+    if (isDroppedRef(item.ref)) await items.delete([item.lessonId, item.unitKey]);
+  for (const name of ["cardStates", "cardSkills", "cardStash"] as const) {
+    const table = tx.table(name) as Table<{ unitKey: string }, string>;
+    for (const key of (await table.toCollection().primaryKeys()) as string[])
+      if (isDroppedKey(key)) await table.delete(key);
+  }
+  const sessions = tx.table("sessions") as Table<Session, string>;
+  await sessions.toCollection().modify((session) => {
+    const kept = session.items.filter((item) => !isDroppedRef(item.ref));
+    if (kept.length === session.items.length) return;
+    // Позиция считается по оставшимся заданиям, иначе занятие продолжилось бы не с того места.
+    const answered = new Set(session.items.slice(0, session.index).map((item) => item.id));
+    session.items = kept;
+    session.index = Math.min(kept.filter((item) => answered.has(item.id)).length, kept.length);
+    session.introducedKeys = (session.introducedKeys ?? []).filter((key) => !isDroppedKey(key));
+    if (!kept.length) session.status = session.status === "active" ? "ended" : session.status;
+  });
+  const packages = tx.table("packages") as Table<InstalledPackage & { clozes?: unknown[] }, string>;
+  await packages.toCollection().modify((pack) => {
+    delete pack.clozes;
+    pack.items = (pack.items ?? []).filter((item) => !isDroppedRef(item));
+    pack.removed = (pack.removed ?? []).filter((key) => !isDroppedKey(key));
+  });
+}
+
 /** Сохранённая альтернативная версия облака прежней формы читается как словарная; применяется она только через новое чтение облака. */
 const migrateSnapshot = (snapshot: LegacySnapshot): LegacySnapshot => ({
   ...snapshot,

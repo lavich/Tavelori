@@ -1,8 +1,8 @@
 import type { Card, Grade } from "ts-fsrs";
-import type { PackageItem, PackageMedia, PackageWord, PackagePhrase, PackageCloze } from "../content/schema";
+import type { PackageItem, PackageMedia, PackageWord, PackagePhrase } from "../content/schema";
 /**
- * Типы проверки. `listening` — узнавание написания на слух, `comprehension` — понимание значения на слух;
- * `cloze` — ввод скрытого текста для карточки пропуска; `recall` остался только в старой истории.
+ * Типы проверки. `listening` — узнавание написания на слух, `comprehension` — понимание значения на слух.
+ * `recall` и `cloze` приложение больше не предлагает; в перечислении они нужны, чтобы читалась старая история.
  */
 export type ExerciseType = "recall" | "recognition" | "assembly" | "spelling" | "listening" | "comprehension" | "cloze";
 export interface Example {
@@ -41,18 +41,19 @@ export interface Word {
 }
 
 /**
- * Виды планируемых карточек первой реализации. Это набор поддерживаемых планировщиком карточек,
- * а не закрытая таксономия языкового знания: `word`/`phrase` — материал, `cloze` — карточка упражнения.
+ * Виды планируемых карточек. Это набор поддерживаемых планировщиком карточек, а не закрытая
+ * таксономия языкового знания. В отличие от `ExerciseType`, снятый вид отсюда уходит: перечисление
+ * описывает то, что планировщик выдаёт сейчас, и лишний вид дал бы пустую группу на каждом экране.
  */
-export type CardKind = "word" | "phrase" | "cloze";
-export const CARD_KINDS: readonly CardKind[] = ["word", "phrase", "cloze"];
+export type CardKind = "word" | "phrase";
+export const CARD_KINDS: readonly CardKind[] = ["word", "phrase"];
 /** Ссылка на планируемую карточку: одинаковые ID разных видов — разные единицы повторения. */
 export interface LearningRef {
   kind: CardKind;
   id: string;
 }
 /** Происхождение подготовленного агентом материала; `request` обязателен для запрошенных преобразования и генерации. */
-export type ProvenanceOperation = "verbatim" | "cloze-from-source" | "requested-transform" | "requested-generation";
+export type ProvenanceOperation = "verbatim" | "requested-transform" | "requested-generation";
 export interface SourceRecord {
   sourceLabel: string;
   locator?: string;
@@ -61,22 +62,12 @@ export interface SourceRecord {
   request?: string;
 }
 /**
- * Происхождение карточки. `parts` — происхождение отдельных полей (`translation`, `explanation`,
- * `accepted-answers`, `target`), когда оно отличается от основного текста: например, перевод взят из
- * другого места материала, а цель размечена по запросу. Вложенность одного уровня: у части своих частей нет.
+ * Происхождение карточки. `parts` — происхождение отдельных полей (например, `translation`), когда оно
+ * отличается от основного текста: скажем, перевод взят из другого места материала. Вложенность одного
+ * уровня: у части своих частей нет.
  */
 export interface Provenance extends SourceRecord {
   parts?: Record<string, SourceRecord>;
-}
-/**
- * Необязательное описание учебной цели cloze: `kind` и ключи `features` — идентификаторы в kebab-case,
- * стабильные после публикации. Поле не участвует в проверке ответа, ключах прогресса и дедупликации.
- * Не путать с `Example.target` — там это строка-цель в примере предложения слова.
- */
-export interface LearningTarget {
-  kind: string;
-  ref?: string;
-  features?: Record<string, string | number | boolean>;
 }
 /** Готовая языковая единица: приветствие, выражение, вопрос или предложение. Имена полей языково-нейтральны. */
 export interface Phrase {
@@ -93,38 +84,14 @@ export interface Phrase {
   revision?: string;
   edited?: boolean;
 }
-/**
- * Карточка упражнения с одним пропуском. Хранит собственные текст и ключ ответа: `related` служит навигации
- * и не объединяет прогресс со словом или фразой.
- */
-export interface Cloze {
-  id: string;
-  template: string;
-  answer: string;
-  acceptedAnswers: string[];
-  context?: string;
-  explanation?: string;
-  target?: LearningTarget;
-  related?: LearningRef;
-  audioAssetId?: string;
-  provenance: Provenance;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt?: string;
-  revision?: string;
-  edited?: boolean;
-}
 /** Содержимое карточки в сессии: снимок на момент создания занятия, обновление пакета его не меняет. */
-export type SessionCard =
-  { kind: "word"; word: Word } | { kind: "phrase"; phrase: Phrase } | { kind: "cloze"; cloze: Cloze };
+export type SessionCard = { kind: "word"; word: Word } | { kind: "phrase"; phrase: Phrase };
 /**
- * Снимок содержимого в событии ответа. У слова — прежняя форма, у фразы — текст и перевод,
- * у пропуска — шаблон, ответ и описание цели из снимка сессии, а не из позднейшей версии пакета.
+ * Снимок содержимого в событии ответа: у слова — прежняя форма, у фразы — текст и перевод, из снимка
+ * сессии, а не из позднейшей версии пакета. Третий вариант читает снимки снятого вида из старой истории.
  */
 export type CardSnapshot =
-  | { greek: string; russian: string }
-  | { text: string; translation?: string }
-  | { template: string; answer: string; target?: LearningTarget };
+  { greek: string; russian: string } | { text: string; translation?: string } | { template: string; answer: string };
 /** `dateSource` заполняется только в выборке: в базе дата либо своя (задана вручную), либо пустая (по расписанию). */
 /** Курс своих наборов: он есть всегда, не обновляется из каталога и не исчезает вместе с ним. */
 export const LOCAL_COURSE = "my";
@@ -192,7 +159,6 @@ export interface InstalledPackage {
   installedAt: string;
   words: PackageWord[];
   phrases: PackagePhrase[];
-  clozes: PackageCloze[];
   items: PackageItem[];
   media: PackageMedia[];
   removed: string[];
@@ -294,7 +260,6 @@ export const fillSettings = (settings: Partial<Settings> | undefined): Settings 
 export interface Snapshot {
   words: Word[];
   phrases?: Phrase[];
-  clozes?: Cloze[];
   lessons: Lesson[];
   courses?: Course[];
   links: LessonWord[];

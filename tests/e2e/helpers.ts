@@ -217,7 +217,6 @@ export async function seedMixedLesson(
     schemaVersion: pack.schemaVersion,
     items,
     phrases: pack.phrases.filter((p) => items.some((i) => i.kind === "phrase" && i.id === p.id)),
-    clozes: pack.clozes.filter((c) => items.some((i) => i.kind === "cloze" && i.id === c.id)),
     targetDate: options.targetDate ?? null,
   };
   await page.evaluate(
@@ -228,7 +227,7 @@ export async function seedMixedLesson(
         request.onerror = () => reject(request.error);
       });
       const now = new Date().toISOString();
-      const tx = database.transaction(["lessons", "lessonItems", "phrases", "clozes", "packages"], "readwrite");
+      const tx = database.transaction(["lessons", "lessonItems", "phrases", "packages"], "readwrite");
       tx.objectStore("lessons").put({
         id: payload.lessonId,
         courseId: payload.courseId,
@@ -247,7 +246,6 @@ export async function seedMixedLesson(
         });
       for (const phrase of payload.phrases)
         tx.objectStore("phrases").put({ ...phrase, createdAt: now, updatedAt: now });
-      for (const cloze of payload.clozes) tx.objectStore("clozes").put({ ...cloze, createdAt: now, updatedAt: now });
       tx.objectStore("packages").put({
         lessonId: payload.lessonId,
         courseId: payload.courseId,
@@ -256,7 +254,6 @@ export async function seedMixedLesson(
         installedAt: now,
         words: [],
         phrases: payload.phrases,
-        clozes: payload.clozes,
         items: payload.items,
         media: [],
         removed: [],

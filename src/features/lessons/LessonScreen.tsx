@@ -12,20 +12,18 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle }
 import { Skeleton } from "@/components/ui/skeleton";
 import { Screen } from "../../app/Screen";
 import { downloadLessonMedia, installLesson, type InstallResult } from "../../content/client";
-import { fillGap, splitTemplate } from "../../domain/cloze";
 import { isCheckable } from "../../domain/learning";
 import { unitKey } from "../../domain/refs";
-import type { CardKind, Cloze, LearningRef, LessonItem, Phrase, SessionCard } from "../../domain/types";
+import type { CardKind, LearningRef, LessonItem, Phrase, SessionCard } from "../../domain/types";
 import { useGreekVoice } from "../../shared/audio";
 import { useNow } from "../../shared/clock";
-import { CARDS, CLOZES, dayMonth, DAYS, PHRASES, withCount, WORDS } from "../../shared/format";
+import { CARDS, dayMonth, DAYS, PHRASES, withCount, WORDS } from "../../shared/format";
 import { useOfflineStatus } from "../../shared/offline";
 import { useCatalog, useInstallPhase, useLesson, usePhraseCount, usePlan, useReadiness } from "../../shared/store";
 import { removeFromLesson, updateLesson } from "../../storage/ops";
 import { SpeakText } from "../learning/exercises";
 import { startSession } from "../learning/session-actions";
 import ui from "../../shared/ui.module.css";
-import wordCss from "../../shared/word.module.css";
 
 export function reportInstall(result: InstallResult) {
   if (result.status === "current") return;
@@ -46,28 +44,15 @@ export function reportInstall(result: InstallResult) {
 const GROUPS: { kind: CardKind; title: string; forms: [string, string, string] }[] = [
   { kind: "word", title: "Слова", forms: WORDS },
   { kind: "phrase", title: "Фразы", forms: PHRASES },
-  { kind: "cloze", title: "Заполни пропуск", forms: CLOZES },
 ];
-/** Состав урока: только слова — «30 слов»; смешанный — «17 карточек: 10 слов · 3 фразы · 4 пропуска». */
+/** Состав урока: только слова — «30 слов»; смешанный — «13 карточек: 10 слов · 3 фразы». */
 export function compositionLabel(counts: Record<CardKind, number>) {
-  const total = counts.word + counts.phrase + counts.cloze;
-  if (!counts.phrase && !counts.cloze) return withCount(counts.word, WORDS);
+  const total = counts.word + counts.phrase;
+  if (!counts.phrase) return withCount(counts.word, WORDS);
   return `${withCount(total, CARDS)}: ${GROUPS.filter((group) => counts[group.kind])
     .map((group) => withCount(counts[group.kind], group.forms))
     .join(" · ")}`;
 }
-/** Подпись описания учебной цели пропуска: идентификаторы показываются как есть, с подписью на языке пользователя. */
-export const targetLabel = (cloze: Cloze) =>
-  cloze.target
-    ? `Цель: ${cloze.target.kind}${
-        cloze.target.features
-          ? ` (${Object.entries(cloze.target.features)
-              .map(([key, value]) => `${key}: ${String(value)}`)
-              .join(", ")})`
-          : ""
-      }`
-    : null;
-
 function PhraseRow({ phrase, checkable, onRemove }: { phrase: Phrase; checkable: boolean; onRemove: () => void }) {
   const [open, setOpen] = useState(false);
   return (
@@ -129,65 +114,6 @@ function PhraseRow({ phrase, checkable, onRemove }: { phrase: Phrase; checkable:
     </Item>
   );
 }
-function ClozeRow({ cloze, onRemove }: { cloze: Cloze; onRemove: () => void }) {
-  const [open, setOpen] = useState(false);
-  const { before, after } = splitTemplate(cloze.template);
-  return (
-    <Item variant="row" data-testid="cloze-row">
-      <ItemContent>
-        <ItemTitle className="text-base">
-          <button
-            type="button"
-            className="text-left text-foreground"
-            aria-expanded={open}
-            onClick={() => setOpen(!open)}
-          >
-            {before}
-            <span className={wordCss.target}>{cloze.answer}</span>
-            {after}
-          </button>
-        </ItemTitle>
-        <ItemDescription>{cloze.context ?? "Задание с пропуском"}</ItemDescription>
-        {open && (
-          <div className="mt-2 flex w-full flex-col gap-2 text-sm" data-testid="cloze-details">
-            {cloze.acceptedAnswers.length > 1 && (
-              <p className="m-0">Допустимые ответы: {cloze.acceptedAnswers.join(", ")}</p>
-            )}
-            {cloze.explanation && <p className="m-0">{cloze.explanation}</p>}
-            {cloze.target && (
-              <p className={`m-0 ${ui.muted}`} data-testid="cloze-target">
-                {targetLabel(cloze)}
-              </p>
-            )}
-            <p className={`m-0 ${ui.muted}`}>
-              Источник: {cloze.provenance.sourceLabel}
-              {cloze.provenance.locator ? ` · ${cloze.provenance.locator}` : ""}
-            </p>
-            <SpeakText
-              text={fillGap(cloze.template, cloze.answer)}
-              audioAssetId={cloze.audioAssetId}
-              label="Послушать предложение"
-            />
-          </div>
-        )}
-      </ItemContent>
-      <ItemActions>
-        <Button size="sm" variant="quiet" onClick={onRemove}>
-          Убрать
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={open ? "Свернуть" : "Подробнее"}
-          onClick={() => setOpen(!open)}
-        >
-          {open ? <ChevronDown /> : <ChevronRight />}
-        </Button>
-      </ItemActions>
-    </Item>
-  );
-}
-
 export function LessonScreen() {
   const { id } = useParams();
   const detail = useLesson(id); // из выборки: урок с датой по расписанию, связанные живые карточки и их состояния
@@ -253,7 +179,7 @@ export function LessonScreen() {
                   : "Урок не загружен на устройство"}
             </CardDescription>
             <CardTitle className="text-xl font-semibold">
-              {compositionLabel({ word: entry.wordCount, phrase: entry.phraseCount, cloze: entry.clozeCount })}
+              {compositionLabel({ word: entry.wordCount, phrase: entry.phraseCount })}
             </CardTitle>
             <CardDescription>
               {phase.phase === "error"
@@ -280,8 +206,8 @@ export function LessonScreen() {
       </Screen>
     );
   }
-  const { items, cards, words, phrases, clozes, states } = detail;
-  const counts: Record<CardKind, number> = { word: words.length, phrase: phrases.length, cloze: clozes.length };
+  const { items, cards, words, phrases, states } = detail;
+  const counts: Record<CardKind, number> = { word: words.length, phrase: phrases.length };
   const total = items.length;
   const deadline = plan?.deadlines.find((item) => item.lessonId === lesson!.id);
   const checkable = (phrase: Phrase) =>
@@ -465,7 +391,7 @@ export function LessonScreen() {
             <h2 className="m-0">
               {group.title} · {counts[group.kind]}
             </h2>
-            {(counts.phrase > 0 || counts.cloze > 0) && (
+            {counts.phrase > 0 && (
               <Button size="sm" variant="quiet" className="w-auto" onClick={() => practice(group.kind)}>
                 Потренировать группу
               </Button>
@@ -493,15 +419,13 @@ export function LessonScreen() {
                     <ChevronRight className="text-muted-foreground" />
                   </ItemActions>
                 </Item>
-              ) : card.kind === "phrase" ? (
+              ) : (
                 <PhraseRow
                   key={item.unitKey}
                   phrase={card.phrase}
                   checkable={checkable(card.phrase)}
                   onRemove={() => remove(item)}
                 />
-              ) : (
-                <ClozeRow key={item.unitKey} cloze={card.cloze} onRemove={() => remove(item)} />
               ),
             )}
           </ItemGroup>

@@ -28,8 +28,7 @@ export interface Leech {
   label: string;
 }
 /** Короткая подпись карточки для списков: у слова — написание, у фразы — текст, у пропуска — пропущенная форма. */
-export const cardLabel = (card: SessionCard): string =>
-  card.kind === "word" ? card.word.greek : card.kind === "phrase" ? card.phrase.text : card.cloze.answer;
+export const cardLabel = (card: SessionCard): string => (card.kind === "word" ? card.word.greek : card.phrase.text);
 /** `totals.cards` — уникальные карточки любого вида с ответами; фразы и пропуски не выдаются за слова. */
 export interface Progress {
   days: DayStat[];
@@ -59,17 +58,10 @@ export interface StatsSource {
 
 /**
  * Типы проверки в порядке показа; сводка по ним описывает форматы проверки, а не освоение грамматических тем.
- * Перечислены только предлагаемые сейчас типы: у снятого `recall` постоянная строка «Ещё не проверяли»
- * не описывала бы ни навык, ни историю. Его ответы остаются в общем числе и в разбивке по дням.
+ * Перечислены только предлагаемые сейчас типы: у снятых `recall` и `cloze` постоянная строка
+ * «Ещё не проверяли» не описывала бы ни навык, ни историю. Их ответы остаются в общем числе и в разбивке по дням.
  */
-export const SKILL_TYPES: ExerciseType[] = [
-  "recognition",
-  "assembly",
-  "spelling",
-  "listening",
-  "comprehension",
-  "cloze",
-];
+export const SKILL_TYPES: ExerciseType[] = ["recognition", "assembly", "spelling", "listening", "comprehension"];
 /** Статистика считается по записанным событиям, а не по показам экрана. */
 export async function progress(source: StatsSource, now: Date): Promise<Progress> {
   const { timezone } = await source.settings();
@@ -154,6 +146,7 @@ export function lessonProgress(keys: Iterable<string>, states: Map<string, Learn
   }
   return groups;
 }
+/** Подписи всех типов проверки, включая снятые: строку для них никто не рисует, но старая история читается. */
 export const SKILL_NAMES: Record<ExerciseType, string> = {
   recall: "Вспомнить слово",
   recognition: "Выбрать перевод",

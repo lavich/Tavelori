@@ -6,6 +6,7 @@ import {
   LEGACY_STORES,
   LEGACY_TABLES,
   migrateCards,
+  migrateDropCloze,
   migrateCourses,
   migrateCourseTempo,
   migrateLegacy,
@@ -201,11 +202,13 @@ export async function restoreBackup(file: Blob, database: LexiDatabase = db): Pr
     });
     // Словарные ключи старых копий переезжают в типизированные хранилища; для копии схемы 6 шаг ничего не делает.
     await staging.transaction("rw", all, () => migrateCards(staging));
+    // Копия схемы ≤6 знает снятый вид карточек: он уходит тем же переходом, что и в локальном профиле.
+    await staging.transaction("rw", all, () => migrateDropCloze(staging));
     const payload = await Promise.all(TABLES.map(async (name) => [name, await staging.table(name).toArray()] as const));
     const rows = <T>(name: (typeof TABLES)[number]) => payload.find(([table]) => table === name)![1] as T[];
-    const ids = (name: "words" | "phrases" | "clozes") => new Set(rows<{ id: string }>(name).map((row) => row.id));
-    const cards = { word: ids("words"), phrase: ids("phrases"), cloze: ids("clozes") };
-    if (!cards.word.size && !cards.phrase.size && !cards.cloze.size)
+    const ids = (name: "words" | "phrases") => new Set(rows<{ id: string }>(name).map((row) => row.id));
+    const cards = { word: ids("words"), phrase: ids("phrases") };
+    if (!cards.word.size && !cards.phrase.size)
       throw new Error("В копии нет ни одной карточки — восстановление отменено.");
     const lessonIds = new Set(rows<{ id: string }>("lessons").map((lesson) => lesson.id));
     const broken = rows<LessonItem>("lessonItems").find(

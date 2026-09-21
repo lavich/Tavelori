@@ -1,13 +1,4 @@
-import type {
-  CardKind,
-  Example,
-  LearningRef,
-  LearningTarget,
-  Provenance,
-  ProvenanceOperation,
-  Segment,
-  SourceRecord,
-} from "../domain/types.ts";
+import type { CardKind, Example, Provenance, ProvenanceOperation, Segment, SourceRecord } from "../domain/types.ts";
 import { CARD_KINDS } from "../domain/types.ts";
 
 /**
@@ -36,7 +27,6 @@ export interface CatalogEntry {
   title: string;
   wordCount: number;
   phraseCount: number;
-  clozeCount: number;
   cardCount: number;
   version: string;
   url: string;
@@ -74,19 +64,6 @@ export interface PackagePhrase {
   provenance: Provenance;
   revision: string;
 }
-export interface PackageCloze {
-  id: string;
-  template: string;
-  answer: string;
-  acceptedAnswers: string[];
-  context?: string;
-  explanation?: string;
-  target?: LearningTarget;
-  related?: LearningRef;
-  audioAssetId?: string;
-  provenance: Provenance;
-  revision: string;
-}
 /** Словарная связь прежнего формата; в схеме 3 выводится из `items` для кода, который ещё работает только со словами. */
 export interface PackageLink {
   wordId: string;
@@ -117,7 +94,6 @@ export interface ContentPackage {
   lesson: { title: string };
   words: PackageWord[];
   phrases: PackagePhrase[];
-  clozes: PackageCloze[];
   items: PackageItem[];
   links: PackageLink[];
   media: PackageMedia[];
@@ -196,16 +172,15 @@ export function parseCatalog(input: unknown): Catalog {
       language: str(item.language, `${path}.language`),
       title: str(item.title, `${path}.title`),
     };
-    // Каталог схемы 2 знает только слова: счётчики новых видов равны нулю, а число карточек — числу слов.
+    // Каталог схемы 2 знает только слова: счётчик фраз равен нулю, а число карточек — числу слов.
+    // Счётчик снятого вида из прежних каталогов не читается: в число карточек он входит через `cardCount`.
     const wordCount = num(item.wordCount, `${path}.wordCount`);
-    const phraseCount = num(item.phraseCount ?? 0, `${path}.phraseCount`),
-      clozeCount = num(item.clozeCount ?? 0, `${path}.clozeCount`);
+    const phraseCount = num(item.phraseCount ?? 0, `${path}.phraseCount`);
     return {
       ...head,
       wordCount,
       phraseCount,
-      clozeCount,
-      cardCount: num(item.cardCount ?? wordCount + phraseCount + clozeCount, `${path}.cardCount`),
+      cardCount: num(item.cardCount ?? wordCount + phraseCount, `${path}.cardCount`),
       version: str(item.version, `${path}.version`),
       url: relativeUrl(item.url, `${path}.url`),
       bytes: num(item.bytes, `${path}.bytes`),
@@ -282,20 +257,11 @@ function parseWord(input: unknown, path: string): PackageWord {
 
 export const PROVENANCE_OPERATIONS: readonly ProvenanceOperation[] = [
   "verbatim",
-  "cloze-from-source",
   "requested-transform",
   "requested-generation",
 ];
 /** Поля, у которых может быть своё происхождение: имена частей — идентификаторы в kebab-case. */
-export const PROVENANCE_PARTS: readonly string[] = [
-  "translation",
-  "usage",
-  "note",
-  "explanation",
-  "accepted-answers",
-  "target",
-  "audio",
-];
+export const PROVENANCE_PARTS: readonly string[] = ["translation", "usage", "note", "explanation", "audio"];
 function validateSource(input: unknown, path: string): SourceRecord {
   const raw = obj(input, path);
   const operation = str(raw.operation, `${path}.operation`);
@@ -342,93 +308,6 @@ export function validateProvenance(input: unknown, path: string): Provenance {
   return provenance;
 }
 
-/** Идентификаторы цели и признаков: нижний регистр, kebab-case, ASCII. Значения после публикации стабильны и не переводятся. */
-export const TARGET_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const targetName = (value: unknown, path: string) => {
-  const name = str(value, path);
-  if (!TARGET_NAME.test(name))
-    throw new ContentError(`${path}: «${name}» — нужен идентификатор в нижнем регистре kebab-case, например verb-form`);
-  return name;
-};
-/** Проверяется только форма: вид и признаки — открытые идентификаторы, их смысл не проверяется. */
-export function validateTarget(input: unknown, path: string): LearningTarget {
-  const raw = obj(input, path);
-  const target: LearningTarget = { kind: targetName(raw.kind, `${path}.kind`) };
-  if (raw.ref !== undefined && raw.ref !== null) {
-    const ref = str(raw.ref, `${path}.ref`);
-    if (!ref.trim()) throw new ContentError(`${path}.ref: не может быть пустым`);
-    target.ref = ref;
-  }
-  if (raw.features !== undefined && raw.features !== null) {
-    const features = obj(raw.features, `${path}.features`);
-    const flat: Record<string, string | number | boolean> = {};
-    for (const [key, value] of Object.entries(features)) {
-      const name = targetName(key, `${path}.features`);
-      if (
-        typeof value === "string" ||
-        (typeof value === "number" && Number.isFinite(value)) ||
-        typeof value === "boolean"
-      )
-        flat[name] = value;
-      else throw new ContentError(`${path}.features.${key}: значение признака — строка, число или да/нет`);
-    }
-    target.features = flat;
-  }
-  return target;
-}
-
-export const GAP = "{{gap}}";
-const letter = /\p{L}|\p{M}|\p{N}/u;
-/**
- * Форма карточки пропуска: ровно один маркер, скрыто целое слово или сочетание целых слов,
- * канонический ответ непуст и входит в допустимые. Смысл ответа не проверяется.
- */
-export function validateCloze(input: unknown, path: string): PackageCloze {
-  const raw = obj(input, path);
-  const template = str(raw.template, `${path}.template`);
-  const gaps = template.split(GAP).length - 1;
-  if (gaps !== 1)
-    throw new ContentError(`${path}.template: в шаблоне должен быть ровно один пропуск ${GAP}, найдено ${gaps}`);
-  const at = template.indexOf(GAP);
-  const before = template[at - 1],
-    after = template[at + GAP.length];
-  if ((before && letter.test(before)) || (after && letter.test(after)))
-    throw new ContentError(`${path}.template: пропуск скрывает часть слова — скрывайте форму целиком`);
-  const answer = str(raw.answer, `${path}.answer`);
-  if (!answer.trim()) throw new ContentError(`${path}.answer: ответ пуст`);
-  const acceptedAnswers = list(raw.acceptedAnswers, `${path}.acceptedAnswers`).map((value, i) => {
-    const text = str(value, `${path}.acceptedAnswers[${i}]`);
-    if (!text.trim()) throw new ContentError(`${path}.acceptedAnswers[${i}]: ответ пуст`);
-    return text;
-  });
-  if (!acceptedAnswers.length) throw new ContentError(`${path}.acceptedAnswers: список допустимых ответов пуст`);
-  if (!acceptedAnswers.includes(answer))
-    throw new ContentError(`${path}.acceptedAnswers: список должен содержать канонический ответ «${answer}»`);
-  const cloze: PackageCloze = {
-    id: str(raw.id, `${path}.id`),
-    template,
-    answer,
-    acceptedAnswers,
-    provenance: validateProvenance(raw.provenance, `${path}.provenance`),
-    revision: str(raw.revision, `${path}.revision`),
-  };
-  const context = opt(raw.context, (v) => str(v, `${path}.context`));
-  if (context) cloze.context = context;
-  const explanation = opt(raw.explanation, (v) => str(v, `${path}.explanation`));
-  if (explanation) cloze.explanation = explanation;
-  const audio = opt(raw.audioAssetId, (v) => str(v, `${path}.audioAssetId`));
-  if (audio) cloze.audioAssetId = audio;
-  if (raw.target !== undefined && raw.target !== null) cloze.target = validateTarget(raw.target, `${path}.target`);
-  if (raw.related !== undefined && raw.related !== null) {
-    const related = obj(raw.related, `${path}.related`);
-    const kind = cardKind(related.kind, `${path}.related.kind`);
-    if (kind === "cloze")
-      throw new ContentError(`${path}.related: связь ведёт на слово или фразу, а не на другой пропуск`);
-    cloze.related = { kind, id: str(related.id, `${path}.related.id`) };
-  }
-  return cloze;
-}
-
 export function validatePhrase(input: unknown, path: string): PackagePhrase {
   const raw = obj(input, path);
   const text = str(raw.text, `${path}.text`);
@@ -456,11 +335,10 @@ export function parsePackage(input: unknown): ContentPackage {
     "пакет.words",
   );
   let phrases: PackagePhrase[] = [],
-    clozes: PackageCloze[] = [],
     items: PackageItem[];
   if (schemaVersion === 2) {
     // Словарный пакет: смешанные поля в нём не читаются, чтобы новый контент не выдавал себя за старый.
-    for (const field of ["phrases", "clozes", "items"])
+    for (const field of ["phrases", "items"])
       if (raw[field] !== undefined) throw new ContentError(`пакет.${field}: поле не входит в пакет схемы 2`);
     const known = new Set(words.map((w) => w.id));
     items = list(raw.links, "пакет.links").map((entry, i): PackageItem => {
@@ -476,15 +354,10 @@ export function parsePackage(input: unknown): ContentPackage {
       phrases.map((p) => p.id),
       "пакет.phrases",
     );
-    clozes = list(raw.clozes ?? [], "пакет.clozes").map((entry, i) => validateCloze(entry, `пакет.clozes[${i}]`));
-    unique(
-      clozes.map((c) => c.id),
-      "пакет.clozes",
-    );
+    // Поле снятого вида не читается: состав, который на него ссылается, отклоняет пакет по неизвестному виду.
     const known = {
       word: new Set(words.map((w) => w.id)),
       phrase: new Set(phrases.map((p) => p.id)),
-      cloze: new Set(clozes.map((c) => c.id)),
     };
     items = list(raw.items, "пакет.items").map((entry, i): PackageItem => {
       const path = `пакет.items[${i}]`;
@@ -533,7 +406,7 @@ export function parsePackage(input: unknown): ContentPackage {
     for (const ref of [word.imageAssetId, word.audioAssetId])
       if (ref && !mediaIds.has(ref))
         throw new ContentError(`пакет.words: слово ${word.id} ссылается на медиа ${ref}, которого нет в пакете`);
-  for (const card of [...phrases, ...clozes])
+  for (const card of phrases)
     if (card.audioAssetId && !mediaIds.has(card.audioAssetId))
       throw new ContentError(
         `пакет: карточка ${card.id} ссылается на медиа ${card.audioAssetId}, которого нет в пакете`,
@@ -547,7 +420,6 @@ export function parsePackage(input: unknown): ContentPackage {
     lesson: { title: str(lessonRaw.title, "пакет.lesson.title") },
     words,
     phrases,
-    clozes,
     items,
     links: items.filter((item) => item.kind === "word").map((item) => ({ wordId: item.id, position: item.position })),
     media,
@@ -568,16 +440,5 @@ export const SHIPPED_FIELDS = [
   "source",
 ] as const;
 export type ShippedField = (typeof SHIPPED_FIELDS)[number];
-/** Поставляемые поля фразы и пропуска: из них считается ревизия; `target` входит в неё, но не в идентичность карточки. */
+/** Поставляемые поля фразы: из них считается ревизия. */
 export const PHRASE_FIELDS = ["text", "translation", "usage", "note", "audioAssetId", "provenance"] as const;
-export const CLOZE_FIELDS = [
-  "template",
-  "answer",
-  "acceptedAnswers",
-  "context",
-  "explanation",
-  "target",
-  "related",
-  "audioAssetId",
-  "provenance",
-] as const;

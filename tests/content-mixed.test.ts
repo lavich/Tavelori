@@ -1,69 +1,54 @@
 import { describe, expect, it } from "vitest";
-import { buildContent, clozeRevisionOf, phraseRevisionOf, type BuiltContent } from "../content/build";
+import { buildContent, phraseRevisionOf, type BuiltContent } from "../content/build";
 import { parseCatalog, parsePackage } from "../src/content/schema";
 import { buildMixed, type MixedFiles } from "./helpers/mixed";
 
 /**
  * Непубликуемая фикстура: смешанный урок собирается во временной копии исходников проекта (см. helpers/mixed.ts).
- * Реальный каталог фраз и пропусков не получает; тексты — иллюстрация формата на уже существующем примере проекта.
+ * Реальный каталог фраз её не получает; тексты — иллюстрация формата на уже существующем примере проекта.
  */
 const provenance = {
   sourceLabel: "Существующий пример проекта, иллюстрация формата",
   locator: "content/words/γράφω.yaml, examples[0]",
   excerpt: "Γράφω ένα γράμμα.",
-  operation: "cloze-from-source",
+  operation: "verbatim",
 };
 const phrase = {
   text: "Γράφω ένα γράμμα.",
   translation: "Я пишу письмо.",
-  provenance: { ...provenance, operation: "verbatim" },
-};
-const cloze = {
-  template: "{{gap}} ένα γράμμα.",
-  answer: "Γράφω",
-  acceptedAnswers: ["Γράφω"],
-  context: "Я пишу письмо.",
-  related: { kind: "word", id: "w11-27" },
-  target: { kind: "verb-form", ref: "w11-27", features: { tense: "present", person: 1, number: "singular" } },
   provenance,
 };
-const mixed = ({ phrases = { "p-grafo": phrase }, clozes = { "c-grafo": cloze }, lesson, mutate }: MixedFiles = {}) =>
+const second = {
+  text: "Το βουνό είναι ψηλό.",
+  translation: "Гора высокая.",
+  provenance: { ...provenance, locator: "content/words/το-βουνό.yaml, examples[0]", excerpt: "Το βουνό είναι ψηλό." },
+};
+const mixed = ({ phrases = { "p-grafo": phrase }, lesson, mutate }: MixedFiles = {}) =>
   buildMixed({
     phrases,
-    clozes,
     lesson: lesson ?? {
       title: "Смешанный урок",
       language: "el",
-      items: [
-        ...Object.keys(phrases).map((id) => ({ kind: "phrase", id })),
-        { kind: "word", id: "w11-27" },
-        ...Object.keys(clozes).map((id) => ({ kind: "cloze", id })),
-      ],
+      items: [...Object.keys(phrases).map((id) => ({ kind: "phrase", id })), { kind: "word", id: "w11-27" }],
     },
     mutate,
   });
 const pack = (built: BuiltContent) => built.packages.find((p) => p.id === "lesson-mixed")!;
 
 describe("сборка смешанного урока", () => {
-  it("собирает фразы, пропуски и слова в авторском порядке и проходит проверку пакета", () => {
-    const built = mixed();
+  it("собирает фразы и слова в авторском порядке и проходит проверку пакета", () => {
+    const built = mixed({ phrases: { "p-grafo": phrase, "p-vouno": second } });
     const mixedPack = pack(built);
     expect(mixedPack.schemaVersion).toBe(3);
     expect(mixedPack.items.map((item) => [item.kind, item.id, item.position])).toEqual([
       ["phrase", "p-grafo", 0],
-      ["word", "w11-27", 1],
-      ["cloze", "c-grafo", 2],
+      ["phrase", "p-vouno", 1],
+      ["word", "w11-27", 2],
     ]);
     expect(mixedPack.phrases[0]).toMatchObject({
       id: "p-grafo",
       text: "Γράφω ένα γράμμα.",
       translation: "Я пишу письмо.",
-    });
-    expect(mixedPack.clozes[0]).toMatchObject({
-      id: "c-grafo",
-      answer: "Γράφω",
-      target: cloze.target,
-      related: { kind: "word", id: "w11-27" },
     });
     expect(mixedPack.words.map((word) => word.id)).toEqual(["w11-27"]);
     const file = built.files.find((f) => f.path === built.catalog.lessons.find((l) => l.id === "lesson-mixed")!.url)!;
@@ -71,15 +56,16 @@ describe("сборка смешанного урока", () => {
     const entry = parseCatalog(
       JSON.parse(built.files.find((f) => f.path === "content/catalog.json")!.body as string),
     ).lessons.find((l) => l.id === "lesson-mixed")!;
-    expect(entry).toMatchObject({ wordCount: 1, phraseCount: 1, clozeCount: 1, cardCount: 3 });
+    expect(entry).toMatchObject({ wordCount: 1, phraseCount: 2, cardCount: 3 });
   });
   it("урок без слов допустим, прежний список words принимается как сокращение", () => {
     const built = mixed({
+      phrases: { "p-grafo": phrase, "p-vouno": second },
       lesson: {
         title: "Без слов",
         items: [
           { kind: "phrase", id: "p-grafo" },
-          { kind: "cloze", id: "c-grafo" },
+          { kind: "phrase", id: "p-vouno" },
         ],
       },
     });
@@ -96,116 +82,40 @@ describe("сборка смешанного урока", () => {
     ).toThrow(/либо words, либо items/);
     expect(() => mixed({ lesson: { title: "Пусто" } })).toThrow(/нужен непустой список/);
   });
-  it("ревизия меняется от цели и текста, идентификатор — нет", () => {
-    const base = pack(mixed()).clozes[0];
-    const retargeted = pack(
-      mixed({
-        clozes: {
-          "c-grafo": {
-            ...cloze,
-            target: { ...cloze.target, features: { ...cloze.target.features, number: "plural" } },
-          },
-        },
-      }),
-    ).clozes[0];
-    expect(retargeted.id).toBe(base.id);
-    expect(retargeted.revision).not.toBe(base.revision);
-    expect(base.revision).toBe(clozeRevisionOf(base));
-    const { target: _t, ...withoutTarget } = base;
-    expect(clozeRevisionOf(withoutTarget)).not.toBe(base.revision);
-    const p = pack(mixed()).phrases[0];
-    expect(p.revision).toBe(phraseRevisionOf(p));
-    expect(phraseRevisionOf({ ...p, translation: "Другой перевод" })).not.toBe(p.revision);
+  it("ревизия фразы меняется от текста и перевода, идентификатор — нет", () => {
+    const base = pack(mixed()).phrases[0];
+    const retranslated = pack(mixed({ phrases: { "p-grafo": { ...phrase, translation: "Другой перевод" } } }))
+      .phrases[0];
+    expect(retranslated.id).toBe(base.id);
+    expect(retranslated.revision).not.toBe(base.revision);
+    expect(base.revision).toBe(phraseRevisionOf(base));
+    expect(phraseRevisionOf({ ...base, note: "Примечание" })).not.toBe(base.revision);
   });
-  it("отклоняет неверную разметку пропуска, ссылки и происхождение", () => {
-    expect(() => mixed({ clozes: { "c-grafo": { ...cloze, template: "Γράφω {{gap}} {{gap}}." } } })).toThrow(
-      /clozes\/c-grafo.yaml.*ровно один/,
-    );
-    expect(() => mixed({ clozes: { "c-grafo": { ...cloze, answer: "" } } })).toThrow(/пуст/);
-    expect(() =>
-      mixed({
-        clozes: {
-          "c-grafo": {
-            ...cloze,
-            template: "Γρά{{gap}} ένα γράμμα.",
-            answer: "φω",
-            acceptedAnswers: ["φω"],
-            provenance: { ...provenance, excerpt: undefined },
-          },
-        },
-      }),
-    ).toThrow(/часть слова/);
-    expect(() => mixed({ clozes: { "c-grafo": { ...cloze, related: { kind: "word", id: "w99-99" } } } })).toThrow(
-      /w99-99/,
-    );
-    expect(() => mixed({ lesson: { title: "x", items: [{ kind: "cloze", id: "нет" }] } })).toThrow(
-      /пропуска нет нет в clozes/,
+  it("отклоняет неверные ссылки, вид карточки и происхождение", () => {
+    expect(() => mixed({ lesson: { title: "x", items: [{ kind: "phrase", id: "нет" }] } })).toThrow(
+      /фразы нет нет в phrases/,
     );
     expect(() => mixed({ lesson: { title: "x", items: [{ kind: "grammar", id: "g" }] } })).toThrow(/вид карточки/);
-    expect(() => mixed({ clozes: { "c-grafo": { ...cloze, provenance: undefined } } })).toThrow(/provenance/);
+    expect(() => mixed({ lesson: { title: "x", items: [{ kind: "cloze", id: "c-1" }] } })).toThrow(/вид карточки/);
+    expect(() => mixed({ phrases: { "p-grafo": { ...phrase, provenance: undefined } } })).toThrow(/provenance/);
     expect(() =>
       mixed({
-        clozes: { "c-grafo": { ...cloze, provenance: { sourceLabel: "Агент", operation: "requested-generation" } } },
+        phrases: { "p-grafo": { ...phrase, provenance: { sourceLabel: "Агент", operation: "requested-generation" } } },
       }),
     ).toThrow(/request/);
-    expect(() => mixed({ clozes: { "c-grafo": { ...cloze, template: "{{gap}} ένα βιβλίο." } } })).toThrow(
-      /восстановленное предложение/,
-    );
   });
-  it("отклоняет цель не в kebab-case и вложенные признаки", () => {
-    expect(() => mixed({ clozes: { "c-grafo": { ...cloze, target: { kind: "verbForm" } } } })).toThrow(/kebab-case/);
-    expect(() => mixed({ clozes: { "c-grafo": { ...cloze, target: { kind: "verb_form" } } } })).toThrow(/kebab-case/);
-    expect(() => mixed({ clozes: { "c-grafo": { ...cloze, target: { kind: "" } } } })).toThrow(/kebab-case/);
-    expect(() =>
-      mixed({ clozes: { "c-grafo": { ...cloze, target: { kind: "verb-form", features: { Tense: "present" } } } } }),
-    ).toThrow(/kebab-case/);
-    expect(() =>
-      mixed({
-        clozes: { "c-grafo": { ...cloze, target: { kind: "verb-form", features: { tense: { nested: true } } } } },
-      }),
-    ).toThrow(/строка, число или да\/нет/);
-    expect(
-      pack(mixed({ clozes: { "c-grafo": { ...cloze, target: { kind: "some-new-kind", features: { "x-y": true } } } } }))
-        .clozes[0].target,
-    ).toEqual({ kind: "some-new-kind", features: { "x-y": true } });
-  });
-  it("отклоняет дубликаты и сирот, разные скрытые места допустимы", () => {
-    expect(() => mixed({ clozes: { "c-grafo": cloze, "c-twin": { ...cloze, target: undefined } } })).toThrow(
-      /clozes\/c-twin.yaml повторяет пропуск/,
-    );
+  it("отклоняет дубликаты и сирот", () => {
     expect(() => mixed({ phrases: { "p-grafo": phrase, "p-twin": phrase } })).toThrow(
       /phrases\/p-twin.yaml повторяет фразу/,
     );
     expect(() =>
       mixed({
-        clozes: {
-          "c-grafo": cloze,
-          "c-orphan": { ...cloze, template: "Γράφω ένα {{gap}}.", answer: "γράμμα", acceptedAnswers: ["γράμμα"] },
-        },
-        lesson: {
-          title: "x",
-          items: [
-            { kind: "phrase", id: "p-grafo" },
-            { kind: "cloze", id: "c-grafo" },
-          ],
-        },
+        phrases: { "p-grafo": phrase, "p-orphan": second },
+        lesson: { title: "x", items: [{ kind: "phrase", id: "p-grafo" }] },
       }),
-    ).toThrow(/clozes\/c-orphan.yaml не входит ни в один урок/);
-    const two = pack(
-      mixed({
-        clozes: {
-          "c-grafo": cloze,
-          "c-other": {
-            ...cloze,
-            template: "Γράφω ένα {{gap}}.",
-            answer: "γράμμα",
-            acceptedAnswers: ["γράμμα"],
-            target: undefined,
-          },
-        },
-      }),
-    );
-    expect(two.clozes.map((c) => c.id).sort()).toEqual(["c-grafo", "c-other"]);
+    ).toThrow(/phrases\/p-orphan.yaml не входит ни в один урок/);
+    const two = pack(mixed({ phrases: { "p-grafo": phrase, "p-other": second } }));
+    expect(two.phrases.map((p) => p.id).sort()).toEqual(["p-grafo", "p-other"]);
   });
   it("прежние YAML собираются без изменений материала", () => {
     const before = buildContent();

@@ -8,7 +8,7 @@ import { Screen } from "../../app/Screen";
 import { formatDay, localDay } from "../../domain/learning";
 import type { CardKind, LearningRef } from "../../domain/types";
 import { useNow } from "../../shared/clock";
-import { CARDS, CLOZES, minutes, PHRASES, plural, withCount, WORDS } from "../../shared/format";
+import { CARDS, minutes, PHRASES, plural, withCount, WORDS } from "../../shared/format";
 import { StatTile } from "../../shared/StatTile";
 import { useSettings } from "../../shared/store";
 import { statesOf } from "../../storage/queries";
@@ -16,13 +16,12 @@ import { db } from "../../storage/db";
 import { startSession } from "./session-actions";
 import ui from "../../shared/ui.module.css";
 
-/** Состав уникальных карточек по видам: «2 слова · 1 фраза · 1 пропуск», только непустые группы. */
+/** Состав уникальных карточек по видам: «2 слова · 1 фраза», только непустые группы. */
 export const compositionText = (byKind: Record<CardKind, number>) =>
   (
     [
       ["word", WORDS],
       ["phrase", PHRASES],
-      ["cloze", CLOZES],
     ] as const
   )
     .filter(([kind]) => byKind[kind])
@@ -48,9 +47,10 @@ export function ResultScreen() {
     mistakeRefs = result?.mistakeRefs ?? [];
   // Повторная попытка той же карточки не увеличивает число уникальных карточек.
   const unique = new Map(events.map((event) => [event.unitKey, event.ref]));
-  const byKind: Record<CardKind, number> = { word: 0, phrase: 0, cloze: 0 };
-  for (const ref of unique.values()) byKind[ref.kind]++;
-  const mixed = byKind.phrase > 0 || byKind.cloze > 0;
+  const byKind: Record<CardKind, number> = { word: 0, phrase: 0 };
+  // Снятый вид разряда в разбивке не занимает: его ответы остаются в общем числе и в точности.
+  for (const ref of unique.values()) if (ref.kind in byKind) byKind[ref.kind]++;
+  const mixed = byKind.phrase > 0;
   const objective = events.filter((event) => event.correct !== null);
   const readyAgain: LearningRef[] = mistakeRefs.filter((ref) => {
     const state = result?.states.get(JSON.stringify([ref.kind, ref.id]));

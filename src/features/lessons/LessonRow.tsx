@@ -50,8 +50,7 @@ export function LessonRow({ lesson, next }: { lesson: LessonView; next?: boolean
   const { title, note } = lessonLabels(lesson, next);
   const progress = lesson.cardCount ? lesson.progress : undefined;
   // «Карточки» — там, где объединяются виды; словарный урок по-прежнему считает слова.
-  const composition =
-    lesson.phraseCount || lesson.clozeCount ? withCount(lesson.cardCount, CARDS) : withCount(lesson.wordCount, WORDS);
+  const composition = lesson.phraseCount ? withCount(lesson.cardCount, CARDS) : withCount(lesson.wordCount, WORDS);
   const text = progress ? progressText(progress) : "";
   const fill = progress && progressFill(progress);
   return (

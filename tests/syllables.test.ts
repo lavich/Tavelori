@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  agreedMask,
   assemblyOptions,
   checkAssembly,
   formatSyllables,
@@ -181,25 +180,5 @@ describe("маска ожидаемого написания", () => {
   it("пустое написание даёт пустую маску", () => {
     expect(maskWriting("")).toEqual({ groups: [], letters: 0 });
     expect(maskWriting("   ")).toEqual({ groups: [], letters: 0 });
-  });
-});
-
-describe("общая маска допустимых ответов", () => {
-  it("одинаковая структура даёт маску с открытой первой буквой канонического написания", () => {
-    expect(agreedMask(["Γράφω", "γράφω"])?.letters).toBe(5);
-    expect(agreedMask(["Γράφω", "γράφω"])?.groups[0][0]).toEqual({ kind: "lead", char: "Γ" });
-    expect(agreedMask(["Πώς σε λένε;", "πως σε λενε;"])?.groups.map((group) => group.length)).toEqual([3, 2, 5]);
-  });
-  it("разная длина или разное число слов маски не даёт", () => {
-    expect(agreedMask(["τηλεόραση", "την τηλεόραση"])).toBeNull();
-    expect(agreedMask(["Γράφω", "Εγώ γράφω"])).toBeNull();
-    expect(agreedMask(["καφέ", "καφέδες"])).toBeNull();
-  });
-  it("разные знаки препинания маски не дают", () => {
-    expect(agreedMask(["σιγά-σιγά", "σιγά σιγά"])).toBeNull();
-  });
-  it("пустой список и пустые написания дают null", () => {
-    expect(agreedMask([])).toBeNull();
-    expect(agreedMask(["   "])).toBeNull();
   });
 });
