@@ -229,7 +229,8 @@
 }
 .maskLetter {
   min-width: 0.8em;
-  height: 1.15em;
+  /* Высота с запасом под базовой линией: иначе линейка съедает хвосты γ, η, μ, φ, χ, ψ. */
+  height: 1.4em;
   border-bottom: 2px solid currentColor;
   text-align: center;
 }
