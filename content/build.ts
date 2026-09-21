@@ -4,21 +4,17 @@ import { basename, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { wordKey } from "../src/domain/import.ts";
-import { clozeKey, phraseKey } from "../src/domain/refs.ts";
+import { phraseKey } from "../src/domain/refs.ts";
 import {
-  CLOZE_FIELDS,
   ContentError,
-  GAP,
   PHRASE_FIELDS,
   SCHEMA_VERSION,
   SHIPPED_FIELDS,
-  validateCloze,
   validatePhrase,
   type Catalog,
   type CatalogCourse,
   type CatalogEntry,
   type ContentPackage,
-  type PackageCloze,
   type PackageItem,
   type PackageMedia,
   type PackagePhrase,
@@ -29,7 +25,7 @@ import { checkArt, LEGACY_FILE, readLegacy, type ArtReport } from "./art.ts";
 
 /**
  * Публикация контента. Исходники — YAML: одно слово — один файл в `words/` с греческим именем, фраза — файл
- * в `phrases/`, задание с пропуском — файл в `clozes/`, урок — упорядоченный список карточек в `lessons/`
+ * в `phrases/`, урок — упорядоченный список карточек в `lessons/`
  * (`words` для словарного урока либо `items` из пар `{kind, id}` для смешанного), иллюстрации и аудио —
  * отдельные файлы в `art/` и `audio/`. Идентификатор карточки — поле `id`, а без него — имя файла; у исходных
  * слов сохранены прежние `w11-01`, чтобы прогресс и миграция пользователей не зависели от переименования файлов.
@@ -73,18 +69,6 @@ export interface PhraseSource {
   audio?: string;
   provenance: unknown;
 }
-export interface ClozeSource {
-  id?: string;
-  template: string;
-  answer: string;
-  acceptedAnswers: string[];
-  context?: string;
-  explanation?: string;
-  target?: unknown;
-  related?: unknown;
-  audio?: string;
-  provenance: unknown;
-}
 export interface LessonItemSource {
   kind: string;
   id: string;
@@ -120,8 +104,6 @@ const pick = <T extends object>(value: T, fields: readonly (keyof T)[]) =>
 export const revisionOf = (word: Omit<PackageWord, "revision">) => hash(canonical(pick(word, SHIPPED_FIELDS)));
 export const phraseRevisionOf = (phrase: Omit<PackagePhrase, "revision">) =>
   hash(canonical(pick(phrase, PHRASE_FIELDS)));
-/** Ревизия пропуска включает `target`: уточнение цели меняет ревизию, но не идентификатор и не прогресс. */
-export const clozeRevisionOf = (cloze: Omit<PackageCloze, "revision">) => hash(canonical(pick(cloze, CLOZE_FIELDS)));
 
 const fail: (message: string) => never = (message) => {
   throw new ContentError(message);
@@ -158,7 +140,6 @@ type Sourced<T> = T & { file: string };
 export interface ContentRoot {
   words: Map<string, Sourced<WordSource>>;
   phrases: Map<string, Sourced<PhraseSource>>;
-  clozes: Map<string, Sourced<ClozeSource>>;
   lessons: Map<string, LessonSource>;
   courses: Map<string, Sourced<CourseSource>>;
   files: Map<string, Uint8Array>;
@@ -180,7 +161,6 @@ export function readSources(root: string): ContentRoot {
   };
   const words = byId<WordSource>("words"),
     phrases = byId<PhraseSource>("phrases"),
-    clozes = byId<ClozeSource>("clozes"),
     courses = byId<CourseSource>("courses");
   const lessons = new Map(
     list("lessons").map((file) => [basename(file, extname(file)), load<LessonSource>("lessons", file)]),
@@ -189,7 +169,7 @@ export function readSources(root: string): ContentRoot {
   for (const dir of ["art", "audio"])
     if (existsSync(join(root, dir)))
       for (const file of readdirSync(join(root, dir))) files.set(`${dir}/${file}`, readFileSync(join(root, dir, file)));
-  return { words, phrases, clozes, lessons, courses, files };
+  return { words, phrases, lessons, courses, files };
 }
 
 export interface BuiltFile {
@@ -203,7 +183,6 @@ export interface BuiltContent {
   files: BuiltFile[];
   words: PackageWord[];
   phrases: PackagePhrase[];
-  clozes: PackageCloze[];
   sources: ContentRoot;
   art: ArtReport;
 }
@@ -275,36 +254,6 @@ function describePhrase(id: string, src: Sourced<PhraseSource>): PackagePhrase {
       : error;
   }
 }
-const spaces = (value: string) => value.normalize("NFC").replace(/\s+/g, " ").trim();
-function describeCloze(id: string, src: Sourced<ClozeSource>): PackageCloze {
-  const where = `clozes/${src.file}`;
-  checkId(id, where);
-  const { file: _file, audio, id: _id, ...rest } = src;
-  let draft: PackageCloze;
-  try {
-    draft = validateCloze(
-      nfc({ ...rest, id, revision: "", ...(audio ? { audioAssetId: audioAssetId(id) } : {}) }),
-      where,
-    );
-  } catch (error) {
-    throw error instanceof ContentError
-      ? new ContentError(error.message.startsWith(where) ? error.message : `${where}: ${error.message}`)
-      : error;
-  }
-  // Пропуск, вырезанный из материала, обязан восстанавливаться в цитату: иначе задание проверяет не то предложение.
-  const { excerpt, operation } = draft.provenance;
-  if (
-    operation === "cloze-from-source" &&
-    excerpt &&
-    !spaces(excerpt).includes(spaces(draft.template.replace(GAP, draft.answer)))
-  )
-    fail(
-      `${where}: восстановленное предложение «${draft.template.replace(GAP, draft.answer)}» не найдено в provenance.excerpt`,
-    );
-  const { revision: _r, ...fields } = draft;
-  return { ...fields, revision: clozeRevisionOf(fields) };
-}
-
 function mediaFor(
   id: string,
   file: string,
@@ -344,14 +293,12 @@ function mediaFor(
 const KIND_LABEL: Record<CardKind, { one: string; dir: string }> = {
   word: { one: "слова", dir: "words" },
   phrase: { one: "фразы", dir: "phrases" },
-  cloze: { one: "пропуска", dir: "clozes" },
 };
 
 /**
  * Одно и то же слово живёт в одном файле и получает один идентификатор во всех уроках.
  * Два файла с одинаковой парой «написание + перевод» — ошибка публикации, а не тихий дубликат.
- * Для фраз дубликат — тот же текст и перевод, для пропусков — тот же шаблон, ответ и допустимые ответы:
- * то же предложение с другим скрытым местом — другая карточка.
+ * Для фраз дубликат — тот же текст и перевод.
  */
 export function buildContent(root = defaultRoot()): BuiltContent {
   const sources = readSources(root);
@@ -378,24 +325,6 @@ export function buildContent(root = defaultRoot()): BuiltContent {
       fail(`phrases/${src.file} повторяет фразу «${phrase.text}» из phrases/${sources.phrases.get(twin)!.file}`);
     phraseByKey.set(key, id);
     phrases.set(id, phrase);
-  }
-  const clozes = new Map<string, PackageCloze>();
-  const clozeByKey = new Map<string, string>();
-  for (const [id, src] of sources.clozes) {
-    const cloze = describeCloze(id, src);
-    const key = clozeKey(cloze.template, cloze.answer, cloze.acceptedAnswers);
-    const twin = clozeByKey.get(key);
-    if (twin)
-      fail(`clozes/${src.file} повторяет пропуск «${cloze.template}» из clozes/${sources.clozes.get(twin)!.file}`);
-    clozeByKey.set(key, id);
-    clozes.set(id, cloze);
-    if (cloze.related) {
-      const exists = cloze.related.kind === "word" ? words.has(cloze.related.id) : phrases.has(cloze.related.id);
-      if (!exists)
-        fail(
-          `clozes/${src.file}.related: ${KIND_LABEL[cloze.related.kind].one} ${cloze.related.id} нет в ${KIND_LABEL[cloze.related.kind].dir}/`,
-        );
-    }
   }
   /** Список унаследованных картинок только сокращается: имя без файла — мусор, а не исключение. */
   const legacy = readLegacy(sources.files);
@@ -441,21 +370,6 @@ export function buildContent(root = defaultRoot()): BuiltContent {
           art,
         ),
       );
-  for (const [id, src] of sources.clozes)
-    if (src.audio)
-      media.set(
-        audioAssetId(id),
-        mediaFor(
-          audioAssetId(id),
-          src.audio,
-          "audio",
-          sources.files,
-          { alt: "", source: clozes.get(id)!.provenance.sourceLabel },
-          `clozes/${src.file}`,
-          legacy,
-          art,
-        ),
-      );
 
   /** Урок принадлежит ровно одному курсу: без курса он потеряется в каталоге, в двух — попадёт в занятие дважды. */
   const courseOf = new Map<string, string>();
@@ -484,8 +398,8 @@ export function buildContent(root = defaultRoot()): BuiltContent {
     courses.push(course);
   }
 
-  const used = { word: new Set<string>(), phrase: new Set<string>(), cloze: new Set<string>() };
-  const cards = { word: words, phrase: phrases, cloze: clozes } as const;
+  const used = { word: new Set<string>(), phrase: new Set<string>() };
+  const cards = { word: words, phrase: phrases } as const;
   const packages: ContentPackage[] = [];
   const entries: CatalogEntry[] = [];
   const files: BuiltFile[] = [];
@@ -520,11 +434,9 @@ export function buildContent(root = defaultRoot()): BuiltContent {
       fail(`${where}: карточка повторяется в списке`);
     const packWords = items.filter((item) => item.kind === "word").map((item) => words.get(item.id)!);
     const packPhrases = items.filter((item) => item.kind === "phrase").map((item) => phrases.get(item.id)!);
-    const packClozes = items.filter((item) => item.kind === "cloze").map((item) => clozes.get(item.id)!);
     const packMedia = [
       ...packWords.flatMap((word) => [word.imageAssetId, word.audioAssetId]),
       ...packPhrases.map((p) => p.audioAssetId),
-      ...packClozes.map((c) => c.audioAssetId),
     ]
       .filter((ref): ref is string => !!ref)
       .map((ref) => media.get(ref)!.item);
@@ -537,7 +449,6 @@ export function buildContent(root = defaultRoot()): BuiltContent {
       lesson: { title },
       words: packWords,
       phrases: packPhrases,
-      clozes: packClozes,
       items,
       links: items.filter((item) => item.kind === "word").map((item) => ({ wordId: item.id, position: item.position })),
       media: packMedia,
@@ -555,7 +466,6 @@ export function buildContent(root = defaultRoot()): BuiltContent {
       title,
       wordCount: packWords.length,
       phraseCount: packPhrases.length,
-      clozeCount: packClozes.length,
       cardCount: items.length,
       version,
       url,
@@ -569,9 +479,6 @@ export function buildContent(root = defaultRoot()): BuiltContent {
   for (const id of phrases.keys())
     if (!used.phrase.has(id))
       fail(`phrases/${sources.phrases.get(id)!.file} не входит ни в один урок и не будет опубликована`);
-  for (const id of clozes.keys())
-    if (!used.cloze.has(id))
-      fail(`clozes/${sources.clozes.get(id)!.file} не входит ни в один урок и не будет опубликован`);
   for (const { item, body } of media.values()) files.push({ path: item.url, body, mimeType: item.mimeType });
   const catalog: Catalog = {
     schemaVersion: SCHEMA_VERSION,
@@ -586,7 +493,6 @@ export function buildContent(root = defaultRoot()): BuiltContent {
     files,
     words: [...words.values()],
     phrases: [...phrases.values()],
-    clozes: [...clozes.values()],
     sources,
     art,
   };
@@ -613,7 +519,7 @@ export function writeContent(publicDir = "public", root = defaultRoot()) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const built = writeContent();
   console.log(
-    `Контент: ${built.packages.length} пакетов, ${built.words.length} слов, ${built.phrases.length} фраз, ${built.clozes.length} пропусков, ${built.files.length} файлов → public/content`,
+    `Контент: ${built.packages.length} пакетов, ${built.words.length} слов, ${built.phrases.length} фраз, ${built.files.length} файлов → public/content`,
   );
   console.log(`Иллюстрации: ${built.art.files}, вне палитры (art/${LEGACY_FILE}): ${built.art.legacy}`);
 }

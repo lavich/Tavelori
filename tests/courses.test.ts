@@ -33,7 +33,6 @@ const lesson = (
   wordCount,
   cardCount: wordCount,
   phraseCount: 0,
-  clozeCount: 0,
   ...over,
 });
 const entry = (id: string, courseId: string): CatalogEntry => ({
@@ -43,7 +42,6 @@ const entry = (id: string, courseId: string): CatalogEntry => ({
   title: id,
   wordCount: 5,
   phraseCount: 0,
-  clozeCount: 0,
   cardCount: 5,
   version: "v1",
   url: `content/packages/${id}@v1.json`,

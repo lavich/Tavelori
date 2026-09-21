@@ -39,9 +39,7 @@ export function fromSnapshot(data: Snapshot): SessionSource & StatsSource {
   const items: LessonItem[] = [...data.links.map(itemOfLink), ...(data.items ?? [])];
   const words = new Map(data.words.map((word) => [word.id, word]));
   const phrases = new Map((data.phrases ?? []).map((phrase) => [phrase.id, phrase]));
-  const clozes = new Map((data.clozes ?? []).map((cloze) => [cloze.id, cloze]));
-  const record = (ref: LearningRef) =>
-    ref.kind === "word" ? words.get(ref.id) : ref.kind === "phrase" ? phrases.get(ref.id) : clozes.get(ref.id);
+  const record = (ref: LearningRef) => (ref.kind === "word" ? words.get(ref.id) : phrases.get(ref.id));
   const isLive = (ref: LearningRef) => {
     const row = record(ref);
     return !!row && !row.deletedAt;
@@ -50,7 +48,6 @@ export function fromSnapshot(data: Snapshot): SessionSource & StatsSource {
   const deleted = new Set<string>();
   for (const word of data.words) if (word.deletedAt) deleted.add(unitKey(wordRef(word.id)));
   for (const phrase of phrases.values()) if (phrase.deletedAt) deleted.add(unitKey({ kind: "phrase", id: phrase.id }));
-  for (const cloze of clozes.values()) if (cloze.deletedAt) deleted.add(unitKey({ kind: "cloze", id: cloze.id }));
   const liveWordIds = [...words.values()].filter((word) => !word.deletedAt).map((word) => word.id);
   const livePhrases = [...phrases.values()].filter((phrase) => !phrase.deletedAt);
   const sorted = (events: typeof data.events) => [...events].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -58,12 +55,9 @@ export function fromSnapshot(data: Snapshot): SessionSource & StatsSource {
     if (!isLive(ref)) return undefined;
     return ref.kind === "word"
       ? { kind: "word", word: words.get(ref.id)! }
-      : ref.kind === "phrase"
-        ? { kind: "phrase", phrase: phrases.get(ref.id)! }
-        : { kind: "cloze", cloze: clozes.get(ref.id)! };
+      : { kind: "phrase", phrase: phrases.get(ref.id)! };
   };
-  const total = (kind: CardKind) =>
-    kind === "word" ? data.words.length : kind === "phrase" ? phrases.size : clozes.size;
+  const total = (kind: CardKind) => (kind === "word" ? data.words.length : phrases.size);
   return {
     settings: async () => settings,
     lessons: async () => scheduleCourses(data.lessons, courses),
@@ -125,13 +119,7 @@ export function fromSnapshot(data: Snapshot): SessionSource & StatsSource {
       ),
     skillsOf: async (card) =>
       summarizeEvents(
-        unitKey(
-          card.kind === "word"
-            ? wordRef(card.word.id)
-            : card.kind === "phrase"
-              ? { kind: "phrase", id: card.phrase.id }
-              : { kind: "cloze", id: card.cloze.id },
-        ),
+        unitKey(card.kind === "word" ? wordRef(card.word.id) : { kind: "phrase", id: card.phrase.id }),
         data.events,
       ),
     optionPool: async () => liveWordIds.map((id) => words.get(id)!),
@@ -150,7 +138,7 @@ export function fromSnapshot(data: Snapshot): SessionSource & StatsSource {
         .filter((state) => new Date(state.card.due).getTime() < instant.getTime())
         .map((state) => state.unitKey),
     deletedKeys: async () => deleted,
-    cardCount: async () => total("word") + total("phrase") + total("cloze"),
+    cardCount: async () => total("word") + total("phrase"),
     eachState: async (visit) => {
       for (const state of data.states) visit(state);
     },
@@ -163,9 +151,11 @@ export function fromSnapshot(data: Snapshot): SessionSource & StatsSource {
       ),
     totals: async () => {
       const keys = new Set(data.events.map((event) => event.unitKey));
-      const byKind: Record<CardKind, number> = { word: 0, phrase: 0, cloze: 0 };
-      for (const event of data.events) if (keys.delete(event.unitKey)) byKind[event.ref.kind]++;
-      return { answers: data.events.length, cards: byKind.word + byKind.phrase + byKind.cloze, byKind };
+      const byKind: Record<CardKind, number> = { word: 0, phrase: 0 };
+      // Ключи снятых видов остаются в старых событиях: своего разряда у них нет.
+      for (const event of data.events)
+        if (keys.delete(event.unitKey) && event.ref.kind in byKind) byKind[event.ref.kind]++;
+      return { answers: data.events.length, cards: byKind.word + byKind.phrase, byKind };
     },
   };
 }

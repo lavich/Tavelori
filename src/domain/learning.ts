@@ -1,12 +1,11 @@
 import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card, type Grade } from "ts-fsrs";
-import type { TextAnswerStatus } from "./cloze";
+import type { TextAnswerStatus } from "./text-answer";
 import { unitKey, wordRef } from "./refs";
 import { emptySkills, summarizeEvents, type SkillSummary } from "./skills";
 import { splitWriting } from "./syllables";
 import {
   LOCAL_COURSE,
   type CardKind,
-  type Cloze,
   type Course,
   type ExerciseType,
   type LearningRef,
@@ -130,7 +129,7 @@ export interface DailyPlan {
   preview: LearningRef[];
 }
 
-/** Лёгкие признаки доступности проверки: для фразы — наличие перевода и файла аудио; слова и пропуски проверяемы всегда. */
+/** Лёгкие признаки доступности проверки: для фразы — наличие перевода и файла аудио; слово проверяемо всегда. */
 export interface CardFacts {
   kind: CardKind;
   hasTranslation?: boolean;
@@ -554,20 +553,6 @@ export function phraseOptionsFor(phrase: Phrase, pool: Phrase[], type: ExerciseT
   );
 }
 
-/**
- * Варианты для пропуска подбираются среди ответов других живых карточек пропуска: это формы того же языка,
- * а не случайные слова. Совпадающие по нормализации ответы вариантами не считаются.
- */
-export function clozeOptionsFor(cloze: Cloze, pool: Cloze[], random: () => number): string[] {
-  if (!cloze.answer) return [];
-  return optionsAmong(
-    cloze.id,
-    cloze.answer,
-    pool.map((c) => [c.id, c.answer]),
-    random,
-  );
-}
-
 export interface SessionInput {
   source: SessionSource;
   now: Date;
@@ -658,23 +643,20 @@ export async function makeSession({
   };
 }
 
-/** Пулы вариантов ответа. Пул пропусков нужен только ступени вниз, поэтому выбор упражнения его не требует. */
+/** Пулы вариантов ответа. */
 export interface OptionPools {
   words: Word[];
   phrases: Phrase[];
-  clozes: Cloze[];
 }
-export type ExercisePools = Omit<OptionPools, "clozes">;
+export type ExercisePools = OptionPools;
 /**
  * Ступени вниз после ошибки: попытка сразу после показанного ответа должна быть поддержанной,
- * а не повторным экзаменом. Сборка даёт слоги, узнавание и пропуск с вариантами — готовые ответы;
- * ниже узнавания ступеней нет.
+ * а не повторным экзаменом. Сборка даёт слоги, узнавание — готовые ответы; ниже узнавания ступеней нет.
  */
 const EASIER: Partial<Record<ExerciseType, ExerciseType[]>> = {
   spelling: ["assembly", "recognition"],
   assembly: ["recognition"],
   comprehension: ["recognition"],
-  cloze: ["cloze"],
 };
 /** Есть ли под заданием ступень: пул вариантов читается только ради неё. */
 export const hasEasierStep = (type: ExerciseType) => !!EASIER[type];
@@ -690,12 +672,6 @@ export function easierExercise(
   random: () => number = Math.random,
 ): Pick<SessionItem, "type" | "options"> | null {
   for (const step of EASIER[type] ?? []) {
-    // Ступень пропуска — тот же пропуск с вариантами: отдельный тип упражнения ради подачи одного вопроса не заводим.
-    if (step === "cloze") {
-      const options = card.kind === "cloze" ? clozeOptionsFor(card.cloze, pools.clozes, random) : [];
-      if (options.length === 4) return { type: "cloze", options };
-      continue;
-    }
     if (step === "assembly") {
       const exercise = card.kind === "word" ? assemblyExercise(card.word, random) : null;
       if (exercise) return exercise;
@@ -704,9 +680,7 @@ export function easierExercise(
     const options =
       card.kind === "word"
         ? optionsFor(card.word, pools.words, "recognition", random)
-        : card.kind === "phrase"
-          ? phraseOptionsFor(card.phrase, pools.phrases, "recognition", random)
-          : [];
+        : phraseOptionsFor(card.phrase, pools.phrases, "recognition", random);
     if (options.length === 4) return { type: "recognition", options };
   }
   return null;
@@ -728,7 +702,6 @@ export function exerciseFor(
   hasVoice: boolean,
 ): Pick<SessionItem, "type" | "options"> | null {
   if (card.kind === "word") return objectiveExercise(card.word, pools.words, skills, random, hasVoice);
-  if (card.kind === "cloze") return { type: "cloze", options: [] };
   return phraseExercise(card.phrase, pools.phrases, skills, random, hasVoice);
 }
 

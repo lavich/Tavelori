@@ -7,7 +7,7 @@
 ## What Changes
 
 - **BREAKING** Вид карточек `cloze` снимается целиком: упражнение с вводом скрытого текста, знакомство с пропуском, ступень вниз с четырьмя вариантами ответа и группа «Заполни пропуск» на экране урока исчезают.
-- **BREAKING** Схема локальной базы поднимается до 7: таблица пропусков удаляется, а ключи снятого вида уходят из связей уроков, состояний повторений, навыков и отложенного облачного прогресса. Иначе они остались бы ссылками без карточек и попадали бы в счётчики урока.
+- **BREAKING** Схема локальной базы поднимается до 7: карточки пропусков удаляются, а ключи снятого вида уходят из связей уроков, состояний повторений, навыков и отложенного облачного прогресса. Иначе они остались бы ссылками без карточек и попадали бы в счётчики урока. Само хранилище остаётся пустой площадкой рядом с прежними словарными: через него читаются копии схемы ≤6.
 - История ответов сохраняется полностью: событие — запись о том, что было, а не о том, что предлагается сейчас. Тип проверки «заполнение пропуска» остаётся читаемым наравне со снятым ранее вспоминанием, но перестаёт занимать строку в сводке навыков и разряд в разбивке по видам.
 - Описание учебной цели карточки (`target`) снимается вместе с видом: оно существовало только у пропусков.
 - Пять исходников `content/clozes/` и их записи в уроке 1.1 удаляются. Урок 1.1 остаётся из 38 слов и 21 фразы.
@@ -43,9 +43,9 @@
 
 Контент: `content/clozes/` (пять исходников), состав `content/lessons/lesson-1-1.yaml`, сборщик `content/build.ts`.
 
-Данные: `src/storage/db.ts` (схема 7 и миграция), `src/storage/queries.ts`, `src/storage/ops.ts`, `src/features/backup/backup.ts`, `src/sync/codec.ts`, `src/sync/snapshot.ts`, `src/domain/snapshot-source.ts`.
+Данные: `src/storage/db.ts` (схема 7 и миграция), `src/storage/queries.ts`, `src/storage/ops.ts`, `src/features/backup/backup.ts` (тот же переход при восстановлении копии), `src/sync/codec.ts`, `src/sync/snapshot.ts`, `src/domain/snapshot-source.ts`.
 
-Модель и логика: `src/domain/types.ts` (`Cloze`, `CardKind`, `LearningTarget`, `SessionCard`, `CardSnapshot`), `src/domain/refs.ts`, `src/domain/learning.ts`, `src/domain/stats.ts`, `src/content/schema.ts`, `src/content/client.ts`, `src/shared/store.ts`, `src/shared/format.ts`.
+Модель и логика: `src/domain/types.ts` (`Cloze`, `CardKind`, `LearningTarget`, `SessionCard`, `CardSnapshot`), `src/domain/refs.ts`, `src/domain/learning.ts`, `src/domain/stats.ts`, `src/domain/syllables.ts` (`agreedMask` существовал только ради списка допустимых ответов пропуска), `src/content/schema.ts`, `src/content/client.ts`, `src/shared/store.ts`, `src/shared/format.ts`.
 
 Экраны: `src/features/learning/exercises.tsx`, `SessionScreen.tsx`, `ResultScreen.tsx`, `src/features/lessons/LessonScreen.tsx`, `LessonRow.tsx`, `LessonsScreen.tsx`, `src/features/progress/StatsScreen.tsx`.
 

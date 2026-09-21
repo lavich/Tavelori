@@ -5,8 +5,6 @@ import {
   parsePackage,
   SCHEMA_VERSION,
   SUPPORTED_SCHEMAS,
-  validateCloze,
-  validateTarget,
   type ContentPackage,
 } from "../src/content/schema";
 import { content } from "./helpers/content";
@@ -15,29 +13,17 @@ const provenance = {
   sourceLabel: "Иллюстрация формата",
   locator: "fixture",
   excerpt: "Γράφω ένα γράμμα.",
-  operation: "cloze-from-source" as const,
+  operation: "verbatim" as const,
 };
 const word = content.packages[0].words[0];
 const phrase = {
   id: "p-1",
   text: "Καλημέρα.",
   translation: "Доброе утро.",
-  provenance: { ...provenance, operation: "verbatim" as const },
+  provenance,
   revision: "r1",
 };
-const cloze = {
-  id: "c-1",
-  template: "{{gap}} ένα γράμμα.",
-  answer: "Γράφω",
-  acceptedAnswers: ["Γράφω"],
-  provenance,
-  revision: "r2",
-  target: {
-    kind: "verb-form",
-    ref: "w-grafo",
-    features: { tense: "present", person: 1, number: "singular", finite: true },
-  },
-};
+const second = { ...phrase, id: "p-2", text: "Γράφω ένα γράμμα.", translation: "Я пишу письмо.", revision: "r2" };
 const mixed: Record<string, unknown> = {
   schemaVersion: 3,
   id: "mixed",
@@ -46,12 +32,11 @@ const mixed: Record<string, unknown> = {
   language: "el",
   lesson: { title: "Смешанный" },
   words: [word],
-  phrases: [phrase],
-  clozes: [cloze],
+  phrases: [phrase, second],
   items: [
     { kind: "phrase", id: "p-1", position: 0 },
     { kind: "word", id: word.id, position: 1 },
-    { kind: "cloze", id: "c-1", position: 2 },
+    { kind: "phrase", id: "p-2", position: 2 },
   ],
   media: content.packages[0].media.filter((item) => item.id === word.imageAssetId || item.id === word.audioAssetId),
 };
@@ -61,16 +46,14 @@ describe("пакет схемы 3", () => {
     expect(SCHEMA_VERSION).toBe(3);
     expect(SUPPORTED_SCHEMAS).toEqual([2, 3]);
   });
-  it("смешанный пакет проходит проверку и сохраняет порядок карточек и цель целиком", () => {
+  it("смешанный пакет проходит проверку и сохраняет порядок карточек", () => {
     const pack = parsePackage(mixed);
     expect(pack.items.map((item) => [item.kind, item.id])).toEqual([
       ["phrase", "p-1"],
       ["word", word.id],
-      ["cloze", "c-1"],
+      ["phrase", "p-2"],
     ]);
     expect(pack.phrases[0]).toMatchObject({ text: "Καλημέρα.", translation: "Доброе утро." });
-    expect(pack.clozes[0].target).toEqual(cloze.target);
-    expect(pack.clozes[0].acceptedAnswers).toEqual(["Γράφω"]);
     // словарные связи остаются для прежнего кода клиента и следуют позициям items
     expect(pack.links).toEqual([{ wordId: word.id, position: 1 }]);
   });
@@ -81,25 +64,21 @@ describe("пакет схемы 3", () => {
       media: [],
       items: [
         { kind: "phrase", id: "p-1", position: 0 },
-        { kind: "cloze", id: "c-1", position: 1 },
+        { kind: "phrase", id: "p-2", position: 1 },
       ],
     });
     expect(pack.words).toEqual([]);
     expect(pack.items).toHaveLength(2);
-    expect(() => parsePackage({ ...mixed, words: [], phrases: [], clozes: [], media: [], items: [] })).toThrow(
-      /нет карточек/,
-    );
+    expect(() => parsePackage({ ...mixed, words: [], phrases: [], media: [], items: [] })).toThrow(/нет карточек/);
   });
-  it("неизвестный вид цели с допустимой формой сохраняется без изменений", () => {
-    const pack = parsePackage({
-      ...mixed,
-      clozes: [{ ...cloze, target: { kind: "future-thing", features: { "some-flag": false, level: 2 } } }],
-    });
-    expect(pack.clozes[0].target).toEqual({ kind: "future-thing", features: { "some-flag": false, level: 2 } });
+  it("состав со снятым видом карточек отклоняет пакет целиком", () => {
+    expect(() =>
+      parsePackage({ ...mixed, items: [...(mixed.items as unknown[]), { kind: "cloze", id: "c-1", position: 3 }] }),
+    ).toThrow(/вид карточки/);
   });
   it("отклоняет неверные ссылки, дубликаты и вид карточки", () => {
     expect(() =>
-      parsePackage({ ...mixed, items: [...(mixed.items as unknown[]), { kind: "cloze", id: "нет", position: 3 }] }),
+      parsePackage({ ...mixed, items: [...(mixed.items as unknown[]), { kind: "phrase", id: "нет", position: 3 }] }),
     ).toThrow(/которой нет в пакете/);
     expect(() =>
       parsePackage({ ...mixed, items: [...(mixed.items as unknown[]), { kind: "grammar", id: "g", position: 3 }] }),
@@ -107,7 +86,7 @@ describe("пакет схемы 3", () => {
     expect(() =>
       parsePackage({ ...mixed, items: [...(mixed.items as unknown[]), { kind: "phrase", id: "p-1", position: 3 }] }),
     ).toThrow(/повторяются/);
-    expect(() => parsePackage({ ...mixed, clozes: [cloze, cloze] })).toThrow(/повторяются/);
+    expect(() => parsePackage({ ...mixed, phrases: [phrase, phrase] })).toThrow(/повторяются/);
     expect(() =>
       parsePackage({
         ...mixed,
@@ -115,35 +94,12 @@ describe("пакет схемы 3", () => {
       }),
     ).toThrow(/повторяются/);
   });
-  it("отклоняет неверную разметку пропуска и ответы", () => {
-    const bad = (patch: Partial<typeof cloze>) => () => parsePackage({ ...mixed, clozes: [{ ...cloze, ...patch }] });
-    expect(bad({ template: "Γράφω ένα γράμμα." })).toThrow(/ровно один/);
-    expect(bad({ template: "{{gap}} ένα {{gap}}." })).toThrow(/ровно один/);
-    expect(bad({ answer: "  " })).toThrow(/пуст/);
-    expect(bad({ acceptedAnswers: [] })).toThrow(/допустимых ответов/);
-    expect(bad({ acceptedAnswers: ["Γράφεις"] })).toThrow(/канонический ответ/);
-    expect(bad({ template: "Γρά{{gap}} ένα γράμμα." })).toThrow(/часть слова/);
-    expect(bad({ template: "{{gap}}ένα γράμμα." })).toThrow(/часть слова/);
-  });
-  it("отклоняет неверную форму цели и принимает kebab-case", () => {
-    const bad = (target: unknown) => () => parsePackage({ ...mixed, clozes: [{ ...cloze, target }] });
-    expect(bad({ kind: "" })).toThrow(/kebab-case/);
-    expect(bad({ kind: "verbForm" })).toThrow(/kebab-case/);
-    expect(bad({ kind: "verb_form" })).toThrow(/kebab-case/);
-    expect(bad({ kind: "verb-form", features: { Tense: "present" } })).toThrow(/kebab-case/);
-    expect(bad({ kind: "verb-form", features: { tense: { nested: true } } })).toThrow(/строка, число или да\/нет/);
-    expect(bad({ kind: "verb-form", features: { tense: null } })).toThrow(/строка, число или да\/нет/);
-    expect(bad({ kind: "verb-form", features: { tense: ["a"] } })).toThrow(/строка, число или да\/нет/);
-    expect(bad({ kind: "verb-form", ref: "" })).toThrow(/ref/);
-    expect(bad("verb-form")).toThrow(/объект/);
-    expect(
-      validateTarget({ kind: "article-choice", features: { "word-order": "svo", person: 3, plural: false } }, "x"),
-    ).toEqual({ kind: "article-choice", features: { "word-order": "svo", person: 3, plural: false } });
-  });
   it("требует происхождение с операцией и запрос для преобразования и генерации", () => {
     const bad = (patch: Record<string, string | undefined>) => () =>
-      parsePackage({ ...mixed, clozes: [{ ...cloze, provenance: { ...provenance, ...patch } }] });
-    expect(() => parsePackage({ ...mixed, clozes: [{ ...cloze, provenance: undefined }] })).toThrow(/provenance/);
+      parsePackage({ ...mixed, phrases: [{ ...phrase, provenance: { ...provenance, ...patch } }, second] });
+    expect(() => parsePackage({ ...mixed, phrases: [{ ...phrase, provenance: undefined }, second] })).toThrow(
+      /provenance/,
+    );
     expect(bad({ operation: "guessed" })).toThrow(/операция/);
     expect(bad({ operation: "requested-transform" })).toThrow(/request/);
     expect(bad({ operation: "requested-generation" })).toThrow(/request/);
@@ -151,22 +107,19 @@ describe("пакет схемы 3", () => {
     expect(
       parsePackage({
         ...mixed,
-        clozes: [
+        phrases: [
           {
-            ...cloze,
+            ...phrase,
             provenance: {
               sourceLabel: "Агент по запросу",
               operation: "requested-generation",
               request: "составь пример",
             },
           },
+          second,
         ],
-      }).clozes[0].provenance.operation,
+      }).phrases[0].provenance.operation,
     ).toBe("requested-generation");
-  });
-  it("validateCloze проверяет форму карточки вне пакета", () => {
-    expect(() => validateCloze({ ...cloze, acceptedAnswers: ["Γράφω", ""] }, "x")).toThrow(/пуст/);
-    expect(validateCloze(cloze, "x").answer).toBe("Γράφω");
   });
 });
 
@@ -177,7 +130,6 @@ describe("совместимость со схемой 2", () => {
   const legacy = () => {
     const {
       phrases: _p,
-      clozes: _c,
       items,
       ...rest
     } = v2 as unknown as Record<string, unknown> & { items: { kind: string; id: string; position: number }[] };
@@ -195,24 +147,20 @@ describe("совместимость со схемой 2", () => {
       v2.items.filter((item) => item.kind === "word").map((item) => item.id),
     );
     expect(pack.phrases).toEqual([]);
-    expect(pack.clozes).toEqual([]);
   });
   it("пакет схемы 2 не принимает смешанные поля молча", () => {
     expect(() => parsePackage({ ...legacy(), phrases: [phrase] })).toThrow(/схемы 2/);
   });
-  it("каталог схемы 2 читается с нулевыми счётчиками новых видов", () => {
+  it("каталог схемы 2 читается с нулевым счётчиком фраз", () => {
     const raw = JSON.parse(content.files.find((file) => file.path === "content/catalog.json")!.body as string);
     const old = {
       ...raw,
       schemaVersion: 2,
-      lessons: raw.lessons.map(
-        ({ phraseCount: _a, clozeCount: _b, cardCount: _c, ...entry }: Record<string, unknown>) => entry,
-      ),
+      lessons: raw.lessons.map(({ phraseCount: _a, cardCount: _b, ...entry }: Record<string, unknown>) => entry),
     };
     const catalog = parseCatalog(old);
     expect(catalog.lessons[0]).toMatchObject({
       phraseCount: 0,
-      clozeCount: 0,
       cardCount: catalog.lessons[0].wordCount,
     });
   });

@@ -143,7 +143,7 @@ describe("миграция схемы без сети", () => {
     await seedLegacy();
     const db = new LexiDatabase(NAME);
     await db.open();
-    expect(db.verno).toBe(6);
+    expect(db.verno).toBe(7);
     const l12 = wordsOf("lesson-1-2");
     expect((await lessonItems("lesson-1-2", db)).map((link) => link.ref.id)).toEqual(l12.map((w) => w.id));
     expect((await lessonItems("lesson-own", db)).map((link) => [link.ref.id, link.position])).toEqual([
@@ -189,7 +189,7 @@ describe("миграция схемы без сети", () => {
     await seedLegacy();
     const db = new LexiDatabase(NAME);
     await db.open();
-    expect(db.verno).toBe(6);
+    expect(db.verno).toBe(7);
     expect(await db.courses.get("my")).toMatchObject({ id: "my", origin: "local", subscribed: true });
     expect((await db.lessons.get("lesson-own"))!.courseId).toBe("my"); // создан пользователем — пакета нет
     expect((await db.lessons.get("lesson-1-2"))!.courseId).toBeUndefined(); // пакет прежней сборки курса не знает
@@ -200,7 +200,7 @@ describe("миграция схемы без сети", () => {
     await seedLegacy();
     const db = new LexiDatabase(NAME);
     await db.open();
-    expect(db.verno).toBe(6);
+    expect(db.verno).toBe(7);
     const settings = (await db.settings.get("settings"))! as unknown as Record<string, unknown>;
     expect(settings.newWordsPerDay).toBeUndefined();
     expect(settings.schedule).toBeUndefined();
@@ -248,6 +248,185 @@ const asLexi = (parsed: { data: { databaseName: string } }) =>
     type: "application/json",
   });
 
+/** Схема 6: профиль с карточками снятого вида — связи, состояния, навыки, отложенный прогресс, сессия и пакет. */
+class V6Database extends Dexie {
+  constructor(name: string) {
+    super(name);
+    this.version(6).stores({
+      words: "id,greek,russian,deletedAt,key,greekKey,[sortKey+id],*tokens",
+      phrases: "id,deletedAt",
+      clozes: "id,deletedAt",
+      lessons: "id,targetDate,status,courseId",
+      lessonItems: "[lessonId+unitKey],unitKey,[lessonId+position]",
+      lessonWords: "[lessonId+wordId],wordId,[lessonId+position]",
+      courses: "id,origin",
+      assets: "id,kind",
+      media: "id",
+      packages: "lessonId",
+      catalog: "id,courseId",
+      cardStates: "unitKey,introducedAt,card.due,ref.kind",
+      states: "wordId,introducedAt,card.due",
+      events: "id,unitKey,sessionId,localDate,type,createdAt,[unitKey+createdAt],[type+createdAt]",
+      sessions: "id,planDate,status,[status+createdAt]",
+      settings: "id",
+      meta: "key",
+      cardSkills: "unitKey",
+      baseSkills: "wordId",
+      baseSummary: "id",
+      syncVersions: "id,createdAt",
+      syncStash: "wordId",
+      cardStash: "unitKey",
+    });
+  }
+}
+const DROPPED = "lexi-drop-cloze";
+const key = (kind: string, id: string) => JSON.stringify([kind, id]);
+const at = "2026-09-16T09:00:00.000Z";
+const stateRow = (kind: string, id: string) => ({
+  unitKey: key(kind, id),
+  ref: { kind, id },
+  card: { ...createEmptyCard(new Date("2026-09-01")), due: new Date("2026-09-20") },
+  introducedAt: at,
+  version: 2,
+});
+const sessionItem = (kind: string, id: string, index: number, over: Record<string, unknown> = {}) => ({
+  id: `item-${index}`,
+  ref: { kind, id },
+  unitKey: key(kind, id),
+  card: kind === "cloze" ? { kind, cloze: { id } } : { kind, phrase: { id } },
+  type: kind === "cloze" ? "cloze" : "spelling",
+  options: [],
+  isNew: false,
+  mode: "scheduled",
+  expectedVersion: 2,
+  ...over,
+});
+
+/** Схема 7 снимает вид карточек «заполни пропуск»: ключи уходят, история ответов остаётся. */
+describe("миграция схемы 7: снятие вида карточек", () => {
+  beforeEach(async () => {
+    await new LexiDatabase(DROPPED).delete();
+    const legacy = new V6Database(DROPPED);
+    await legacy.open();
+    await legacy.table("phrases").add({ id: "p1", text: "Καλημέρα.", createdAt: at, updatedAt: at });
+    await legacy.table("clozes").bulkAdd([
+      { id: "c1", template: "{{gap}} ένα γράμμα.", answer: "Γράφω", createdAt: at, updatedAt: at },
+      { id: "c2", template: "Γράφω ένα {{gap}}.", answer: "γράμμα", createdAt: at, updatedAt: at },
+    ]);
+    await legacy.table("lessons").add({ id: "l1", title: "Урок", targetDate: null, status: "upcoming" });
+    await legacy.table("lessonItems").bulkAdd([
+      { lessonId: "l1", unitKey: key("phrase", "p1"), ref: { kind: "phrase", id: "p1" }, position: 0 },
+      { lessonId: "l1", unitKey: key("cloze", "c1"), ref: { kind: "cloze", id: "c1" }, position: 1 },
+      { lessonId: "l1", unitKey: key("cloze", "c2"), ref: { kind: "cloze", id: "c2" }, position: 2 },
+    ]);
+    await legacy.table("cardStates").bulkAdd([stateRow("phrase", "p1"), stateRow("cloze", "c1")]);
+    await legacy.table("cardSkills").bulkAdd([
+      { unitKey: key("phrase", "p1"), ref: { kind: "phrase", id: "p1" }, skills: {} },
+      { unitKey: key("cloze", "c1"), ref: { kind: "cloze", id: "c1" }, skills: {} },
+    ]);
+    await legacy.table("cardStash").bulkAdd([
+      { unitKey: key("phrase", "p1"), ref: { kind: "phrase", id: "p1" }, state: {} },
+      { unitKey: key("cloze", "c2"), ref: { kind: "cloze", id: "c2" }, state: {} },
+    ]);
+    await legacy.table("events").bulkAdd([
+      {
+        id: "e1",
+        sessionId: "s1",
+        itemId: "item-1",
+        ref: { kind: "cloze", id: "c1" },
+        unitKey: key("cloze", "c1"),
+        snapshot: { template: "{{gap}} ένα γράμμα.", answer: "Γράφω" },
+        type: "cloze",
+        mode: "scheduled",
+        rating: 3,
+        correct: true,
+        answer: "Γράφω",
+        createdAt: at,
+        localDate: "2026-09-16",
+        responseTimeMs: 900,
+      },
+    ]);
+    await legacy.table("sessions").bulkAdd([
+      {
+        id: "s1",
+        createdAt: at,
+        planDate: "2026-09-16",
+        index: 2,
+        status: "active",
+        activeTimeMs: 1000,
+        introducedKeys: [key("cloze", "c1"), key("phrase", "p1")],
+        items: [
+          sessionItem("cloze", "c1", 1, { eventId: "e1" }),
+          sessionItem("phrase", "p1", 2),
+          sessionItem("cloze", "c2", 3),
+        ],
+      },
+      {
+        id: "s2",
+        createdAt: at,
+        planDate: "2026-09-16",
+        index: 0,
+        status: "active",
+        activeTimeMs: 0,
+        items: [sessionItem("cloze", "c2", 4)],
+      },
+    ]);
+    await legacy.table("packages").add({
+      lessonId: "l1",
+      version: "v1",
+      schemaVersion: 3,
+      installedAt: at,
+      words: [],
+      phrases: [{ id: "p1" }],
+      clozes: [{ id: "c1" }, { id: "c2" }],
+      items: [
+        { kind: "phrase", id: "p1", position: 0 },
+        { kind: "cloze", id: "c1", position: 1 },
+      ],
+      media: [],
+      removed: [key("cloze", "c2")],
+    });
+    legacy.close();
+  });
+  afterEach(async () => {
+    await new LexiDatabase(DROPPED).delete();
+  });
+  it("удаляет карточки, связи, состояния, навыки и отложенный прогресс снятого вида, историю оставляет", async () => {
+    const db = new LexiDatabase(DROPPED);
+    await db.open();
+    expect(db.verno).toBe(7);
+    expect(await db.clozes.count()).toBe(0);
+    expect((await lessonItems("l1", db)).map((link) => link.ref.id)).toEqual(["p1"]);
+    expect((await db.cardStates.toCollection().primaryKeys()) as string[]).toEqual([key("phrase", "p1")]);
+    expect((await db.cardSkills.toCollection().primaryKeys()) as string[]).toEqual([key("phrase", "p1")]);
+    expect((await db.cardStash.toCollection().primaryKeys()) as string[]).toEqual([key("phrase", "p1")]);
+    // Событие — запись о том, что было: тип проверки читается, снимок задания цел.
+    const events = await db.events.toArray();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "cloze", unitKey: key("cloze", "c1") });
+    expect(events[0].snapshot).toEqual({ template: "{{gap}} ένα γράμμα.", answer: "Γράφω" });
+    // Состав установленного пакета тоже чистится, иначе обновление увидит «автор убрал карточку».
+    const pack = (await db.packages.get("l1"))!;
+    expect("clozes" in pack).toBe(false);
+    expect(pack.items).toEqual([{ kind: "phrase", id: "p1", position: 0 }]);
+    expect(pack.removed).toEqual([]);
+    db.close();
+  });
+  it("незавершённая сессия продолжается с оставшегося задания, сессия только из снятых завершается", async () => {
+    const db = new LexiDatabase(DROPPED);
+    await db.open();
+    const live = (await db.sessions.get("s1"))!;
+    expect(live.items.map((item) => item.ref.id)).toEqual(["p1"]);
+    expect(live.index).toBe(1); // пройдены были пропуск и фраза; пропуска больше нет, позиция встала на фразу
+    expect(live.introducedKeys).toEqual([key("phrase", "p1")]);
+    expect(live.status).toBe("active");
+    const gone = (await db.sessions.get("s2"))!;
+    expect(gone.items).toEqual([]);
+    expect(gone.status).toBe("ended");
+    db.close();
+  });
+});
+
 describe("резервная копия", () => {
   let db: LexiDatabase;
   beforeEach(async () => {
@@ -262,9 +441,11 @@ describe("резервная копия", () => {
     const parsed = JSON.parse(await blob.text());
     const names = parsed.data.tables.map((t: { name: string }) => t.name);
     expect(names).toEqual(
-      expect.arrayContaining(["lessonItems", "cardStates", "phrases", "clozes", "packages", "media", "words"]),
+      expect.arrayContaining(["lessonItems", "cardStates", "phrases", "packages", "media", "words"]),
     );
-    expect(names).not.toEqual(expect.arrayContaining(["lessonWords"])); // пустые площадки старых хранилищ в копию не входят
+    // Пустые площадки снятых хранилищ в копию не входят.
+    expect(names).not.toEqual(expect.arrayContaining(["lessonWords"]));
+    expect(names).not.toEqual(expect.arrayContaining(["clozes"]));
     expect(parsed.data.data.find((t: { tableName: string }) => t.tableName === "catalog")?.rows ?? []).toEqual([]);
     const copy = asLexi(parsed);
     const check = await inspectBackup(copy);
@@ -354,6 +535,116 @@ describe("резервная копия", () => {
     expect(await searchWordIds("καρ", db)).toEqual(["w-own"]);
     expect(await db.catalog.count()).toBe(content.catalog.lessons.length); // каталог не считается данными пользователя и остаётся
   });
+  it("копия схемы 6 с карточками снятого вида восстанавливается без них, история ответов остаётся", async () => {
+    const stamp = "2026-09-16T09:00:00.000Z";
+    const clozeKey = JSON.stringify(["cloze", "c1"]);
+    const phraseKey = JSON.stringify(["phrase", "p1"]);
+    const rows: Record<string, unknown[]> = {
+      words: [],
+      phrases: [{ id: "p1", text: "Καλημέρα.", provenance: {}, createdAt: stamp, updatedAt: stamp, revision: "r1" }],
+      clozes: [
+        {
+          id: "c1",
+          template: "{{gap}} ένα γράμμα.",
+          answer: "Γράφω",
+          acceptedAnswers: ["Γράφω"],
+          provenance: {},
+          createdAt: stamp,
+          updatedAt: stamp,
+          revision: "r2",
+        },
+      ],
+      lessons: [{ id: "l1", title: "Урок", targetDate: null, status: "upcoming", createdAt: stamp, updatedAt: stamp }],
+      courses: [],
+      lessonItems: [
+        { lessonId: "l1", unitKey: phraseKey, ref: { kind: "phrase", id: "p1" }, position: 0 },
+        { lessonId: "l1", unitKey: clozeKey, ref: { kind: "cloze", id: "c1" }, position: 1 },
+      ],
+      assets: [],
+      media: [],
+      packages: [],
+      cardStates: [
+        {
+          unitKey: clozeKey,
+          ref: { kind: "cloze", id: "c1" },
+          card: createEmptyCard(new Date("2026-09-01")),
+          introducedAt: stamp,
+          version: 1,
+        },
+      ],
+      events: [
+        {
+          id: "e1",
+          sessionId: "s1",
+          itemId: "i1",
+          ref: { kind: "cloze", id: "c1" },
+          unitKey: clozeKey,
+          snapshot: { template: "{{gap}} ένα γράμμα.", answer: "Γράφω" },
+          type: "cloze",
+          mode: "scheduled",
+          rating: 3,
+          correct: true,
+          answer: "Γράφω",
+          createdAt: stamp,
+          localDate: "2026-09-16",
+          responseTimeMs: 900,
+        },
+      ],
+      sessions: [],
+      settings: [{ id: "settings", timezone: "Asia/Nicosia", sessionSize: 20 }],
+      meta: [{ key: "app", value: "lexi:1" }],
+      cardSkills: [{ unitKey: clozeKey, ref: { kind: "cloze", id: "c1" }, skills: {} }],
+      baseSummary: [],
+      cardStash: [],
+    };
+    // Индексы копии совпадают со схемой 6: импорт сверяет первичные ключи таблиц.
+    const schemas: Record<string, string> = {
+      words: "id,greek,russian,deletedAt,key,greekKey,[sortKey+id],*tokens",
+      phrases: "id,deletedAt",
+      clozes: "id,deletedAt",
+      lessons: "id,targetDate,status,courseId",
+      courses: "id,origin",
+      lessonItems: "[lessonId+unitKey],unitKey,[lessonId+position]",
+      assets: "id,kind",
+      media: "id",
+      packages: "lessonId",
+      cardStates: "unitKey,introducedAt,card.due,ref.kind",
+      events: "id,unitKey,sessionId,localDate,type,createdAt,[unitKey+createdAt],[type+createdAt]",
+      sessions: "id,planDate,status,[status+createdAt]",
+      settings: "id",
+      meta: "key",
+      cardSkills: "unitKey",
+      baseSummary: "id",
+      cardStash: "unitKey",
+    };
+    const blob = new Blob([
+      JSON.stringify({
+        formatName: "dexie",
+        formatVersion: 1,
+        data: {
+          databaseName: "lexi",
+          databaseVersion: 6,
+          tables: Object.keys(rows).map((name) => ({
+            name,
+            schema: schemas[name],
+            rowCount: rows[name].length,
+          })),
+          data: Object.entries(rows).map(([tableName, rows]) => ({ tableName, inbound: true, rows })),
+        },
+      }),
+    ]);
+    // Отсутствие таблицы снятого вида повреждением не считается — как и её наличие в прежней копии.
+    expect(await inspectBackup(blob)).toMatchObject({ ok: true, report: { legacy: true } });
+    await restoreBackup(blob, db);
+    expect(await db.phrases.count()).toBe(1);
+    expect(await db.clozes.count()).toBe(0);
+    expect((await lessonItems("l1", db)).map((link) => link.ref.id)).toEqual(["p1"]);
+    expect(await db.cardStates.count()).toBe(0);
+    expect(await db.cardSkills.count()).toBe(0);
+    const events = await db.events.toArray();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "cloze", unitKey: clozeKey });
+  });
   it("повреждённая копия, копия новее приложения и копия с битыми связями отклоняются без изменения данных", async () => {
     await installLessons(db, ["lesson-1-1"]);
     const before = await db.words.count();
@@ -364,7 +655,7 @@ describe("резервная копия", () => {
           JSON.stringify({
             formatName: "dexie",
             formatVersion: 1,
-            data: { databaseName: "lexi", databaseVersion: 7, tables: [], data: [] },
+            data: { databaseName: "lexi", databaseVersion: 8, tables: [], data: [] },
           }),
         ]),
       ),

@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Volume2, X } from "lucide-react";
-import type { Cloze, Phrase, SessionCard, SessionItem, Word } from "../../domain/types";
+import type { Phrase, SessionCard, SessionItem, Word } from "../../domain/types";
 import { checkAnswer } from "../../domain/import";
-import { checkTextAnswer, fillGap, splitTemplate, type TextAnswerResult } from "../../domain/cloze";
+import { checkTextAnswer } from "../../domain/text-answer";
 import { diffChars } from "../../domain/spelling";
 import {
-  agreedMask,
   assemblyOptions,
   assemblySkipMessage,
   checkAssembly,
@@ -56,13 +55,11 @@ const wordOf = (card: SessionCard): Word => {
 /**
  * Один автозапуск озвучки при открытии карточки. Карточки перемонтируются по `key`, поэтому
  * ссылка-флаг защищает от повторного запуска при перерисовке той же карточки.
- * Пропуск не озвучивается сам: следом идёт то же предложение с пропуском, и услышанный ответ
- * превратил бы первую проверку в повтор по свежему следу. Кнопка остаётся.
  */
 function useAutoSpeak(card: SessionCard, enabled: boolean) {
   const played = useRef(false);
   useEffect(() => {
-    if (!enabled || played.current || card.kind === "cloze") return;
+    if (!enabled || played.current) return;
     played.current = true;
     if (card.kind === "word") void playWord(card.word);
     else void playText(card.phrase.text, card.phrase.audioAssetId);
@@ -185,35 +182,6 @@ function PhraseReveal({ phrase, speak }: { phrase: Phrase; speak?: boolean }) {
     </>
   );
 }
-/** Знакомство с пропуском: полный пример с выделенной формой, контекст и объяснение из материала. */
-function ClozeIntro({ cloze }: { cloze: Cloze }) {
-  const { before, after } = splitTemplate(cloze.template);
-  return (
-    <>
-      <div className={cx(ui.row, ui.between)} style={{ width: "100%", gap: 12 }}>
-        <div className={ui.grow} style={{ minWidth: 0, textAlign: "left" }}>
-          <p className={wordCss.greek} style={{ margin: 0 }} data-testid="cloze-example">
-            {before}
-            <span className={wordCss.target}>{cloze.answer}</span>
-            {after}
-          </p>
-          {cloze.context && <p style={{ fontSize: 19, margin: "6px 0 0" }}>{cloze.context}</p>}
-        </div>
-        <SpeakText
-          text={fillGap(cloze.template, cloze.answer)}
-          audioAssetId={cloze.audioAssetId}
-          label="Послушать предложение"
-        />
-      </div>
-      {cloze.explanation && (
-        <p className={ui.small} style={{ width: "100%", textAlign: "left", margin: 0 }}>
-          {cloze.explanation}
-        </p>
-      )}
-    </>
-  );
-}
-
 export function Introduction({
   item,
   onReady,
@@ -229,8 +197,7 @@ export function Introduction({
   const label = lessonLabel(item);
   // Знакомство показывает материал, а не проверяет знание: отказ озвучки здесь не показывается — кнопка сама объясняет недоступность.
   useAutoSpeak(card, autoSpeak);
-  const title =
-    card.kind === "word" ? "Новое слово" : card.kind === "phrase" ? "Новая фраза" : "Новое задание с пропуском";
+  const title = card.kind === "word" ? "Новое слово" : "Новая фраза";
   return (
     <>
       <div className={s.center}>
@@ -244,7 +211,6 @@ export function Introduction({
         )}
         {card.kind === "word" && <WordReveal word={card.word} speak />}
         {card.kind === "phrase" && <PhraseReveal phrase={card.phrase} speak />}
-        {card.kind === "cloze" && <ClozeIntro cloze={card.cloze} />}
       </div>
       <div className={s.dock}>
         <Button size="xl" disabled={saving} onClick={onReady}>
@@ -865,175 +831,6 @@ export function Spelling({ item, onAnswer, onNext, autoSpeak = false }: Props & 
           <Button size="xl" onClick={onNext}>
             Далее
           </Button>
-        )}
-      </div>
-    </>
-  );
-}
-
-/**
- * Заполнение пропуска. До ответа видны только шаблон, поле ввода и контекст на языке перевода: правильная форма,
- * полное предложение, объяснение, озвучка и подсказки для экранного диктора не выводятся в DOM.
- * После успешно сохранённого ответа — результат, полное предложение, объяснение при наличии и озвучка.
- *
- * С четырьмя вариантами вместо поля ввода идёт выбор: так выглядит дополнительная попытка после ошибки.
- * Проверка и раскрытие общие — выбранный вариант уходит в ту же `checkTextAnswer`, поэтому «Почти» работает и здесь.
- */
-export function ClozeExercise({ item, onAnswer, onNext }: Props) {
-  const [value, setValue] = useState("");
-  const [result, setResult] = useState<(TextAnswerResult & { skipped?: boolean }) | null>(null);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    setValue("");
-    setResult(null);
-    setSaving(false);
-  }, [item.id]);
-  const revealed = useRevealed(!!result);
-  const { card } = item;
-  if (card.kind !== "cloze") throw new Error("Упражнение с пропуском получило другую карточку");
-  const cloze = card.cloze;
-  const mask = agreedMask([cloze.answer, ...cloze.acceptedAnswers]);
-  const { before, after } = splitTemplate(cloze.template);
-  const skip = async () => {
-    if (result || saving) return;
-    setSaving(true);
-    const saved = await onAnswer({ correct: false, text: "" });
-    setSaving(false);
-    if (saved) setResult({ status: "wrong", message: "Правильная форма:", expected: cloze.answer, skipped: true });
-  };
-  const check = async (text: string) => {
-    if (!text.trim() || result || saving) return;
-    const checked = checkTextAnswer(text, cloze.acceptedAnswers, { template: cloze.template });
-    setSaving(true);
-    const saved = await onAnswer({ correct: checked.status === "correct", text, status: checked.status });
-    setSaving(false);
-    if (saved) {
-      setValue(text);
-      setResult(checked);
-    }
-  };
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    void check(value);
-  };
-  const choices = item.options.length === 4 ? item.options : null;
-  const sentence = fillGap(cloze.template, result?.expected ?? cloze.answer);
-  return (
-    <>
-      <div className={s.center}>
-        <p className={s.prompt} data-testid="prompt">
-          Заполни пропуск
-        </p>
-        {!result && (
-          <p className={wordCss.greek} style={{ margin: "6px 0" }} data-testid="cloze-template">
-            {before}
-            <span aria-label="пропуск" className={s.gap}>
-              …
-            </span>
-            {after}
-          </p>
-        )}
-        {cloze.context && !result && (
-          <p style={{ fontSize: 19, margin: 0 }} data-testid="cloze-context">
-            {cloze.context}
-          </p>
-        )}
-        {result && (
-          <div style={{ width: "100%" }} ref={revealed}>
-            <div
-              data-testid="feedback"
-              className={cx(
-                s.feedback,
-                result.status === "correct" ? s.ok : result.status === "almost" ? s.almost : s.bad,
-              )}
-              style={{ marginTop: 0 }}
-            >
-              <div>{result.message}</div>
-              <p className="m-0 mt-1.5 text-[19px]" data-testid="cloze-sentence">
-                {before}
-                <span className={wordCss.target}>{result.expected}</span>
-                {after}
-              </p>
-              {result.status !== "correct" && !result.skipped && (
-                <p className={s.chars} data-testid="chars" style={{ margin: "6px 0 0" }}>
-                  {diffChars(value, result.expected).map((part, index) =>
-                    part.type === "same" ? (
-                      <b key={index}>{part.text}</b>
-                    ) : part.type === "wrong" ? (
-                      <s key={index}>{part.text}</s>
-                    ) : (
-                      <u key={index}>{part.text}</u>
-                    ),
-                  )}
-                </p>
-              )}
-              {cloze.context && (
-                <p className={ui.small} style={{ margin: "6px 0 0" }}>
-                  {cloze.context}
-                </p>
-              )}
-              {cloze.explanation && (
-                <p className={ui.small} style={{ margin: "6px 0 0" }} data-testid="cloze-explanation">
-                  {cloze.explanation}
-                </p>
-              )}
-            </div>
-            <div className="mt-3 flex justify-center">
-              <SpeakText text={sentence} audioAssetId={cloze.audioAssetId} label="Послушать предложение" />
-            </div>
-          </div>
-        )}
-      </div>
-      <div className={s.dock}>
-        {result ? (
-          <Button size="xl" onClick={onNext}>
-            Далее
-          </Button>
-        ) : choices ? (
-          <>
-            <div className={s.options} style={{ width: "100%" }}>
-              {choices.map((option) => (
-                <Button
-                  key={option}
-                  data-testid="cloze-option"
-                  variant="outline"
-                  disabled={saving}
-                  className="h-14 justify-center rounded-[14px] text-[17px]"
-                  onClick={() => check(option)}
-                >
-                  {option}
-                </Button>
-              ))}
-            </div>
-            <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>
-              Не знаю
-            </Button>
-          </>
-        ) : (
-          <form onSubmit={submit}>
-            <div className={s.field}>
-              <AnswerMask mask={mask} value={value} />
-              <input
-                className={cx(s.answer, mask && s.masked)}
-                type="text"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                disabled={saving}
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                aria-label="Пропущенная часть предложения"
-                lang="el"
-                data-testid="cloze-input"
-              />
-            </div>
-            <Button size="xl" type="submit" disabled={!value.trim() || saving}>
-              {saving ? "Сохраняем…" : "Проверить"}
-            </Button>
-            <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>
-              Не знаю
-            </Button>
-          </form>
         )}
       </div>
     </>

@@ -16,22 +16,15 @@ const verbatim = (locator: string, excerpt: string) => ({
   excerpt,
   operation: "verbatim",
 });
-const fromSource = (locator: string, excerpt: string) => ({
-  sourceLabel: SOURCE,
-  locator,
-  excerpt,
-  operation: "cloze-from-source",
-});
-/** Цель и объяснение размечены по отдельной просьбе, поэтому у них своё происхождение. */
+/** Пояснение размечено по отдельной просьбе, поэтому у него своё происхождение. */
 const requested = (request: string) => ({
   sourceLabel: "Разметка по запросу",
   operation: "requested-transform",
   request,
 });
-const TARGET_REQUEST = requested("Отметить, что тренирует каждая карточка");
-const withTarget = (locator: string, excerpt: string, parts: Record<string, unknown> = {}) => ({
-  ...fromSource(locator, excerpt),
-  parts: { target: TARGET_REQUEST, ...parts },
+const withNote = (locator: string, excerpt: string, parts: Record<string, unknown>) => ({
+  ...verbatim(locator, excerpt),
+  parts,
 });
 export const MIXED_PHRASES: Record<string, Record<string, unknown>> = {
   "p-grafo": {
@@ -55,102 +48,46 @@ export const MIXED_PHRASES: Record<string, Record<string, unknown>> = {
     translation: "Весна приносит цветы.",
     provenance: verbatim("content/words/η-άνοιξη.yaml, examples[0]", "Η άνοιξη φέρνει λουλούδια."),
   },
+  "p-ilios": {
+    text: "Η κόρη βλέπει τον ήλιο και χαμογελάει.",
+    translation: "Дочь смотрит на солнце и улыбается.",
+    note: "Винительный падеж после переходного глагола.",
+    provenance: withNote("content/words/χαμογελώ.yaml, examples[0]", "Η κόρη βλέπει τον ήλιο και χαμογελάει.", {
+      note: requested("Пояснить правило падежа"),
+    }),
+  },
   // Фраза без перевода и без аудио: доступна для просмотра, объективного упражнения нет.
   "p-silent": {
     text: "Το φρύδι της είναι λεπτό.",
     provenance: verbatim("content/words/το-φρύδι.yaml, examples[0]", "Το φρύδι της είναι λεπτό."),
   },
 };
-export const SAME_TARGET = { kind: "verb-form", features: { tense: "present", person: 3, number: "singular" } };
-export const MIXED_CLOZES: Record<string, Record<string, unknown>> = {
-  "c-grafo": {
-    template: "{{gap}} ένα γράμμα.",
-    answer: "Γράφω",
-    acceptedAnswers: ["Γράφω"],
-    context: "Я пишу письмо.",
-    related: { kind: "word", id: "w11-27" },
-    target: { kind: "verb-form", ref: "w11-27", features: { tense: "present", person: 1, number: "singular" } },
-    provenance: withTarget("content/words/γράφω.yaml, examples[0]", "Γράφω ένα γράμμα."),
-  },
-  // То же предложение, другое скрытое место — отдельная карточка без цели.
-  "c-gramma": {
-    template: "Γράφω ένα {{gap}}.",
-    answer: "γράμμα",
-    acceptedAnswers: ["γράμμα"],
-    context: "Я пишу письмо.",
-    related: { kind: "phrase", id: "p-grafo" },
-    provenance: fromSource("content/words/γράφω.yaml, examples[0]", "Γράφω ένα γράμμα."),
-  },
-  "c-vouno": {
-    template: "Το βουνό είναι {{gap}}.",
-    answer: "ψηλό",
-    acceptedAnswers: ["ψηλό"],
-    context: "Гора высокая.",
-    explanation: "Прилагательное согласуется с существительным среднего рода.",
-    target: { kind: "adjective-form", features: { gender: "neuter", number: "singular" } },
-    provenance: withTarget("content/words/το-βουνό.yaml, examples[0]", "Το βουνό είναι ψηλό.", {
-      explanation: requested("Пояснить правило согласования"),
-    }),
-  },
-  // Две карточки с одинаковой целью: прогресс у каждой свой.
-  "c-paidi": {
-    template: "Το παιδί {{gap}} στο πάρκο.",
-    answer: "παίζει",
-    acceptedAnswers: ["παίζει"],
-    context: "Ребёнок играет в парке.",
-    target: SAME_TARGET,
-    provenance: withTarget("content/words/το-παιδί.yaml, examples[0]", "Το παιδί παίζει στο πάρκο."),
-  },
-  "c-anoixi": {
-    template: "Η άνοιξη {{gap}} λουλούδια.",
-    answer: "φέρνει",
-    acceptedAnswers: ["φέρνει"],
-    context: "Весна приносит цветы.",
-    target: SAME_TARGET,
-    provenance: withTarget("content/words/η-άνοιξη.yaml, examples[0]", "Η άνοιξη φέρνει λουλούδια."),
-  },
-};
 export const MIXED_ITEMS = [
   { kind: "phrase", id: "p-grafo" },
   { kind: "word", id: "w11-27" },
-  { kind: "cloze", id: "c-grafo" },
-  { kind: "cloze", id: "c-gramma" },
   { kind: "phrase", id: "p-vouno" },
-  { kind: "cloze", id: "c-vouno" },
   { kind: "phrase", id: "p-paidi" },
-  { kind: "cloze", id: "c-paidi" },
   { kind: "phrase", id: "p-anoixi" },
-  { kind: "cloze", id: "c-anoixi" },
+  { kind: "phrase", id: "p-ilios" },
   { kind: "phrase", id: "p-silent" },
 ];
 export const MIXED_LESSON = "lesson-mixed";
 
 export interface MixedFiles {
   phrases?: Record<string, unknown>;
-  clozes?: Record<string, unknown>;
   lesson?: Record<string, unknown>;
   mutate?: (root: string) => void;
 }
 /** Сборка смешанной фикстуры с переопределениями; исходники проекта копируются во временную папку и удаляются после. */
-export function buildMixed({
-  phrases = MIXED_PHRASES,
-  clozes = MIXED_CLOZES,
-  lesson,
-  mutate,
-}: MixedFiles = {}): BuiltContent {
+export function buildMixed({ phrases = MIXED_PHRASES, lesson, mutate }: MixedFiles = {}): BuiltContent {
   const root = mkdtempSync(join(tmpdir(), "lexi-mixed-"));
-  for (const dir of ["words", "lessons", "art", "courses", "phrases", "clozes", "audio"])
+  for (const dir of ["words", "lessons", "art", "courses", "phrases", "audio"])
     if (existsSync(join("content", dir))) cpSync(join("content", dir), join(root, dir), { recursive: true });
-  for (const dir of ["phrases", "clozes"]) mkdirSync(join(root, dir), { recursive: true });
+  mkdirSync(join(root, "phrases"), { recursive: true });
   for (const [id, doc] of Object.entries(phrases)) writeFileSync(join(root, "phrases", `${id}.yaml`), stringify(doc));
-  for (const [id, doc] of Object.entries(clozes)) writeFileSync(join(root, "clozes", `${id}.yaml`), stringify(doc));
   const items = lesson
     ? undefined
-    : [
-        ...Object.keys(phrases).map((id) => ({ kind: "phrase", id })),
-        { kind: "word", id: "w11-27" },
-        ...Object.keys(clozes).map((id) => ({ kind: "cloze", id })),
-      ];
+    : [...Object.keys(phrases).map((id) => ({ kind: "phrase", id })), { kind: "word", id: "w11-27" }];
   writeFileSync(
     join(root, "lessons", `${MIXED_LESSON}.yaml`),
     stringify(lesson ?? { title: "Смешанный урок", language: "el", items }),

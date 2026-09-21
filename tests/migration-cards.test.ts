@@ -10,10 +10,10 @@ import { makeSession } from "../src/domain/learning";
 import { dexieSource } from "../src/storage/queries";
 import { submitAnswer } from "../src/storage/ops";
 import { applyPackage } from "../src/content/client";
-import { clozeRevisionOf } from "../content/build";
+import { phraseRevisionOf } from "../content/build";
 import { unitKey, wordKeyOf, wordRef } from "./helpers/cards";
 import { content, wordsOf } from "./helpers/content";
-import { buildMixed, installMixed, MIXED_CLOZES, MIXED_LESSON, MIXED_PHRASES, mixedPackage } from "./helpers/mixed";
+import { buildMixed, installMixed, MIXED_LESSON, MIXED_PHRASES, mixedPackage } from "./helpers/mixed";
 
 /**
  * Схема 5: так выглядит база пользователя перед переходом к карточкам трёх видов. Индексы повторяют
@@ -329,12 +329,11 @@ describe("переход профиля схемы 5 к карточкам тр�
       schedule: { startDate: "2026-09-14", weekdays: [1, 4] },
     });
     expect("newWordsPerDay" in (await db.courses.get("leeke"))!).toBe(false);
-    // Пакет: убранная связь — ключ карточки, новые виды пустые.
+    // Пакет: убранная связь — ключ карточки, фразы пустые.
     expect(await db.packages.get("lesson-1-2")).toMatchObject({
       version: "v-old",
       removed: [wordKeyOf("w12-03")],
       phrases: [],
-      clozes: [],
     });
     // Прежние хранилища пусты: данные скопированы, не продублированы.
     for (const table of [db.states, db.lessonWords, db.baseSkills, db.syncStash]) expect(await table.count()).toBe(0);
@@ -633,7 +632,7 @@ describe("полная копия: прежние версии и смешанн
       for (const table of [db.states, db.lessonWords, db.baseSkills, db.syncStash]) expect(await table.count()).toBe(0);
     },
   );
-  it("смешанный профиль с активной сессией переносится целиком: цели карточек и снимков совпадают, отсутствие цели тоже", async () => {
+  it("смешанный профиль с активной сессией переносится целиком, снимки заданий совпадают", async () => {
     await installMixed(db);
     const now = new Date("2026-09-16T09:00:00Z");
     const session = await makeSession({
@@ -642,14 +641,14 @@ describe("полная копия: прежние версии и смешанн
       random: () => 0.4,
       mode: "practice",
       refs: [
-        { kind: "cloze", id: "c-grafo" },
-        { kind: "cloze", id: "c-gramma" },
         { kind: "phrase", id: "p-grafo" },
+        { kind: "phrase", id: "p-vouno" },
+        { kind: "word", id: "w11-27" },
       ],
     });
     await db.sessions.add(session);
-    const grafo = session.items.find((item) => item.ref.id === "c-grafo")!,
-      gramma = session.items.find((item) => item.ref.id === "c-gramma")!;
+    const grafo = session.items.find((item) => item.ref.id === "p-grafo")!,
+      vouno = session.items.find((item) => item.ref.id === "p-vouno")!;
     await submitAnswer({
       session,
       item: grafo,
@@ -663,9 +662,9 @@ describe("полная копия: прежние версии и смешанн
     });
     await submitAnswer({
       session,
-      item: gramma,
+      item: vouno,
       correct: true,
-      answer: "γράμμα",
+      answer: "Το βουνό είναι ψηλό.",
       responseTimeMs: 800,
       activeTimeMs: 1600,
       timezone: "Asia/Nicosia",
@@ -675,9 +674,8 @@ describe("полная копия: прежние версии и смешанн
     const blob = await exportFull(db);
     const parsed = JSON.parse(await blob.text());
     const names = parsed.data.tables.map((t: { name: string }) => t.name);
-    expect(names).toEqual(
-      expect.arrayContaining(["phrases", "clozes", "lessonItems", "cardStates", "events", "sessions"]),
-    );
+    expect(names).toEqual(expect.arrayContaining(["phrases", "lessonItems", "cardStates", "events", "sessions"]));
+    expect(names).not.toContain("clozes"); // снятое хранилище в копию не входит
     const fresh = new LexiDatabase("lexi-cards-restore");
     await fresh.delete();
     await fresh.open();
@@ -685,7 +683,6 @@ describe("полная копия: прежние версии и смешанн
     for (const name of [
       "words",
       "phrases",
-      "clozes",
       "lessonItems",
       "cardStates",
       "events",
@@ -694,33 +691,28 @@ describe("полная копия: прежние версии и смешанн
       "media",
     ] as const)
       expect(await fresh.table(name).toArray(), name).toEqual(await db.table(name).toArray());
-    const cloze = (await fresh.clozes.get("c-vouno"))!;
-    expect(cloze.target).toEqual({ kind: "adjective-form", features: { gender: "neuter", number: "singular" } }); // неизвестный клиенту вид сохранён целиком
     const events = await fresh.events.where("sessionId").equals(session.id).toArray();
-    expect(events.find((e) => e.ref.id === "c-grafo")!.snapshot).toEqual({
-      template: "{{gap}} ένα γράμμα.",
-      answer: "Γράφω",
-      target: { kind: "verb-form", ref: "w11-27", features: { tense: "present", person: 1, number: "singular" } },
+    expect(events.find((e) => e.ref.id === "p-grafo")!.snapshot).toEqual({
+      text: "Γράφω ένα γράμμα.",
+      translation: "Я пишу письмо.",
     });
-    expect(events.find((e) => e.ref.id === "c-gramma")!.snapshot).toEqual({
-      template: "Γράφω ένα {{gap}}.",
-      answer: "γράμμα",
-    }); // цели не было — не появилась
+    expect(events.find((e) => e.ref.id === "p-vouno")!.snapshot).toEqual({
+      text: "Το βουνό είναι ψηλό.",
+      translation: "Гора высокая.",
+    });
     expect((await fresh.sessions.get(session.id))!.status).toBe("active");
     fresh.close();
     await fresh.delete();
   });
-  it("копия с фразами и пропусками без слов допустима, а связь с отсутствующей карточкой отклоняется до замены данных", async () => {
+  it("копия с фразами без слов допустима, а связь с отсутствующей карточкой отклоняется до замены данных", async () => {
     const noWords = buildMixed({
-      phrases: { "p-grafo": MIXED_PHRASES["p-grafo"] },
-      clozes: { "c-grafo": MIXED_CLOZES["c-grafo"], "c-gramma": MIXED_CLOZES["c-gramma"] },
+      phrases: { "p-grafo": MIXED_PHRASES["p-grafo"], "p-vouno": MIXED_PHRASES["p-vouno"] },
       lesson: {
         title: "Без слов",
         language: "el",
         items: [
           { kind: "phrase", id: "p-grafo" },
-          { kind: "cloze", id: "c-grafo" },
-          { kind: "cloze", id: "c-gramma" },
+          { kind: "phrase", id: "p-vouno" },
         ],
       },
     });
@@ -731,9 +723,8 @@ describe("полная копия: прежние версии и смешанн
     await fresh.delete();
     await fresh.open();
     await restoreBackup(asLexi(parsed), fresh);
-    expect(await fresh.phrases.count()).toBe(1);
-    expect(await fresh.clozes.count()).toBe(2);
-    expect((await lessonItems(MIXED_LESSON, fresh)).map((link) => link.ref.kind)).toEqual(["phrase", "cloze", "cloze"]);
+    expect(await fresh.phrases.count()).toBe(2);
+    expect((await lessonItems(MIXED_LESSON, fresh)).map((link) => link.ref.kind)).toEqual(["phrase", "phrase"]);
     // Битая ссылка на фразу: текущие данные не меняются.
     const broken = JSON.parse(JSON.stringify(parsed));
     broken.data.data
@@ -756,25 +747,22 @@ describe("полная копия: прежние версии и смешанн
     const lines = tsv.split("\n");
     expect(lines).toHaveLength(1 + (await db.words.count()));
     expect(tsv).not.toContain("Γράφω ένα γράμμα.");
-    expect(tsv).not.toContain("{{gap}}");
   });
-  it("обновление пакета, добавившее цель, меняет ревизию, но не ID и не копию прогресса", async () => {
+  it("обновление пакета, исправившее примечание фразы, меняет ревизию, но не ID и не прогресс", async () => {
     await installMixed(db);
     const pack = mixedPackage();
-    const gramma = pack.clozes.find((c) => c.id === "c-gramma")!;
-    const { revision: _r, ...fields } = gramma;
-    const retargeted = { ...fields, target: { kind: "noun-form", features: { case: "accusative" } } };
+    const vouno = pack.phrases.find((p) => p.id === "p-vouno")!;
+    const { revision: _r, ...fields } = vouno;
+    const fixed = { ...fields, note: "Прилагательное согласуется с существительным." };
     const next = {
       ...pack,
-      version: `${pack.version}-target`,
-      clozes: pack.clozes.map((c) =>
-        c.id === "c-gramma" ? { ...retargeted, revision: clozeRevisionOf(retargeted) } : c,
-      ),
+      version: `${pack.version}-note`,
+      phrases: pack.phrases.map((p) => (p.id === "p-vouno" ? { ...fixed, revision: phraseRevisionOf(fixed) } : p)),
     };
     await applyPackage(next, db);
-    const stored = (await db.clozes.get("c-gramma"))!;
-    expect(stored.target).toEqual({ kind: "noun-form", features: { case: "accusative" } });
-    expect(stored.revision).not.toBe(gramma.revision);
+    const stored = (await db.phrases.get("p-vouno"))!;
+    expect(stored.note).toBe("Прилагательное согласуется с существительным.");
+    expect(stored.revision).not.toBe(vouno.revision);
     expect(content.packages.length).toBeGreaterThan(0);
   });
 });

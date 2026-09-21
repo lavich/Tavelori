@@ -60,8 +60,3 @@ items:
   - {kind: phrase, id: ph11-19}
   - {kind: phrase, id: ph11-20}
   - {kind: phrase, id: ph11-21}
-  - {kind: cloze, id: cl11-01}
-  - {kind: cloze, id: cl11-02}
-  - {kind: cloze, id: cl11-03}
-  - {kind: cloze, id: cl11-04}
-  - {kind: cloze, id: cl11-05}

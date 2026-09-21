@@ -19,7 +19,6 @@ import {
   defaultSchedule,
   defaultSettings,
   LOCAL_COURSE,
-  type Cloze,
   type Course,
   type ExerciseType,
   type LearningRef,
@@ -745,18 +744,7 @@ describe("дневной план со смешанными карточками
     updatedAt: iso,
     ...over,
   });
-  const cloze = (id: string, over: Partial<Cloze> = {}): Cloze => ({
-    id,
-    template: `Εγώ {{gap}} ${id}.`,
-    answer: `κάνω${id}`,
-    acceptedAnswers: [`κάνω${id}`],
-    provenance: { sourceLabel: "тест", operation: "cloze-from-source" },
-    createdAt: iso,
-    updatedAt: iso,
-    ...over,
-  });
   const P = (id: string): LearningRef => ({ kind: "phrase", id }),
-    C = (id: string): LearningRef => ({ kind: "cloze", id }),
     W = wordRef;
   const items = (lessonId: string, refs: LearningRef[]): LessonItem[] =>
     refs.map((ref, position) => ({ lessonId, unitKey: unitKey(ref), ref, position }));
@@ -775,16 +763,17 @@ describe("дневной план со смешанными карточками
     ...over,
   });
   const phrases = ["p1", "p2", "p3", "p4", "p5"].map((id) => phrase(id));
-  const clozes = ["c1", "c2", "c3", "c4"].map((id) => cloze(id));
-  it("смешанная квота: предел 5, введены 2 слова, дальше по порядку урока 2 фразы и 3 пропуска → 2 фразы и 1 пропуск", async () => {
+  /** Второй набор фраз: раньше эти места в сценариях занимали карточки снятого вида. */
+  const extra = ["q1", "q2", "q3", "q4"].map((id) => phrase(id));
+  const all = [...phrases, ...extra];
+  it("смешанная квота: предел 5, введены 2 слова, дальше по порядку урока 5 фраз → 3 фразы", async () => {
     const introduced = ids(0, 2).map((id) =>
       stateOf(W(id), "2026-09-16T09:00:00Z", { introducedAt: "2026-09-15T08:00:00Z" }),
     );
-    const refs = [W(pool[0].id), W(pool[1].id), P("p1"), P("p2"), C("c1"), C("c2"), C("c3")];
+    const refs = [W(pool[0].id), W(pool[1].id), P("p1"), P("p2"), P("q1"), P("q2"), P("q3")];
     const data = base({
       words: pool,
-      phrases,
-      clozes,
+      phrases: all,
       courses: [course("my", 5, { origin: "local" })],
       lessons: [lesson("l1", [], "2026-09-18", { courseId: "my" })],
       items: items("l1", refs),
@@ -793,38 +782,37 @@ describe("дневной план со смешанными карточками
     const plan = await planOf(data);
     expect(plan.introducedToday).toBe(2);
     expect(plan.budget).toBe(3);
-    expect(plan.newRefs).toEqual([P("p1"), P("p2"), C("c1")]);
+    expect(plan.newRefs).toEqual([P("p1"), P("p2"), P("q1")]);
     expect(plan.courses[0].introducedToday + plan.newRefs.length).toBeLessThanOrEqual(5);
-    expect(plan.deadlines[0].newLeft).toBe(5); // 2 фразы + 3 пропуска к сроку
+    expect(plan.deadlines[0].newLeft).toBe(5); // пять фраз к сроку
   });
   it("ближайший срок раньше хвоста; хвост состоит из карточек любого вида и добирает остаток бюджета", async () => {
     const data = base({
       words: pool.slice(0, 3),
-      phrases,
-      clozes,
+      phrases: all,
       lessons: [lesson("done", [], "2026-09-08", { status: "completed" }), lesson("next", [], "2026-09-18")],
       items: [
-        ...items("done", [P("p1"), C("c1"), W(pool[0].id)]),
-        ...items("next", [C("c2"), P("p2"), W(pool[1].id), W(pool[2].id)]),
+        ...items("done", [P("p1"), P("q1"), W(pool[0].id)]),
+        ...items("next", [P("q2"), P("p2"), W(pool[1].id), W(pool[2].id)]),
       ],
     });
     const plan = await planOf(data);
-    expect(plan.newRefs).toEqual([C("c2"), P("p2"), W(pool[1].id), W(pool[2].id), P("p1"), C("c1"), W(pool[0].id)]);
-    expect(plan.backlog).toEqual({ refs: [P("p1"), C("c1"), W(pool[0].id)], lessons: 1 });
+    expect(plan.newRefs).toEqual([P("q2"), P("p2"), W(pool[1].id), W(pool[2].id), P("p1"), P("q1"), W(pool[0].id)]);
+    expect(plan.backlog).toEqual({ refs: [P("p1"), P("q1"), W(pool[0].id)], lessons: 1 });
     expect(plan.deadlines[0].newLeft).toBe(4);
-    expect(plan.origins.get(unitKey(C("c1")))).toEqual({ lessonId: "done", title: "done", past: true });
+    expect(plan.origins.get(unitKey(P("q1")))).toEqual({ lessonId: "done", title: "done", past: true });
   });
   it("общая карточка двух курсов вводится один раз и списывается с обоих бюджетов", async () => {
-    const shared = [P("p1"), C("c1")];
+    const shared = [P("p1"), P("q1")];
     const lessons = [
       lesson("la", [], "2026-09-18", { courseId: "a" }),
       lesson("lb", [], "2026-09-19", { courseId: "b" }),
     ];
     const linked = [...items("la", [...shared, W(pool[0].id)]), ...items("lb", [...shared, W(pool[1].id)])];
     const plan = await planOf(
-      base({ words: pool, phrases, clozes, courses: [course("a", 3), course("b", 3)], lessons, items: linked }),
+      base({ words: pool, phrases: all, courses: [course("a", 3), course("b", 3)], lessons, items: linked }),
     );
-    expect(plan.newRefs).toEqual([P("p1"), C("c1"), W(pool[0].id), W(pool[1].id)]);
+    expect(plan.newRefs).toEqual([P("p1"), P("q1"), W(pool[0].id), W(pool[1].id)]);
     expect(plan.courses.map((item) => [item.courseId, item.newRefs.length])).toEqual([
       ["a", 3],
       ["b", 3],
@@ -832,8 +820,7 @@ describe("дневной план со смешанными карточками
     const today = await planOf(
       base({
         words: pool,
-        phrases,
-        clozes,
+        phrases: all,
         courses: [course("a", 3), course("b", 3)],
         lessons,
         items: linked,
@@ -846,43 +833,40 @@ describe("дневной план со смешанными карточками
     ]);
   });
   it("одинаковые ID разных видов — разные карточки с независимым прогрессом", async () => {
-    const twin = [W("x"), P("x"), C("x")];
+    const twin = [W("x"), P("x")];
     const data = base({
       words: [word("x", 0)],
       phrases: [phrase("x")],
-      clozes: [cloze("x")],
       lessons: [lesson("l1", [], "2026-09-18")],
       items: items("l1", twin),
       states: [stateOf(W("x"), "2026-09-20T09:00:00Z")],
     });
     const plan = await planOf(data);
-    expect(plan.newRefs).toEqual([P("x"), C("x")]); // слово уже введено, фраза и пропуск с тем же ID — новые
-    expect(new Set(twin.map(unitKey)).size).toBe(3);
+    expect(plan.newRefs).toEqual([P("x")]); // слово уже введено, фраза с тем же ID — новая
+    expect(new Set(twin.map(unitKey)).size).toBe(2);
   });
   it("фраза без перевода и голоса не расходует квоту и темп, но остаётся видимой отдельно; с голосом и пулом она проверяема", async () => {
     const silent = phrase("p-silent", { translation: undefined });
     const data = base({
       words: [],
-      phrases: [...phrases, silent],
-      clozes,
+      phrases: [...all, silent],
       courses: [course("my", 10, { origin: "local" })],
       lessons: [lesson("l1", [], "2026-09-18", { courseId: "my" })],
-      items: items("l1", [P("p-silent"), P("p1"), C("c1")]),
+      items: items("l1", [P("p-silent"), P("p1"), P("q1")]),
     });
     const plan = await planOf(data);
-    expect(plan.newRefs).toEqual([P("p1"), C("c1")]);
+    expect(plan.newRefs).toEqual([P("p1"), P("q1")]);
     expect(plan.unavailable).toEqual([P("p-silent")]);
     expect(plan.deadlines[0].newLeft).toBe(2);
     expect(plan.deadlines[0].requiredPerDay).toBe(1);
     // Системный голос и четыре различных фразы делают аудирование доступным: фраза входит в квоту.
     const spoken = await makePlan(fromSnapshot(data), now, { hasVoice: true });
-    expect(spoken.newRefs).toEqual([P("p-silent"), P("p1"), C("c1")]);
+    expect(spoken.newRefs).toEqual([P("p-silent"), P("p1"), P("q1")]);
     expect(spoken.unavailable).toEqual([]);
     // Голос есть, но фраз мало — вариантов для аудирования нет: остаётся справочной.
     const few = base({
       words: [],
       phrases: [silent, phrases[0]],
-      clozes,
       lessons: [lesson("l1", [], "2026-09-18")],
       items: items("l1", [P("p-silent"), P("p1")]),
     });
@@ -891,7 +875,7 @@ describe("дневной план со смешанными карточками
   it("повторения смешанные и идут по общей очереди; удалённая карточка выпадает", async () => {
     const states = [
       stateOf(P("p1"), "2026-09-15T08:00:00Z"),
-      stateOf(C("c1"), "2026-09-12T08:00:00Z"),
+      stateOf(P("q1"), "2026-09-12T08:00:00Z"),
       stateOf(W(pool[0].id), "2026-09-14T08:00:00Z", {
         card: {
           ...createEmptyCard(new Date("2026-09-01")),
@@ -901,15 +885,14 @@ describe("дневной план со смешанными карточками
           reps: 2,
         } as LearningState["card"],
       }),
-      stateOf(C("c2"), "2026-09-13T08:00:00Z"),
+      stateOf(P("q2"), "2026-09-13T08:00:00Z"),
     ];
     const data = base({
       words: pool,
-      phrases,
-      clozes: [clozes[0], { ...clozes[1], deletedAt: iso }, ...clozes.slice(2)],
+      phrases: [...phrases, extra[0], { ...extra[1], deletedAt: iso }, ...extra.slice(2)],
       states,
     });
     const plan = await planOf(data);
-    expect(plan.reviews.map((review) => review.ref)).toEqual([W(pool[0].id), C("c1"), P("p1")]);
+    expect(plan.reviews.map((review) => review.ref)).toEqual([W(pool[0].id), P("q1"), P("p1")]);
   });
 });

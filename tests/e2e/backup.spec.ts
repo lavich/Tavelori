@@ -39,7 +39,6 @@ test("полная копия переносит слова, правки и м�
     expect.arrayContaining([
       "words",
       "phrases",
-      "clozes",
       "lessonItems",
       "packages",
       "media",

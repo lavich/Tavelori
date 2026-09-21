@@ -67,11 +67,11 @@ export const parseClock = (raw: string | null): Clock => {
 const isStandardLesson = (id: string, packages: Set<string>) => packages.has(id) || SEED_LESSON.test(id);
 /**
  * Ключи поставляемых карточек среди перечисленных: слово — по ревизии или исходному набору,
- * фраза и пропуск — по наличию записи с ревизией. Пользовательские слова в облако не уходят.
+ * фраза — по наличию записи с ревизией. Пользовательские слова в облако не уходят.
  */
 async function standardKeys(database: LexiDatabase, refs: LearningRef[]): Promise<Set<string>> {
-  const ids: Record<CardKind, string[]> = { word: [], phrase: [], cloze: [] };
-  for (const ref of refs) ids[ref.kind].push(ref.id);
+  const ids: Record<CardKind, string[]> = { word: [], phrase: [] };
+  for (const ref of refs) ids[ref.kind]?.push(ref.id);
   const keys = new Set<string>();
   if (ids.word.length)
     for (const word of await database.words.bulkGet(ids.word))
@@ -79,9 +79,6 @@ async function standardKeys(database: LexiDatabase, refs: LearningRef[]): Promis
   if (ids.phrase.length)
     for (const phrase of await database.phrases.bulkGet(ids.phrase))
       if (phrase?.revision !== undefined) keys.add(unitKey({ kind: "phrase", id: phrase.id }));
-  if (ids.cloze.length)
-    for (const cloze of await database.clozes.bulkGet(ids.cloze))
-      if (cloze?.revision !== undefined) keys.add(unitKey({ kind: "cloze", id: cloze.id }));
   return keys;
 }
 const uniqueRefs = (refs: LearningRef[]) => [...new Map(refs.map((ref) => [unitKey(ref), ref])).values()];
@@ -157,7 +154,6 @@ export const SNAPSHOT_TABLES = [
   "cardStates",
   "words",
   "phrases",
-  "clozes",
   "events",
   "settings",
   "courses",
@@ -188,10 +184,10 @@ export const readPending = async (database: LexiDatabase): Promise<PendingLesson
   }
 };
 
-/** Есть ли сохранённый прогресс фраз или пропусков: состояния, события или сводки. Само наличие их контента не считается. */
+/** Есть ли сохранённый прогресс фраз: состояния, события или сводки. Само наличие их контента не считается. */
 export async function hasMixedProgress(database: LexiDatabase): Promise<boolean> {
   const mixed = (ref: LearningRef) => ref.kind !== "word";
-  if (await database.cardStates.where("ref.kind").anyOf(["phrase", "cloze"]).count()) return true;
+  if (await database.cardStates.where("ref.kind").equals("phrase").count()) return true;
   if ((await database.cardStash.toArray()).some((row) => mixed(row.ref))) return true;
   if ((await database.cardSkills.toArray()).some((row) => mixed(row.ref))) return true;
   const base = await database.baseSummary.get("base");

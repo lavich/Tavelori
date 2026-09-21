@@ -2,7 +2,6 @@ import { db, indexWord, type LexiDatabase } from "../storage/db";
 import { reportError } from "../reporting/reporting";
 import { adoptStash } from "../sync/snapshot";
 import {
-  CLOZE_FIELDS,
   ContentError,
   parseCatalog,
   parsePackage,
@@ -10,7 +9,6 @@ import {
   SHIPPED_FIELDS,
   type Catalog,
   type ContentPackage,
-  type PackageCloze,
   type PackagePhrase,
   type PackageWord,
   type ShippedField,
@@ -20,7 +18,6 @@ import {
   defaultSchedule,
   DEFAULT_NEW_ITEMS_PER_DAY,
   type Asset,
-  type Cloze,
   type Course,
   type InstalledPackage,
   type LearningRef,
@@ -404,7 +401,7 @@ async function applyCards<
 }
 
 /**
- * Установка одной транзакцией: слова, фразы, пропуски, связи, медиа и запись пакета. Ошибка в любой карточке
+ * Установка одной транзакцией: слова, фразы, связи, медиа и запись пакета. Ошибка в любой карточке
  * откатывает всё — корректная часть отдельно не устанавливается. Убранные пользователем связи не восстанавливаются.
  */
 export async function applyPackage(pack: ContentPackage, database: LexiDatabase = db): Promise<InstallResult> {
@@ -414,7 +411,6 @@ export async function applyPackage(pack: ContentPackage, database: LexiDatabase 
     [
       database.words,
       database.phrases,
-      database.clozes,
       database.lessons,
       database.lessonItems,
       database.packages,
@@ -474,21 +470,6 @@ export async function applyPackage(pack: ContentPackage, database: LexiDatabase 
         now,
         result,
       );
-      await applyCards<PackageCloze, Cloze>(
-        pack.clozes,
-        new Map((installed?.clozes ?? []).map((cloze) => [cloze.id, cloze])),
-        CLOZE_FIELDS,
-        "cloze",
-        (card) => card.template,
-        database.clozes,
-        (card, at) => {
-          const { revision, ...rest } = card;
-          return { ...rest, createdAt: at, updatedAt: at, revision };
-        },
-        (row) => row,
-        now,
-        result,
-      );
       const removed = new Set(installed?.removed ?? []);
       const incoming = new Set<string>();
       for (const item of pack.items) {
@@ -516,7 +497,6 @@ export async function applyPackage(pack: ContentPackage, database: LexiDatabase 
         installedAt: now,
         words: pack.words,
         phrases: pack.phrases,
-        clozes: pack.clozes,
         items: pack.items,
         media: pack.media,
         removed: [...removed],
@@ -526,7 +506,6 @@ export async function applyPackage(pack: ContentPackage, database: LexiDatabase 
       await adoptStash(database, pack.id, [
         ...pack.words.map((word) => wordRef(word.id)),
         ...pack.phrases.map((p) => ({ kind: "phrase" as const, id: p.id })),
-        ...pack.clozes.map((c) => ({ kind: "cloze" as const, id: c.id })),
       ]);
       return result;
     },

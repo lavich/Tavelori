@@ -6,7 +6,7 @@ import { GREEK_VOICE, installLessons, ready, readTable, seedMixedLesson, setCour
 import { onlyReviews, openTelegram, tg } from "./telegram";
 
 /**
- * Смешанный урок из непубликуемой фикстуры: слова, фразы и задания с пропуском в одном занятии.
+ * Смешанный урок из непубликуемой фикстуры: слова и фразы в одном занятии.
  * Урок кладётся в базу как установленный пакет; реальный каталог его не содержит.
  * Голос браузера подменяется явно: доступность аудирования фразы не должна зависеть от набора голосов машины.
  */
@@ -16,16 +16,16 @@ const NO_VOICE = `Object.defineProperty(window,'speechSynthesis',{configurable:t
 
 const tomorrow = () => new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const today = () => new Date().toISOString().slice(0, 10);
-/** Канонические ответы фикстуры: тест вводит их сам, из интерфейса до ответа они недоступны. */
-const ANSWERS: Record<string, string> = {
-  "ένα γράμμα.": "Γράφω",
-  "Γράφω ένα": "γράμμα",
-  "Το βουνό είναι": "ψηλό",
-  "Το παιδί": "παίζει",
-  "Η άνοιξη": "φέρνει",
+/** Тексты фикстуры: письменный ответ вводится целиком, из интерфейса до ответа он недоступен. */
+const TEXTS: Record<string, string> = {
+  "Я пишу письмо.": "Γράφω ένα γράμμα.",
+  "Гора высокая.": "Το βουνό είναι ψηλό.",
+  "Ребёнок играет в парке.": "Το παιδί παίζει στο πάρκο.",
+  "Весна приносит цветы.": "Η άνοιξη φέρνει λουλούδια.",
+  "Дочь смотрит на солнце и улыбается.": "Η κόρη βλέπει τον ήλιο και χαμογελάει.",
 };
-const answerFor = (template: string) => Object.entries(ANSWERS).find(([hint]) => template.includes(hint))![1];
-const INTRO = ["Новая фраза", "Новое задание с пропуском", "Новое слово"];
+const textFor = (prompt: string) => Object.entries(TEXTS).find(([hint]) => prompt.includes(hint))?.[1];
+const INTRO = ["Новая фраза", "Новое слово"];
 /** Счётчик занятия: по нему ждём перерисовку, иначе подпись задания читается от предыдущего шага. */
 const counter = (page: Page) => page.getByLabel(/^(Знакомство|Упражнение) \d+ из \d+$/);
 const promptOf = async (page: Page) => {
@@ -56,37 +56,36 @@ async function prepare(page: Page, limit: number, options: Parameters<typeof see
   return seedMixedLesson(page, { targetDate: tomorrow(), ...options });
 }
 
-test("экран урока: группы трёх видов, просмотр карточек, непроверяемая фраза, удаление связи и нетронутый раздел «Слова»", async ({
+test("экран урока: группы двух видов, просмотр карточек, непроверяемая фраза, удаление связи и нетронутый раздел «Слова»", async ({
   page,
 }) => {
   test.setTimeout(120000);
   await page.addInitScript(NO_VOICE);
   await prepare(page, 4);
   await page.goto("/lessons/lesson-mixed");
-  await expect(page.getByTestId("composition")).toContainText("11 карточек: 1 слово · 5 фраз · 5 пропусков");
+  await expect(page.getByTestId("composition")).toContainText("7 карточек: 1 слово · 6 фраз");
   await expect(page.getByRole("heading", { name: "Слова · 1" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Фразы · 5" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Заполни пропуск · 5" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Фразы · 6" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Заполни пропуск/ })).toHaveCount(0); // снятого вида на экране нет
   // Фраза без перевода и озвучки помечена отдельно и объясняет ограничение при раскрытии.
   const silent = page.getByTestId("phrase-row").filter({ hasText: "Το φρύδι της είναι λεπτό." });
   await expect(silent.getByTestId("unavailable-badge")).toHaveText("Нет доступного упражнения");
   await silent.getByRole("button", { name: "Το φρύδι της είναι λεπτό." }).click();
   await expect(silent.getByTestId("phrase-details")).toContainText("нельзя проверить объективно");
   await expect(page.getByText("1 фраза без доступного упражнения")).toBeVisible();
-  // Просмотр пропуска: полное предложение с выделенной формой, объяснение и описание цели без перевода идентификаторов.
-  const vouno = page.getByTestId("cloze-row").filter({ hasText: "Το βουνό είναι" });
-  await vouno.getByRole("button", { name: /Το βουνό είναι/ }).click();
-  await expect(vouno.getByTestId("cloze-details")).toContainText("Прилагательное согласуется");
-  await expect(vouno.getByTestId("cloze-target")).toHaveText("Цель: adjective-form (gender: neuter, number: singular)");
+  // Просмотр фразы: перевод в подписи, примечание из материала — в раскрытии.
+  const ilios = page.getByTestId("phrase-row").filter({ hasText: "Η κόρη βλέπει τον ήλιο" });
+  await ilios.getByRole("button", { name: /Η κόρη βλέπει τον ήλιο/ }).click();
+  await expect(ilios.getByTestId("phrase-details")).toContainText("Винительный падеж");
   // Удаление связи: карточка исчезает из группы, сама карточка и запись об удалении остаются.
-  await page.getByTestId("cloze-row").filter({ hasText: "Η άνοιξη" }).getByRole("button", { name: "Убрать" }).click();
-  await expect(page.getByRole("heading", { name: "Заполни пропуск · 4" })).toBeVisible();
-  await expect(page.getByTestId("composition")).toContainText("10 карточек");
-  expect((await readTable(page, "clozes")).some((row) => row.id === "c-anoixi")).toBe(true);
+  await page.getByTestId("phrase-row").filter({ hasText: "Η άνοιξη" }).getByRole("button", { name: "Убрать" }).click();
+  await expect(page.getByRole("heading", { name: "Фразы · 5" })).toBeVisible();
+  await expect(page.getByTestId("composition")).toContainText("6 карточек");
+  expect((await readTable(page, "phrases")).some((row) => row.id === "p-anoixi")).toBe(true);
   expect((await readTable(page, "packages")).find((row) => row.lessonId === "lesson-mixed").removed).toEqual([
-    JSON.stringify(["cloze", "c-anoixi"]),
+    JSON.stringify(["phrase", "p-anoixi"]),
   ]);
-  // Раздел «Слова» остаётся словарём слов: фразы и пропуски туда не попадают.
+  // Раздел «Слова» остаётся словарём слов: фразы туда не попадают.
   await page.getByRole("navigation").getByRole("link", { name: "Слова" }).click();
   await page.getByRole("searchbox").fill("Γράφω ένα");
   await expect(page.getByTestId("word-count")).toHaveText("0 слов");
@@ -95,9 +94,7 @@ test("экран урока: группы трёх видов, просмотр 
   await expect(page.getByTestId("word-count")).toHaveText("1 слово");
 });
 
-test("при системном голосе фраза без перевода проверяема, а предложение пропуска озвучивается только после ответа", async ({
-  page,
-}) => {
+test("при системном голосе фраза без перевода проверяема аудированием", async ({ page }) => {
   test.setTimeout(150000);
   await page.addInitScript(GREEK_VOICE);
   await prepare(page, 4);
@@ -105,24 +102,14 @@ test("при системном голосе фраза без перевода 
   const silent = page.getByTestId("phrase-row").filter({ hasText: "Το φρύδι της είναι λεπτό." });
   await expect(silent.getByTestId("unavailable-badge")).toHaveCount(0);
   await expect(page.getByText("без доступного упражнения")).toHaveCount(0);
-  // Ручная тренировка группы пропусков: знакомства, затем проверка.
-  await page.getByTestId("group-cloze").getByRole("button", { name: "Потренировать группу" }).click();
+  // Ручная тренировка группы фраз начинается: знакомства, затем проверки.
+  await page.getByTestId("group-phrase").getByRole("button", { name: "Потренировать группу" }).click();
   await page.waitForURL("**/session");
-  for (let step = 0; step < 8; step++) {
-    if ((await promptOf(page)) !== "Новое задание с пропуском") break;
+  for (let step = 0; step < 10; step++) {
+    if ((await promptOf(page)) !== "Новая фраза") break;
     await advance(page);
   }
-  await expect(page.getByTestId("prompt").first()).toHaveText("Заполни пропуск");
-  const answer = answerFor(await page.getByTestId("cloze-template").innerText());
-  const spoken = () => page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken);
-  // До ответа озвучки предложения нет ни кнопкой, ни звуком.
-  await expect(page.getByRole("button", { name: "Послушать предложение" })).toHaveCount(0);
-  expect(await spoken()).toEqual([]);
-  await page.getByTestId("cloze-input").fill(answer);
-  await page.getByRole("button", { name: "Проверить" }).click();
-  await expect(page.getByTestId("feedback")).toContainText("Правильно");
-  await page.getByRole("button", { name: "Послушать предложение" }).click();
-  expect((await spoken()).some((text) => text.includes(answer))).toBe(true); // после ответа звучит полное предложение
+  expect(INTRO).not.toContain(await promptOf(page)); // знакомства закончились, идёт проверка
 });
 
 test("урок без слов не пуст, а группа без доступных заданий сообщает об этом", async ({ page }) => {
@@ -134,13 +121,18 @@ test("урок без слов не пуст, а группа без досту�
   await seedMixedLesson(page, {
     lessonId: "lesson-text",
     title: "Только фразы",
-    only: ["p-grafo", "c-gramma", "p-silent"],
+    only: ["p-grafo", "p-silent"],
   });
   await page.goto("/lessons/lesson-text");
-  await expect(page.getByTestId("composition")).toContainText("3 карточки: 2 фразы · 1 пропуск");
+  await expect(page.getByTestId("composition")).toContainText("2 карточки: 2 фразы");
   await expect(page.getByRole("heading", { name: /^Слова ·/ })).toHaveCount(0);
   await expect(page.getByText("В наборе пока нет карточек")).toHaveCount(0);
+  // Пока в группе есть проверяемая фраза, тренировка начинается.
+  await page.getByTestId("group-phrase").getByRole("button", { name: "Потренировать группу" }).click();
+  await page.waitForURL("**/session");
+  await expect(page.getByTestId("prompt").first()).toHaveText(/Новая фраза|Что значит эта фраза\?|Напиши по-гречески/);
   // Группа из одной непроверяемой фразы: тренировка не начинается, сообщение на месте.
+  await page.goto("/lessons/lesson-text");
   await page
     .getByTestId("phrase-row")
     .filter({ hasText: "Γράφω ένα γράμμα." })
@@ -150,16 +142,12 @@ test("урок без слов не пуст, а группа без досту�
   await page.getByTestId("group-phrase").getByRole("button", { name: "Потренировать группу" }).click();
   await expect(page.getByRole("alert")).toContainText("В группе «Фразы» нет доступных заданий");
   await expect(page).toHaveURL(/\/lessons\/lesson-text$/);
-  // Тренировка группы с доступным заданием начинает занятие.
-  await page.getByTestId("group-cloze").getByRole("button", { name: "Потренировать группу" }).click();
-  await page.waitForURL("**/session");
-  await expect(page.getByTestId("prompt").first()).toHaveText(/Заполни пропуск|Новое задание с пропуском/);
   // Список уроков считает карточки, а не слова.
   await page.goto("/lessons");
-  await expect(page.getByRole("link", { name: /Только фразы/ })).toContainText("2 карточки");
+  await expect(page.getByRole("link", { name: /Только фразы/ })).toContainText("1 карточка");
 });
 
-test("занятие: знакомство с фразой и пропуском, проверка без утечки ответа, Enter, «Не знаю» и продолжение после перезапуска без сети", async ({
+test("занятие: знакомство с фразой, «Не знаю» с дополнительной попыткой и продолжение после перезапуска без сети", async ({
   page,
   context,
 }) => {
@@ -179,78 +167,48 @@ test("занятие: знакомство с фразой и пропуском
     if (!INTRO.includes(prompt)) break;
     intros.push(prompt);
     if (prompt === "Новая фраза") await expect(page.getByTestId("phrase-text")).toBeVisible();
-    if (prompt === "Новое задание с пропуском") {
-      // На знакомстве пропуск показан полным примером с выделенной формой.
-      const example = await page.getByTestId("cloze-example").innerText();
-      expect(Object.values(ANSWERS).some((answer) => example.includes(answer))).toBe(true);
-    }
     await expect(page.getByLabel(/^Знакомство \d+ из \d+$/)).toBeVisible();
     await advance(page);
   }
-  expect(intros).toEqual(expect.arrayContaining(["Новая фраза", "Новое задание с пропуском", "Новое слово"]));
+  expect(intros).toEqual(expect.arrayContaining(["Новая фраза"]));
 
   const seen = new Set<string>();
-  let wrong = false,
-    skipped = false,
-    restarted = false,
-    chosen = false;
+  let skipped = false,
+    restarted = false;
   for (let step = 0; step < 40; step++) {
     if (await page.getByRole("heading", { name: "Занятие завершено" }).isVisible()) break;
     const prompt = await promptOf(page);
     seen.add(prompt);
-    if (prompt === "Заполни пропуск") {
-      const template = await page.getByTestId("cloze-template").innerText();
-      const answer = answerFor(template);
-      const choices = page.getByTestId("cloze-option");
-      // Ни у одного вида пропуска до ответа нет полного предложения, объяснения и озвучки.
-      await expect(page.getByRole("button", { name: "Послушать предложение" })).toHaveCount(0);
-      await expect(page.getByTestId("cloze-explanation")).toHaveCount(0);
-      if (await choices.count()) {
-        // Дополнительная попытка после ошибки: четыре готовых ответа вместо поля ввода.
-        await expect(choices).toHaveCount(4);
-        await expect(page.getByTestId("cloze-input")).toHaveCount(0);
-        chosen = true;
-        await choices.filter({ hasText: answer }).first().click();
-        await expect(page.getByTestId("feedback")).toContainText("Правильно");
-      } else {
-        // Свободный ввод: правильной формы нет ни в тексте, ни в разметке, включая подписи для экранного диктора.
-        expect(await page.locator("main").innerText()).not.toContain(answer);
-        expect(await page.locator("main").innerHTML()).not.toContain(answer);
-        const input = page.getByTestId("cloze-input");
-        await expect(input).toBeInViewport();
-        await expect(page.getByRole("button", { name: "Проверить" })).toBeDisabled(); // пустой ввод не проверяется
-        if (!wrong) {
-          await input.fill("λάθος");
-          await input.press("Enter"); // Enter отправляет ответ
-          await expect(page.getByTestId("feedback")).toContainText("Пока не получилось");
-          wrong = true;
-        } else if (!skipped) {
-          await page.getByRole("button", { name: "Не знаю", exact: true }).click();
-          await expect(page.getByTestId("feedback")).toContainText("Правильная форма");
-          skipped = true;
-        } else {
-          await input.fill(answer);
-          await page.getByRole("button", { name: "Проверить" }).click();
-          await expect(page.getByTestId("feedback")).toContainText("Правильно");
-        }
+    // Тип упражнения выбирает планировщик, поэтому сценарий не зависит от него: «Не знаю» есть у каждого задания.
+    if (!skipped) {
+      await page.getByRole("button", { name: "Не знаю", exact: true }).click();
+      // Раскрытие выглядит по-разному: в выборе — отмеченный вариант, в письме — плашка исхода.
+      await expect(page.getByTestId("feedback").or(page.locator("[data-answer]").first())).toBeVisible();
+      skipped = true;
+    } else if (prompt === "Напиши по-гречески") {
+      const asked = await page.locator("main").innerText();
+      const expected = textFor(asked);
+      const input = page.getByLabel("Твой ответ по-гречески");
+      if (expected) {
+        // Письменный ответ фразы: правильного написания нет ни в тексте, ни в разметке — только маска длины.
+        expect(asked).not.toContain(expected);
+        expect(await page.locator("main").innerHTML()).not.toContain(expected);
       }
-      // После сохранения доступно полное предложение; без файла и голоса озвучка честно недоступна.
-      await expect(page.getByTestId("cloze-sentence")).toContainText(answer);
-      await expect(page.getByText("Озвучка недоступна: нет файла и греческого голоса")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Проверить" })).toBeDisabled(); // пустой ввод не проверяется
+      await input.fill(expected ?? "λάθος");
+      await input.press("Enter"); // Enter отправляет ответ
+      await expect(page.getByTestId("feedback")).toBeVisible();
+      await expect(page.getByTestId("reveal")).toBeVisible(); // после ответа материал раскрыт
     } else if (prompt === "Что значит эта фраза?" || prompt === "Что значит это слово?") {
       await page.getByTestId("option").and(page.locator(":not([disabled])")).first().click();
       await expect(page.locator("[data-answer]").first()).toBeVisible();
-    } else if (prompt === "Напиши по-гречески") {
-      await page.getByLabel("Твой ответ по-гречески").fill("λάθος");
-      await page.getByRole("button", { name: "Проверить" }).click();
-      await expect(page.getByTestId("feedback")).toBeVisible();
     } else if (prompt === "Собери слово") {
       for (const tile of await page.getByTestId("tile").all()) await tile.click();
       await page.getByRole("button", { name: "Проверить" }).click();
       await expect(page.getByTestId("feedback")).toBeVisible();
     } else throw new Error(`Неожиданное задание: ${prompt}`);
     await expect(page.getByRole("button", { name: "Далее", exact: true })).toBeVisible();
-    if (wrong && !restarted) {
+    if (skipped && !restarted) {
       // Перезапуск без сети: сохранённые ответы не запрашиваются снова, знакомства не повторяются.
       restarted = true;
       const answered = (await readTable(page, "events")).length;
@@ -267,18 +225,23 @@ test("занятие: знакомство с фразой и пропуском
     }
     await advance(page);
   }
-  expect([...seen]).toEqual(expect.arrayContaining(["Заполни пропуск", "Что значит эта фраза?"]));
-  expect(wrong && skipped && restarted).toBe(true);
-  expect(chosen).toBe(true); // ошибка в пропуске дала попытку с вариантами, и она была пройдена
+  expect(seen.size).toBeGreaterThan(0);
+  expect(skipped && restarted).toBe(true);
   await expect(page.getByRole("heading", { name: "Занятие завершено" })).toBeVisible();
-  await expect(page.getByTestId("composition")).toContainText("пропуск");
-  await expect(page.getByText(/Объективная точность .*пропуск/)).toBeVisible();
+  await expect(page.getByTestId("composition")).toContainText("фраз");
 
-  // Ответы сохранены, сроки независимы: ошибка в пропуске не сдвинула слово и другой пропуск того же предложения.
+  // Ответы сохранены, сроки независимы: ошибка не сдвинула остальные карточки.
   const events = await readTable(page, "events");
-  const failed = events.find((item) => item.ref.kind === "cloze" && item.answer === "λάθος");
-  expect(failed.snapshot.template).toContain("{{gap}}");
-  expect(failed.snapshot.answer).toBeTruthy();
+  const failed = events.find((item) => item.correct === false);
+  expect(failed.snapshot.text ?? failed.snapshot.greek).toBeTruthy();
+  // Каждая ошибка добавила дополнительную попытку своей карточки, и не больше одной на карточку.
+  const session = (await readTable(page, "sessions")).find((row) =>
+    row.items.some((i: { retryOf?: string }) => i.retryOf),
+  );
+  const retries = session.items.filter((item: { retryOf?: string }) => item.retryOf);
+  expect(retries.length).toBeGreaterThan(0);
+  expect(retries.every((item: { mode: string }) => item.mode === "practice")).toBe(true);
+  expect(new Set(retries.map((item: { retryOf: string }) => item.retryOf)).size).toBe(retries.length);
   const states = await readTable(page, "cardStates");
   const due = (key: string) => new Date(states.find((state) => state.unitKey === key).card.due).getTime();
   const others = states.filter((state) => state.unitKey !== failed.unitKey);
@@ -303,13 +266,6 @@ test("полная копия переносит смешанный урок с 
     }
     // Копия должна содержать начатое занятие: последнее незакрытое задание остаётся без ответа.
     if (await lastUnanswered(page)) break;
-    if (prompt === "Заполни пропуск") {
-      const answer = answerFor(await page.getByTestId("cloze-template").innerText());
-      await page.getByTestId("cloze-input").fill(answer);
-      await page.getByRole("button", { name: "Проверить" }).click();
-      await expect(page.getByTestId("feedback")).toContainText("Правильно");
-      break;
-    }
     if (await page.getByTestId("option").first().isVisible()) {
       await page.getByTestId("option").first().click();
       await expect(page.locator("[data-answer]").first()).toBeVisible();
@@ -347,15 +303,14 @@ test("полная копия переносит смешанный урок с 
   writeFileSync(file, readFileSync(await download.path()));
   const parsed = JSON.parse(readFileSync(file, "utf8"));
   const rows = (name: string) => parsed.data.data.find((table: { tableName: string }) => table.tableName === name).rows;
-  // Считаем карточки самого смешанного урока, а не всю базу: в каталоге могут быть и свои фразы с пропусками.
+  // Считаем карточки самого смешанного урока, а не всю базу: в каталоге есть и свои фразы.
   const linked = rows("lessonItems").filter((row: { lessonId: string }) => row.lessonId === "lesson-mixed") as {
     ref: { kind: string; id: string };
   }[];
   const ofMixed = (name: string, kind: string) =>
     rows(name).filter((row: { id: string }) => linked.some((link) => link.ref.kind === kind && link.ref.id === row.id));
-  expect(linked).toHaveLength(11);
-  expect(ofMixed("phrases", "phrase")).toHaveLength(5);
-  expect(ofMixed("clozes", "cloze")).toHaveLength(5);
+  expect(linked).toHaveLength(7);
+  expect(ofMixed("phrases", "phrase")).toHaveLength(6);
   expect(rows("sessions").some((row: { status: string }) => row.status === "active")).toBe(true);
   await source.close();
 
@@ -375,8 +330,8 @@ test("полная копия переносит смешанный урок с 
   ]);
   await expect(fresh.getByText("Данные восстановлены полностью.")).toBeVisible();
   await fresh.goto("/lessons/lesson-mixed");
-  await expect(fresh.getByTestId("composition")).toContainText("11 карточек: 1 слово · 5 фраз · 5 пропусков");
-  await expect(fresh.getByRole("heading", { name: "Заполни пропуск · 5" })).toBeVisible();
+  await expect(fresh.getByTestId("composition")).toContainText("7 карточек: 1 слово · 6 фраз");
+  await expect(fresh.getByRole("heading", { name: "Фразы · 6" })).toBeVisible();
   expect((await readTable(fresh, "events")).length).toBe(events);
   expect((await readTable(fresh, "cardStates")).length).toBe(states);
   await fresh.goto("/");
@@ -385,7 +340,7 @@ test("полная копия переносит смешанный урок с 
   await clean.close();
 });
 
-test("внутри Telegram: возврат из свёрнутого клиента не сбрасывает задание с пропуском, нативный «Назад» выходит с сохранением", async ({
+test("внутри Telegram: возврат из свёрнутого клиента не сбрасывает задание фразы, нативный «Назад» выходит с сохранением", async ({
   page,
 }) => {
   test.setTimeout(150000);
@@ -395,22 +350,33 @@ test("внутри Telegram: возврат из свёрнутого клиен
   const TG_DB = "lexi-tg-TaveloriBot-1001";
   await onlyReviews(page);
   await setCourseLimit(page, "leeke", 2, TG_DB);
-  await seedMixedLesson(page, { targetDate: today(), only: ["c-grafo", "c-gramma"], databaseName: TG_DB });
+  await seedMixedLesson(page, { targetDate: today(), only: ["p-grafo", "p-vouno"], databaseName: TG_DB });
   await page.getByRole("button", { name: /Начать занятие/ }).click();
   await page.waitForURL("**/session");
-  for (let step = 0; step < 6; step++) {
-    if ((await promptOf(page)) !== "Новое задание с пропуском") break;
+  // Знакомства проходим, дальше берём первое же задание: тип выбирает планировщик.
+  for (let step = 0; step < 8; step++) {
+    if (!INTRO.includes(await promptOf(page))) break;
     await advance(page);
   }
-  await expect(page.getByTestId("prompt").first()).toHaveText("Заполни пропуск");
-  await page.getByTestId("cloze-input").fill("γρά");
+  const prompt = await promptOf(page);
+  const label = await counter(page).getAttribute("aria-label");
+  const input = page.getByLabel("Твой ответ по-гречески");
+  const typed = await input.count();
+  if (typed) await input.fill("γρά");
   const bridge = tg(page);
   await bridge.deactivate();
   await bridge.activate(700);
-  await expect(page.getByTestId("cloze-input")).toHaveValue("γρά"); // возврат из Telegram не сбросил ввод
-  await page.getByTestId("cloze-input").press("Enter");
-  await expect(page.getByTestId("feedback")).toBeVisible();
+  // Возврат из Telegram не сбросил задание: та же позиция, та же подпись, набранное на месте.
+  await expect(counter(page)).toHaveAttribute("aria-label", label!);
+  expect(await page.getByTestId("prompt").first().innerText()).toBe(prompt);
+  if (typed) {
+    await expect(input).toHaveValue("γρά");
+    await input.press("Enter");
+  } else {
+    await page.getByTestId("option").and(page.locator(":not([disabled])")).first().click();
+  }
+  await expect(page.getByTestId("feedback").or(page.locator("[data-answer]").first())).toBeVisible();
   await bridge.back();
   await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
-  expect((await readTable(page, "events", TG_DB)).filter((row) => row.ref.kind === "cloze")).toHaveLength(1);
+  expect((await readTable(page, "events", TG_DB)).filter((row) => row.ref.kind === "phrase")).toHaveLength(1);
 });
