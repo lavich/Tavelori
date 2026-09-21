@@ -25,10 +25,11 @@ const assemblyItem=():SessionItem=>({...wordItem(),id:'i4',type:'assembly',optio
 
 let root:Root|null=null, container:HTMLElement|null=null;
 let answers=0;
-beforeEach(()=>{answers=0});
+let sent:Array<{text:string;status?:string}>=[];
+beforeEach(()=>{answers=0;sent=[]});
 afterEach(()=>{act(()=>root?.unmount());container?.remove();root=null;container=null});
 
-const onAnswer=async()=>{answers++;return true};
+const onAnswer=async(answer:{text:string;status?:string})=>{answers++;sent.push(answer);return true};
 const show=async(element:React.ReactElement)=>{
  container=document.body.appendChild(document.createElement('div'));
  root=createRoot(container);
@@ -153,6 +154,13 @@ describe('подсказка длины ответа',()=>{
   expect((host.querySelector('input') as HTMLInputElement).value).toBe('σπίτι');
   expect(shown(host)).toBe('σπίτι σ____');
   expect(caret(host)).toEqual({word:0,at:5});
+ });
+ it('ответ не по маске проверяется по прежним правилам',async()=>{
+  const host=await showSpelling(wordItem());
+  await type(host,'σπίτι');
+  await press(button(host,'Проверить'));
+  expect(sent).toEqual([{correct:false,text:'σπίτι',status:'almost'}]);
+  expect(host.querySelector('[data-testid="feedback"]')!.textContent).toContain('Почти');
  });
  it('после очистки поля маска возвращается прежней',async()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));
