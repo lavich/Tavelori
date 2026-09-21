@@ -77,31 +77,71 @@ export function splitWriting(greek:string):SyllableWriting{
  return {article,tokens,syllables:tokens.flat()};
 }
 
-/** Восстанавливает написание, сохраняя исходные границы токенов и пробел после артикля. */
-export function restoreWriting(greek:string,ordered:string[]):string{
- const writing=splitWriting(greek);
+/** Раскладывает выложенные слоги по границам токенов исходного написания. */
+function restoreTokens(writing:SyllableWriting,ordered:string[]):string{
  let offset=0;
- const tokens=writing.tokens.map(token=>{
+ return writing.tokens.map(token=>{
   const restored=ordered.slice(offset,offset+token.length).join('');
   offset+=token.length;
   return restored;
- });
- return [writing.article,...tokens].filter((part):part is string=>part!==null).join(' ').normalize('NFC').trim();
+ }).join(' ');
+}
+
+/** Восстанавливает написание, сохраняя исходные границы токенов и пробел после артикля. */
+export function restoreWriting(greek:string,ordered:string[]):string{
+ const writing=splitWriting(greek);
+ return [writing.article,restoreTokens(writing,ordered)].filter((part):part is string=>part!==null).join(' ').normalize('NFC').trim();
+}
+
+/** Восстанавливает написание из выложенных плиток: у слова с артиклем первая плитка занимает место артикля. */
+export function restoreAssembly(greek:string,ordered:string[]):string{
+ const writing=splitWriting(greek);
+ if(!writing.article)return restoreWriting(greek,ordered);
+ return [ordered[0]??'',restoreTokens(writing,ordered.slice(1))].join(' ').normalize('NFC').trim();
 }
 
 /** Плитки упражнения содержат только слоги самого слова, без артикля. */
 export const tiles=(greek:string):string[]=>splitWriting(greek).syllables;
 
-/** Старые сессии хранили артикль среди вариантов; убираем его, только если он лишний: слог тоже может писаться как артикль (το φρού-το). */
+export const ASSEMBLY_MESSAGES={
+ correct:'Правильно!',
+ almost:'Почти! Проверь артикль.',
+ wrong:'Пока не сходится — посмотри написание.',
+ wrongOrder:'Пока не сходится — посмотри порядок слогов.',
+ skipped:'Правильное написание:',
+ skippedOrder:'Правильный порядок слогов:',
+} as const;
+
+/** Подпись после «Не знаю»: у слова с артиклем показывается написание целиком, у слова без — порядок слогов. */
+export const assemblySkipMessage=(greek:string)=>splitWriting(greek).article?ASSEMBLY_MESSAGES.skipped:ASSEMBLY_MESSAGES.skippedOrder;
+
+const sameParts=(left:string[],right:string[])=>left.length===right.length&&left.every((part,index)=>part.normalize('NFC')===right[index].normalize('NFC'));
+
+/** Ошибка только в артикле: убрать одно его вхождение не с первой позиции — и слоги встают в верном порядке. */
+function articleMisplaced(writing:SyllableWriting,ordered:string[]):boolean{
+ const article=writing.article?.normalize('NFC');
+ if(!article)return false;
+ return ordered.some((tile,index)=>index>0&&tile.normalize('NFC')===article
+  &&sameParts(ordered.filter((_,position)=>position!==index),writing.syllables));
+}
+
+/** Проверка сборки: «Почти» — когда слоги стоят верно, а промах только в позиции артикля. */
+export function checkAssembly(greek:string,ordered:string[]):{status:'correct'|'almost'|'wrong';answer:string;message:string}{
+ const writing=splitWriting(greek);
+ const answer=restoreAssembly(greek,ordered);
+ if(answer===greek.normalize('NFC').trim())return {status:'correct',answer,message:ASSEMBLY_MESSAGES.correct};
+ if(articleMisplaced(writing,ordered))return {status:'almost',answer,message:ASSEMBLY_MESSAGES.almost};
+ return {status:'wrong',answer,message:writing.article?ASSEMBLY_MESSAGES.wrong:ASSEMBLY_MESSAGES.wrongOrder};
+}
+
+/** Сессии после place-article-in-assembly хранили пул без артикля; добавляем плитку, только если её не хватает: слог тоже может писаться как артикль (το φρού-το). */
 export function assemblyOptions(greek:string,options:string[]):string[]{
  const {article,syllables}=splitWriting(greek);
  if(!article)return options;
  const matches=(value:string)=>value.normalize('NFC')===article;
- const expected=syllables.filter(matches).length;
+ const expected=syllables.filter(matches).length+1;
  const present=options.filter(matches).length;
- if(present<=expected)return options;
- const articleIndex=options.findIndex(matches);
- return options.filter((_,index)=>index!==articleIndex);
+ return present>=expected?options:[article,...options];
 }
 
 /** Человекочитаемая запись правильного ответа: артикль · сло-ги. */

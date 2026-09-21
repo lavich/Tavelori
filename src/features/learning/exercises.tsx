@@ -5,7 +5,7 @@ import type {Cloze, Phrase, SessionCard, SessionItem, Word} from '../../domain/t
 import {checkAnswer} from '../../domain/import';
 import {checkTextAnswer, fillGap, splitTemplate, type TextAnswerResult} from '../../domain/cloze';
 import {diffChars} from '../../domain/spelling';
-import {agreedMask, assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitWriting, type MaskSymbol, type WritingMask} from '../../domain/syllables';
+import {agreedMask, assemblyOptions, assemblySkipMessage, checkAssembly, formatSyllables, maskWriting, type MaskSymbol, type WritingMask} from '../../domain/syllables';
 import {playText, playWord, useAudioKind, useTextAudioKind} from '../../shared/audio';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from '../words/WordCardView';
 import ui from '../../shared/ui.module.css';
@@ -303,25 +303,22 @@ export function Comprehension(props:Props&{autoSpeak?:boolean}){
  */
 export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak?:boolean}){
  const [placed,setPlaced]=useState<number[]>([]);
- const [result,setResult]=useState<'correct'|'wrong'|'skipped'|null>(null);
+ const [result,setResult]=useState<{status:'correct'|'almost'|'wrong';message:string;skipped?:boolean}|null>(null);
  const [saving,setSaving]=useState(false);
  useEffect(()=>{setPlaced([]);setResult(null);setSaving(false)},[item.id]);
  const revealed=useRevealed(!!result);
  const word=wordOf(item.card);
  useRevealSpeech(item.card,item.id,!!result,autoSpeak);
- const writing=splitWriting(word.greek);
  const pool=assemblyOptions(word.greek,item.options);
- const ordered=placed.map(index=>pool[index]);
- const answer=restoreWriting(word.greek,ordered);
  const complete=placed.length===pool.length;
 
  const check=async(skip=false)=>{
   if((!complete&&!skip)||result||saving)return;
-  const right=!skip&&answer.normalize('NFC').trim()===word.greek.normalize('NFC').trim();
+  const checked=checkAssembly(word.greek,placed.map(index=>pool[index]));
   setSaving(true);
-  const saved=await onAnswer({correct:right,text:skip?'':answer});
+  const saved=await onAnswer(skip?{correct:false,text:''}:{correct:checked.status==='correct',text:checked.answer,status:checked.status});
   setSaving(false);
-  if(saved)setResult(skip?'skipped':right?'correct':'wrong');
+  if(saved)setResult(skip?{status:'wrong',message:assemblySkipMessage(word.greek),skipped:true}:checked);
  };
  return (
   <>
@@ -329,15 +326,14 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
     <p className={s.prompt} data-testid="prompt">Собери слово</p>
     {!result&&(
      <>
-      {writing.article&&<p className={s.prompt} data-testid="article-hint">Слово дано с артиклем</p>}
       <p className={wordCss.greek} style={{margin:'6px 0'}}>{word.russian}</p>
       <WordArt word={word}/>
      </>
     )}
     {result&&(
      <div style={{width:'100%'}} ref={revealed}>
-      <div data-testid="feedback" className={cx(s.feedback, result==='correct'?s.ok:s.bad)} style={{marginTop:0}}>
-       <div>{result==='correct'?'Правильно!':result==='skipped'?(writing.article?'Правильное написание:':'Правильный порядок слогов:'):(writing.article?'Пока не сходится — посмотри написание.':'Пока не сходится — посмотри порядок слогов.')}</div>
+      <div data-testid="feedback" className={cx(s.feedback, result.status==='correct'?s.ok:result.status==='almost'?s.almost:s.bad)} style={{marginTop:0}}>
+       <div>{result.message}</div>
        <p className="m-0 mt-1.5 text-[19px]">{formatSyllables(word.greek)}</p>
       </div>
       <div data-testid="reveal" className="mt-3.5 flex w-full flex-col items-center gap-3.5"><WordReveal word={word} speak/></div>
@@ -347,7 +343,6 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
    <div className={s.dock}>
     {!result&&<>
     <div className={s.slots} aria-label="Собранное слово" data-testid="assembled">
-     {writing.article&&<span className={s.article} data-testid="fixed-article"><span>Артикль</span>{writing.article}</span>}
      {placed.length===0
       ?<span className={s.slotsHint}>Нажимай слоги по порядку</span>
       :placed.map((index,position)=>(
