@@ -42,7 +42,18 @@ const button=(host:HTMLElement,text:string)=>Array.from(host.querySelectorAll('b
 const mask=(host:HTMLElement)=>host.querySelector('[data-testid="answer-mask"]');
 /** Читаемая запись маски: пустая ячейка — подчёркивание, показанный знак — сам знак, пробел — граница группы. */
 const shown=(host:HTMLElement)=>Array.from(mask(host)!.querySelectorAll('[data-testid="mask-word"]'))
- .map(group=>Array.from(group.children).map(cell=>cell.textContent||'_').join('')).join(' ');
+ .map(group=>Array.from(group.children).filter(cell=>cell.tagName!=='I').map(cell=>cell.textContent||'_').join('')).join(' ');
+/** Где стоит каретка: индекс группы и позиция внутри неё, либо «промежуток» между группами. */
+const caret=(host:HTMLElement)=>{
+ const marker=mask(host)!.querySelector('[data-testid="mask-caret"]');
+ if(!marker)return null;
+ const group=marker.closest('[data-testid="mask-word"]');
+ const groups=Array.from(mask(host)!.querySelectorAll('[data-testid="mask-word"]'));
+ if(!group)return {gap:groups.findIndex(item=>item.compareDocumentPosition(marker)&Node.DOCUMENT_POSITION_PRECEDING)};
+ const cells=Array.from(group.children).filter(cell=>cell.tagName!=='I');
+ const index=cells.indexOf(marker);
+ return {word:groups.indexOf(group),at:index>=0?index:cells.length};
+};
 const note=(host:HTMLElement)=>Array.from(host.querySelectorAll('.sr-only')).map(item=>item.textContent).find(text=>text?.startsWith('Ответ из'));
 
 const type=async(host:HTMLElement,text:string)=>{
@@ -115,6 +126,34 @@ describe('подсказка длины ответа',()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));
   await type(host,'σπίτια');
   expect(shown(host)).toBe('σπίτια');
+ });
+ it('каретка видна и в пустом поле, и внутри слова',async()=>{
+  const host=await showSpelling(wordItem({greek:'σπίτι'}));
+  expect(caret(host)).toEqual({word:0,at:0});
+  await type(host,'σπ');
+  expect(caret(host)).toEqual({word:0,at:2});
+ });
+ it('когда слово набрано целиком, каретка встаёт в промежуток перед следующим',async()=>{
+  const host=await showSpelling(wordItem({greek:'η γάτα'}));
+  await type(host,'η');
+  expect(caret(host)).toEqual({gap:1});
+ });
+ it('после пробела каретка переходит в начало следующего слова',async()=>{
+  const host=await showSpelling(wordItem({greek:'η γάτα'}));
+  await type(host,'η ');
+  expect(caret(host)).toEqual({word:1,at:0});
+ });
+ it('за концом последнего слова каретка остаётся видимой',async()=>{
+  const host=await showSpelling(wordItem({greek:'σπίτι'}));
+  await type(host,'σπίτι');
+  expect(caret(host)).toEqual({word:0,at:5});
+ });
+ it('пробел не подставляется сам: ответ без артикля остаётся как набран',async()=>{
+  const host=await showSpelling(wordItem());
+  await type(host,'σπίτι');
+  expect((host.querySelector('input') as HTMLInputElement).value).toBe('σπίτι');
+  expect(shown(host)).toBe('σπίτι σ____');
+  expect(caret(host)).toEqual({gap:1});
  });
  it('после очистки поля маска возвращается прежней',async()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));

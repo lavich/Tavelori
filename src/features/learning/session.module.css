@@ -55,6 +55,8 @@
 .maskLetter{min-width:.8em;height:1.15em;border-bottom:2px solid currentColor;text-align:center}
 .maskLead{color:var(--muted-foreground);opacity:.75}
 .maskTyped{color:var(--foreground);border-color:var(--foreground)}
+/* Метка каретки за концом слова и в промежутке перед следующим: без линии, чтобы не выглядеть лишней буквой. */
+.maskGap{display:block;width:.35em;height:1.15em}
 /* Каретка рисуется сама: собственная каретка поля стоит по скрытому тексту и в ячейки не попадает. */
 .field:focus-within .maskCaret{animation:caret 1.1s step-end infinite}
 @keyframes caret{0%,50%{box-shadow:inset 2px 0 0 -1px var(--primary)}50.01%,100%{box-shadow:none}}

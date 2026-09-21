@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {Fragment, useEffect, useRef, useState} from 'react';
 import {Button} from '@/components/ui/button';
 import {Check, Volume2, X} from 'lucide-react';
 import type {Cloze, Phrase, SessionCard, SessionItem, Word} from '../../domain/types';
@@ -384,6 +384,10 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
  * «ηγάτα» выглядело бы как «η γάτα», хотя пробела в ответе нет и проверка засчитает пропуск. Маска показывает
  * ровно то, что лежит в поле.
  *
+ * Каретка не исчезает никогда: когда ячейки слова кончились, она встаёт в промежуток перед следующим словом и
+ * тем показывает, что дальше пробел. Сам пробел не подставляется: ответ без артикля — разрешённый ответ со
+ * своим исходом «Почти», и подстановка превратила бы его в искажённую ошибку.
+ *
  * Поле при этом ничего не ограничивает: ответить короче, длиннее и без артикля по-прежнему можно.
  * Диктору маска отдаётся числом слов и букв и открытыми буквами: разрывов между группами он не видит.
  */
@@ -396,26 +400,42 @@ function AnswerMask({mask,value}:{mask:WritingMask|null;value:string}){
  const count=withCount(letters,['буквы','букв','букв']);
  const words=groups.length>1?`${withCount(groups.length,['слова','слов','слов'])}, `:'';
  const first=leads.length>1?`, первые буквы ${leads.join(', ')}`:leads.length?`, первая ${leads[0]}`:'';
+ const at=(index:number,offset:number)=>index===caret.word&&offset===caret.at;
+ const marker=(key:string)=><i key={key} className={cx(s.maskGap, s.maskCaret)} data-testid="mask-caret"/>;
  const cell=(text:string|undefined,kind:'typed'|'lead'|'empty',key:number,current:boolean)=>(
-  <b key={key} className={cx(s.maskLetter, kind==='typed'&&s.maskTyped, kind==='lead'&&s.maskLead, current&&s.maskCaret)}>{text}</b>
+  <b key={key} className={cx(s.maskLetter, kind==='typed'&&s.maskTyped, kind==='lead'&&s.maskLead, current&&s.maskCaret)}
+   data-testid={current?'mask-caret':undefined}>{text}</b>
  );
- /** Слово набора в ячейках своей группы: что не поместилось — следом за ними. */
- const word=(group:MaskSymbol[],text:string,index:number)=>[
-  ...group.map((symbol,at)=>{
-   const char=text[at];
-   const current=index===caret.word&&at===caret.at;
-   return symbol.kind==='mark'
-    ?<span key={at} className={cx(char&&s.maskTyped, current&&s.maskCaret)}>{char??symbol.char}</span>
-    :cell(char??(symbol.kind==='lead'?symbol.char:undefined),char?'typed':symbol.kind==='lead'?'lead':'empty',at,current);
-  }),
-  ...[...text.slice(group.length)].map((char,at)=>cell(char,'typed',group.length+at,index===caret.word&&group.length+at===caret.at)),
- ];
+ /** Слово набора в ячейках своей группы: что не поместилось — следом за ними, каретка за концом — отдельной меткой. */
+ const word=(group:MaskSymbol[],text:string,index:number)=>{
+  const over=[...text.slice(group.length)];
+  const past=at(index,group.length+over.length);
+  return [
+   ...group.map((symbol,offset)=>{
+    const char=text[offset];
+    return symbol.kind==='mark'
+     ?<span key={offset} className={cx(char&&s.maskTyped, at(index,offset)&&s.maskCaret)}
+       data-testid={at(index,offset)?'mask-caret':undefined}>{char??symbol.char}</span>
+     :cell(char??(symbol.kind==='lead'?symbol.char:undefined),char?'typed':symbol.kind==='lead'?'lead':'empty',offset,at(index,offset));
+   }),
+   ...over.map((char,offset)=>cell(char,'typed',group.length+offset,at(index,group.length+offset))),
+   ...(past&&index>=groups.length-1?[marker('past')]:[]),
+  ];
+ };
  return (
   <>
    <div className={s.mask} data-testid="answer-mask" aria-hidden>
-    {groups.map((group,index)=>(
-     <span key={index} className={s.maskWord} data-testid="mask-word">{word(group,typed[index]??'',index)}</span>
-    ))}
+    {groups.map((group,index)=>{
+     const text=typed[index]??'';
+     /* Каретка за концом слова, когда впереди ещё есть слово: место пробела. */
+     const gap=index<groups.length-1&&at(index,Math.max(group.length,text.length));
+     return (
+      <Fragment key={index}>
+       <span className={s.maskWord} data-testid="mask-word">{word(group,text,index)}</span>
+       {gap&&marker(`gap${index}`)}
+      </Fragment>
+     );
+    })}
     {typed.slice(groups.length).map((text,index)=>(
      <span key={groups.length+index} className={s.maskWord} data-testid="mask-word">{word([],text,groups.length+index)}</span>
     ))}
