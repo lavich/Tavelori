@@ -178,6 +178,9 @@ describe('раскрытие материала после письменног�
   const host=await showSpelling(wordItem());
   expect(reveal(host)).toBeNull();
   expect(host.textContent).not.toContain('το σπίτι');
+  // В маске поля ввода открыты только первые буквы слов: остальные — пустые ячейки.
+  expect(host.querySelector('[data-testid="answer-mask"]')!.textContent).toBe('τσ');
+  expect(host.textContent).not.toContain('σπίτι');
  });
 
  it('у фразы раскрывает текст, перевод, ситуацию, примечание и даёт озвучку',async()=>{
