@@ -110,3 +110,17 @@ export function formatSyllables(greek:string):string{
  const word=writing.tokens.map(token=>token.join('-')).join(' ');
  return writing.article?`${writing.article} · ${word}`:word;
 }
+
+export interface MaskSymbol {char:string;hidden:boolean}
+export interface WritingMask {
+ /** Группы по словам исходного написания: пробел не символ маски, а граница группы. */
+ groups:MaskSymbol[][];
+ letters:number;
+}
+
+/** Маска подсказки длины: буквы и цифры скрыты, знаки показаны — подчёркивание обещало бы букву там, где её нет. */
+export function maskWriting(greek:string):WritingMask{
+ const groups=greek.normalize('NFC').trim().split(/\s+/).filter(Boolean)
+  .map(token=>[...token].map(char=>({char,hidden:/[\p{L}\p{N}]/u.test(char)})));
+ return {groups,letters:groups.flat().filter(symbol=>symbol.hidden).length};
+}

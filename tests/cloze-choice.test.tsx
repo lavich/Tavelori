@@ -36,6 +36,7 @@ describe('пропуск с вариантами ответа',()=>{
   expect(host.querySelector('[data-testid="cloze-template"]')!.textContent).toBe('… ένα γράμμα.');
   expect(feedback(host)).toBeNull();
   expect(host.textContent).not.toContain('Первое лицо настоящего времени.');
+  expect(host.querySelector('[data-testid="answer-mask"]')).toBeNull();
  });
  it('верный вариант раскрывает предложение и объяснение',async()=>{
   const host=await show(item(OPTIONS));

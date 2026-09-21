@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {assemblyOptions, formatSyllables, restoreWriting, splitSyllables, splitWriting, tiles} from '../src/domain/syllables';
+import {assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitSyllables, splitWriting, tiles} from '../src/domain/syllables';
 import {buildContent} from '../content/build';
 const seedWords=buildContent().words;
 
@@ -69,5 +69,31 @@ describe('деление на слоги',()=>{
   expect(assemblyOptions('διαβάζω',['βά','δια','ζω'])).toEqual(['βά','δια','ζω']);
   expect(assemblyOptions('το φρούτο',['φρού','το'])).toEqual(['φρού','το']);
   expect(assemblyOptions('το φρούτο',['το','φρού','το'])).toEqual(['φρού','το']);
+ });
+});
+
+/** Читаемая запись маски: подчёркивание на скрытой букве, сам знак — на показанном. */
+const shown=(greek:string)=>maskWriting(greek).groups.map(group=>group.map(symbol=>symbol.hidden?'_':symbol.char).join('')).join(' ');
+
+describe('маска ожидаемого написания',()=>{
+ it.each([
+  ['σπίτι','_____',5],
+  ['το σπίτι','__ _____',7],
+  ['Πώς σε λένε;','___ __ ____;',9],
+  ["μ' αρέσει","_' ______",7],
+  ['σιγά-σιγά','____-____',8],
+  ['φως','___',3],
+ ])('%s → %s',(greek,mask,letters)=>{
+  expect(shown(greek)).toBe(mask);
+  expect(maskWriting(greek).letters).toBe(letters);
+ });
+ it('делит на группы по пробелам и не считает знаки буквами',()=>{
+  expect(maskWriting('το σπίτι').groups.map(group=>group.length)).toEqual([2,5]);
+  expect(maskWriting('Πώς σε λένε;').groups.map(group=>group.length)).toEqual([3,2,5]);
+  expect(maskWriting('Πώς σε λένε;').groups[2].at(-1)).toEqual({char:';',hidden:false});
+ });
+ it('пустое написание даёт пустую маску',()=>{
+  expect(maskWriting('')).toEqual({groups:[],letters:0});
+  expect(maskWriting('   ')).toEqual({groups:[],letters:0});
  });
 });

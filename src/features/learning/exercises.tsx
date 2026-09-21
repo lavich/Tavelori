@@ -5,14 +5,14 @@ import type {Cloze, Phrase, SessionCard, SessionItem, Word} from '../../domain/t
 import {checkAnswer} from '../../domain/import';
 import {checkTextAnswer, fillGap, splitTemplate, type TextAnswerResult} from '../../domain/cloze';
 import {diffChars} from '../../domain/spelling';
-import {assemblyOptions, formatSyllables, restoreWriting, splitWriting} from '../../domain/syllables';
+import {assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitWriting} from '../../domain/syllables';
 import {playText, playWord, useAudioKind, useTextAudioKind} from '../../shared/audio';
 import {ExampleBox, ReadingNotes, SpeakButton, WordArt} from '../words/WordCardView';
 import ui from '../../shared/ui.module.css';
 import wordCss from '../../shared/word.module.css';
 import s from './session.module.css';
 import {cx} from '../../shared/cx';
-import {shortTitle} from '../../shared/format';
+import {shortTitle, withCount} from '../../shared/format';
 
 export interface Answer {correct:boolean;text:string;status?:'correct'|'almost'|'wrong'}
 /** onAnswer возвращает false, если запись не удалась: тогда упражнение остаётся открытым для повтора. `onSkip` — пропуск без оценки. */
@@ -375,6 +375,28 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
 }
 
 /**
+ * Подсказка длины ответа над полем ввода: буквы скрыты подчёркиванием, знаки показаны как есть, пробел
+ * разбивает маску на группы по словам. Маска статична — подставлять в неё набранное значило бы повторить
+ * проверку, которая сравнивает ответ не посимвольно. Диктору маска отдаётся числом, а не подчёркиваниями.
+ */
+function AnswerMask({expected}:{expected:string}){
+ const {groups,letters}=maskWriting(expected);
+ if(!letters)return null;
+ return (
+  <div>
+   <div className={s.mask} data-testid="answer-mask" aria-hidden>
+    {groups.map((group,index)=>(
+     <span key={index} className={s.maskWord} data-testid="mask-word">
+      {group.map((symbol,at)=>symbol.hidden?<b key={at} className={s.maskLetter}/>:<span key={at}>{symbol.char}</span>)}
+     </span>
+    ))}
+   </div>
+   <span className="sr-only">Ответ из {withCount(letters,['буквы','букв','букв'])}</span>
+  </div>
+ );
+}
+
+/**
  * Написание слова по переводу или фразы целиком по её переводу. У фразы проверка без послаблений артиклю.
  * После ответа задание уходит с экрана: перевод и картинка входят в раскрытие, отдельно они задвоились бы.
  */
@@ -436,6 +458,7 @@ export function Spelling({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
    <div className={s.dock}>
     {!result?(
      <form onSubmit={submit}>
+      <AnswerMask expected={expected}/>
       <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
        autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Твой ответ по-гречески" lang="el"/>
       <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
@@ -524,6 +547,7 @@ export function ClozeExercise({item,onAnswer,onNext}:Props){
       </>
      ):(
       <form onSubmit={submit}>
+       <AnswerMask expected={cloze.answer}/>
        <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
         autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Пропущенная часть предложения" lang="el" data-testid="cloze-input"/>
        <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>

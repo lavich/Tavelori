@@ -43,3 +43,6 @@
 .answer{font-size:24px;text-align:center}
 
 .gap{display:inline-block;min-width:3ch;border-bottom:2px solid currentColor;text-align:center;opacity:.7}
+.mask{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;color:var(--muted-foreground)}
+.maskWord{display:flex;align-items:flex-end;gap:3px;font-size:20px;line-height:1.1}
+.maskLetter{width:.8em;height:1em;border-bottom:2px solid currentColor}

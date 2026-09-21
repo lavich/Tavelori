@@ -198,12 +198,15 @@ test.describe('навигация, тема и размеры',()=>{
   expect(await overflow()).toBeLessThanOrEqual(0);
   const input=page.getByLabel('Твой ответ по-гречески');
   const check=page.getByRole('button',{name:'Проверить'});
+  // Маска длины переносится по словам и остаётся в доке вместе с полем и кнопкой.
+  const hint=page.getByTestId('answer-mask');
+  await expect(hint).toBeVisible();
   await input.focus();
   // Клавиатура: устойчивая высота уменьшается — док остаётся в видимой области.
   await tg(page).setViewport(420,false); // промежуточный кадр анимации игнорируется
   await tg(page).setViewport(420,true);
   await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--app-height').trim())).toBe('420px');
-  for(const element of [input,check]){
+  for(const element of [hint,input,check]){
    const box=await element.boundingBox();
    expect(box).not.toBeNull();
    expect(box!.y+box!.height).toBeLessThanOrEqual(420+1);
