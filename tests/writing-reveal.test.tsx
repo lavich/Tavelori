@@ -130,8 +130,8 @@ describe('раскрытие материала после письменног�
   const host=await showSpelling(wordItem());
   expect(reveal(host)).toBeNull();
   expect(host.textContent).not.toContain('το σπίτι');
-  // Маска над полем ввода состоит из пустых ячеек: букв ответа в ней нет.
-  expect(host.querySelector('[data-testid="answer-mask"]')!.textContent).toBe('');
+  // В маске поля ввода открыта только первая буква: остальные — пустые ячейки.
+  expect(host.querySelector('[data-testid="answer-mask"]')!.textContent).toBe('τ');
   expect(host.textContent).not.toContain('σπίτι');
  });
 

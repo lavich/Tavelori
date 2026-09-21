@@ -111,32 +111,46 @@ export function formatSyllables(greek:string):string{
  return writing.article?`${writing.article} · ${word}`:word;
 }
 
-export type MaskSymbol={hidden:true}|{hidden:false;char:string};
+export type MaskSymbol={kind:'hidden'}|{kind:'lead';char:string}|{kind:'mark';char:string};
 export interface WritingMask {
  /** Группы по словам исходного написания: пробел не символ маски, а граница группы. */
  groups:MaskSymbol[][];
  letters:number;
 }
 
+const isLetter=(char:string)=>/[\p{L}\p{N}]/u.test(char);
+
 /**
- * Маска подсказки длины: буквы и цифры скрыты, знаки показаны — подчёркивание обещало бы букву там, где её нет.
- * Скрытый символ не хранит собственную букву: до ответа ожидаемое написание не должно жить и в модели.
+ * Маска подсказки длины: буквы скрыты, знаки показаны — подчёркивание обещало бы букву там, где её нет.
+ * Скрытый символ не хранит саму букву: до ответа ожидаемое написание не должно жить и в модели.
+ * `lead` открывает первую букву — подсказка, с чего начать. У ответа из одной буквы она не открывается:
+ * это был бы весь ответ целиком.
  */
-export function maskWriting(greek:string):WritingMask{
- const groups=greek.normalize('NFC').trim().split(/\s+/).filter(Boolean)
-  .map(token=>[...token].map((char):MaskSymbol=>/[\p{L}\p{N}]/u.test(char)?{hidden:true}:{hidden:false,char}));
- return {groups,letters:groups.flat().filter(symbol=>symbol.hidden).length};
+export function maskWriting(greek:string,options:{lead?:boolean}={}):WritingMask{
+ const tokens=greek.normalize('NFC').trim().split(/\s+/).filter(Boolean).map(token=>[...token]);
+ const letters=tokens.flat().filter(isLetter).length;
+ const lead=!!options.lead&&letters>1;
+ let shown=false;
+ const groups=tokens.map(token=>token.map((char):MaskSymbol=>{
+  if(!isLetter(char))return {kind:'mark',char};
+  if(lead&&!shown){shown=true;return {kind:'lead',char}}
+  return {kind:'hidden'};
+ }));
+ return {groups,letters};
 }
 
-const maskShape=(mask:WritingMask)=>mask.groups.map(group=>group.map(symbol=>symbol.hidden?'_':symbol.char).join('')).join(' ');
+/** Структура маски без открытой буквы: по ней сравниваются допустимые ответы. */
+const maskShape=(mask:WritingMask)=>mask.groups.map(group=>group.map(symbol=>symbol.kind==='mark'?symbol.char:'_').join('')).join(' ');
 
 /**
  * Общая маска допустимых ответов или её отсутствие. Разные по структуре варианты общей маски не имеют, а маска
  * по одному из них отсекала бы остальные: «τηλεόραση» и «την τηλεόραση» одинаково верны, и подсказка из девяти
- * букв заставила бы отбросить ответ из двух слов. Тогда лучше не подсказывать вовсе.
+ * букв заставила бы отбросить ответ из двух слов. Тогда лучше не подсказывать вовсе. Открытая буква берётся из
+ * канонического написания: варианты могут различаться регистром, а на структуру это не влияет.
  */
 export function agreedMask(forms:readonly string[]):WritingMask|null{
- const masks=forms.filter(form=>form.trim()).map(maskWriting);
- if(!masks.length)return null;
- return masks.every(mask=>maskShape(mask)===maskShape(masks[0]))?masks[0]:null;
+ const usable=forms.filter(form=>form.trim());
+ if(!usable.length)return null;
+ const shapes=usable.map(form=>maskShape(maskWriting(form)));
+ return shapes.every(shape=>shape===shapes[0])?maskWriting(usable[0],{lead:true}):null;
 }

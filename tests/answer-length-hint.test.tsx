@@ -55,38 +55,46 @@ const type=async(host:HTMLElement,text:string)=>{
 };
 
 describe('подсказка длины ответа',()=>{
- it('в написании слова показывает группы по словам и число букв',async()=>{
+ it('в написании слова открывает первую букву и прячет остальные',async()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));
-  expect(shown(host)).toBe('_____');
-  expect(note(host)).toBe('Ответ из 5 букв');
+  expect(shown(host)).toBe('σ____');
+  expect(note(host)).toBe('Ответ из 5 букв, первая σ');
  });
  it('слово с артиклем даёт две группы',async()=>{
   const host=await showSpelling(wordItem());
-  expect(shown(host)).toBe('__ _____');
-  expect(note(host)).toBe('Ответ из 2 слов, 7 букв');
+  expect(shown(host)).toBe('τ_ _____');
+  expect(note(host)).toBe('Ответ из 2 слов, 7 букв, первая τ');
  });
  it('во фразе знак препинания показан как есть и в счёт не входит',async()=>{
   const host=await showSpelling(phraseItem());
-  expect(shown(host)).toBe('___ __ ____;');
-  expect(note(host)).toBe('Ответ из 3 слов, 9 букв');
+  expect(shown(host)).toBe('Π__ __ ____;');
+  expect(note(host)).toBe('Ответ из 3 слов, 9 букв, первая Π');
  });
- it('маска стоит над полем ввода и скрыта от экранного диктора',async()=>{
+ it('маска лежит в самом поле ввода и скрыта от экранного диктора',async()=>{
   const host=await showSpelling(wordItem());
   const input=host.querySelector('input')!;
   expect(mask(host)!.getAttribute('aria-hidden')).toBe('true');
-  expect(mask(host)!.compareDocumentPosition(input)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(mask(host)!.parentElement!.contains(input)).toBe(true);
  });
- it('ожидаемое написание до ответа в DOM не попадает',async()=>{
+ it('кроме первой буквы ожидаемое написание до ответа в DOM не попадает',async()=>{
   const host=await showSpelling(wordItem());
+  expect(shown(host)).toBe('τ_ _____');
   expect(host.textContent).not.toContain('σπίτι');
-  expect(host.textContent).not.toContain('το');
+  expect(host.textContent).not.toContain('πίτι');
+  expect(host.textContent).not.toContain('το ');
  });
- it('при наборе маска не меняется',async()=>{
+ it('с первым введённым символом маска уходит из поля',async()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));
   await type(host,'σπ');
-  expect(shown(host)).toBe('_____');
-  expect(note(host)).toBe('Ответ из 5 букв');
+  expect(mask(host)).toBeNull();
+  expect(note(host)).toBeUndefined();
   expect((host.querySelector('input') as HTMLInputElement).value).toBe('σπ');
+ });
+ it('после очистки поля маска возвращается прежней',async()=>{
+  const host=await showSpelling(wordItem({greek:'σπίτι'}));
+  await type(host,'σπ');
+  await type(host,'');
+  expect(shown(host)).toBe('σ____');
  });
  it('после сохранённого ответа маски нет, а написание раскрыто',async()=>{
   const host=await showSpelling(wordItem({greek:'σπίτι'}));
@@ -99,9 +107,10 @@ describe('подсказка длины ответа',()=>{
  });
  it('в пропуске маска показана, когда все допустимые ответы одной структуры',async()=>{
   const host=await showCloze(clozeItem({acceptedAnswers:['Γράφω','γράφω']}));
-  expect(shown(host)).toBe('_____');
-  expect(note(host)).toBe('Ответ из 5 букв');
+  expect(shown(host)).toBe('Γ____');
+  expect(note(host)).toBe('Ответ из 5 букв, первая Γ');
   expect(host.textContent).not.toContain('Γράφω');
+  expect(host.textContent).not.toContain('ράφω');
  });
  it('в пропуске маски нет, когда допустимые ответы различаются по структуре',async()=>{
   const host=await showCloze(clozeItem({acceptedAnswers:['Γράφω','Εγώ γράφω']}));
@@ -130,7 +139,7 @@ describe('подсказка длины ответа',()=>{
   expect(host.querySelectorAll('[data-testid="tile"]').length).toBeGreaterThan(1);
   expect(mask(host)).toBeNull();
  });
- it('число букв склоняется',async()=>{
+ it('ответ из одной буквы её не открывает и склоняется в подписи',async()=>{
   const host=await showCloze(clozeItem({template:'{{gap}} γιος είναι εδώ.',answer:'ο',acceptedAnswers:['ο']}));
   expect(shown(host)).toBe('_');
   expect(note(host)).toBe('Ответ из 1 буквы');

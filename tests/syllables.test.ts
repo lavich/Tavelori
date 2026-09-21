@@ -73,7 +73,8 @@ describe('деление на слоги',()=>{
 });
 
 /** Читаемая запись маски: подчёркивание на скрытой букве, сам знак — на показанном. */
-const shown=(greek:string)=>maskWriting(greek).groups.map(group=>group.map(symbol=>symbol.hidden?'_':symbol.char).join('')).join(' ');
+const shown=(greek:string,lead=false)=>maskWriting(greek,{lead}).groups
+ .map(group=>group.map(symbol=>symbol.kind==='hidden'?'_':symbol.char).join('')).join(' ');
 
 describe('маска ожидаемого написания',()=>{
  it.each([
@@ -90,10 +91,20 @@ describe('маска ожидаемого написания',()=>{
  it('делит на группы по пробелам и не считает знаки буквами',()=>{
   expect(maskWriting('το σπίτι').groups.map(group=>group.length)).toEqual([2,5]);
   expect(maskWriting('Πώς σε λένε;').groups.map(group=>group.length)).toEqual([3,2,5]);
-  expect(maskWriting('Πώς σε λένε;').groups[2].at(-1)).toEqual({char:';',hidden:false});
+  expect(maskWriting('Πώς σε λένε;').groups[2].at(-1)).toEqual({kind:'mark',char:';'});
  });
  it('скрытая буква не хранит саму букву',()=>{
-  expect(maskWriting('φως').groups[0]).toEqual([{hidden:true},{hidden:true},{hidden:true}]);
+  expect(maskWriting('φως').groups[0]).toEqual([{kind:'hidden'},{kind:'hidden'},{kind:'hidden'}]);
+ });
+ it('lead открывает первую букву, остальные остаются скрытыми',()=>{
+  expect(shown('σπίτι',true)).toBe('σ____');
+  expect(shown('το σπίτι',true)).toBe('τ_ _____');
+  expect(maskWriting('σπίτι',{lead:true}).groups[0][0]).toEqual({kind:'lead',char:'σ'});
+  expect(maskWriting('σπίτι',{lead:true}).letters).toBe(5);
+ });
+ it('lead не открывает букву, когда она в ответе единственная',()=>{
+  expect(shown('ο',true)).toBe('_');
+  expect(shown("μ'",true)).toBe("_'");
  });
  it('пустое написание даёт пустую маску',()=>{
   expect(maskWriting('')).toEqual({groups:[],letters:0});
@@ -102,8 +113,9 @@ describe('маска ожидаемого написания',()=>{
 });
 
 describe('общая маска допустимых ответов',()=>{
- it('одинаковая структура даёт маску',()=>{
+ it('одинаковая структура даёт маску с открытой первой буквой канонического написания',()=>{
   expect(agreedMask(['Γράφω','γράφω'])?.letters).toBe(5);
+  expect(agreedMask(['Γράφω','γράφω'])?.groups[0][0]).toEqual({kind:'lead',char:'Γ'});
   expect(agreedMask(['Πώς σε λένε;','πως σε λενε;'])?.groups.map(group=>group.length)).toEqual([3,2,5]);
  });
  it('разная длина или разное число слов маски не даёт',()=>{

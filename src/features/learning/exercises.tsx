@@ -375,25 +375,39 @@ export function Assembly({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
 }
 
 /**
- * Подсказка длины ответа над полем ввода: буквы скрыты подчёркиванием, знаки показаны как есть, пробел
- * разбивает маску на группы по словам. Маска статична — подставлять в неё набранное значило бы повторить
- * проверку, которая сравнивает ответ не посимвольно. Диктору маска отдаётся числом слов и букв: разрывы
- * между группами он не видит, а из скольких слов ответ — такая же часть подсказки, как и счёт букв.
+ * Подсказка длины ответа внутри поля ввода: буквы скрыты подчёркиванием, первая открыта, знаки показаны как
+ * есть, пробел разбивает маску на группы по словам. Маска лежит в поле подложкой и уходит с первым введённым
+ * символом: набранный ответ занимает то же место, и накладывать одно на другое нечем — ширины букв разные.
+ * Диктору маска отдаётся числом слов и букв и открытой буквой: разрывов между группами он не видит.
  */
 function AnswerMask({mask}:{mask:WritingMask|null}){
  if(!mask?.letters)return null;
  const {groups,letters}=mask;
+ const lead=groups.flat().find(symbol=>symbol.kind==='lead');
  const count=withCount(letters,['буквы','букв','букв']);
+ const words=groups.length>1?`${withCount(groups.length,['слова','слов','слов'])}, `:'';
  return (
-  <div>
+  <>
    <div className={s.mask} data-testid="answer-mask" aria-hidden>
     {groups.map((group,index)=>(
      <span key={index} className={s.maskWord} data-testid="mask-word">
-      {group.map((symbol,at)=>symbol.hidden?<b key={at} className={s.maskLetter}/>:<span key={at}>{symbol.char}</span>)}
+      {group.map((symbol,at)=>symbol.kind==='hidden'?<b key={at} className={s.maskLetter}/>
+       :symbol.kind==='lead'?<b key={at} className={cx(s.maskLetter, s.maskLead)}>{symbol.char}</b>
+       :<span key={at}>{symbol.char}</span>)}
      </span>
     ))}
    </div>
-   <span className="sr-only">Ответ из {groups.length>1?`${withCount(groups.length,['слова','слов','слов'])}, ${count}`:count}</span>
+   <span className="sr-only">Ответ из {words}{count}{lead?`, первая ${lead.char}`:''}</span>
+  </>
+ );
+}
+
+/** Поле ответа с маской-подложкой: маска видна, пока поле пустое. */
+function AnswerField({mask,value,children}:{mask:WritingMask|null;value:string;children:React.ReactNode}){
+ return (
+  <div className={s.field}>
+   {!value&&<AnswerMask mask={mask}/>}
+   {children}
   </div>
  );
 }
@@ -460,9 +474,10 @@ export function Spelling({item,onAnswer,onNext,autoSpeak=false}:Props&{autoSpeak
    <div className={s.dock}>
     {!result?(
      <form onSubmit={submit}>
-      <AnswerMask mask={maskWriting(expected)}/>
-      <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
-       autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Твой ответ по-гречески" lang="el"/>
+      <AnswerField mask={maskWriting(expected,{lead:true})} value={value}>
+       <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
+        autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Твой ответ по-гречески" lang="el"/>
+      </AnswerField>
       <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
       <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>Не знаю</Button>
      </form>
@@ -549,9 +564,10 @@ export function ClozeExercise({item,onAnswer,onNext}:Props){
       </>
      ):(
       <form onSubmit={submit}>
-       <AnswerMask mask={agreedMask([cloze.answer,...cloze.acceptedAnswers])}/>
-       <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
-        autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Пропущенная часть предложения" lang="el" data-testid="cloze-input"/>
+       <AnswerField mask={agreedMask([cloze.answer,...cloze.acceptedAnswers])} value={value}>
+        <input className={s.answer} type="text" value={value} onChange={event=>setValue(event.target.value)} disabled={saving}
+         autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="Пропущенная часть предложения" lang="el" data-testid="cloze-input"/>
+       </AnswerField>
        <Button size="xl" type="submit" disabled={!value.trim()||saving}>{saving?'Сохраняем…':'Проверить'}</Button>
        <Button variant="outline" size="xl" type="button" disabled={saving} onClick={skip}>Не знаю</Button>
       </form>
