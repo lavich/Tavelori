@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { db } from "../storage/db";
 
 /**
@@ -33,5 +33,5 @@ export function useHapticsSetting(): [boolean, (enabled: boolean) => void] {
     hapticsEnabled,
     () => true,
   );
-  return [enabled, useCallback(setHapticsEnabled, [])];
+  return [enabled, setHapticsEnabled];
 }

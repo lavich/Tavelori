@@ -6,8 +6,6 @@
     "suspicious": "off",
     "pedantic": "off"
   },
-  // Строки в проекте нормализованы в NFC (это гарантирует content/build.ts и тест
-  // восстановления написания), поэтому [...слово] по кодовым точкам безопасно.
   "rules": {
     "typescript/no-misused-spread": "off",
     "eslint/no-unused-vars": [

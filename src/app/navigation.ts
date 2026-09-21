@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 /**
  * Единый возврат для внутренней кнопки и Telegram BackButton. Внутренняя история определяется по индексу
@@ -7,10 +7,9 @@ import { useLocation, useNavigate } from "react-router-dom";
  */
 export function useGoBack() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   return useCallback(() => {
     const index = (window.history.state as { idx?: number } | null)?.idx ?? 0;
     if (index > 0) void navigate(-1);
     else void navigate("/", { replace: true });
-  }, [navigate, pathname]);
+  }, [navigate]);
 }
