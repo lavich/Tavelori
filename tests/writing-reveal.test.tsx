@@ -131,6 +131,7 @@ const speakButton = (host: Element) =>
 const type = async (host: HTMLElement, text: string) => {
   const input = host.querySelector("input") as HTMLInputElement;
   await act(async () => {
+    // eslint-disable-next-line typescript/unbound-method -- сеттер прототипа вызывается через .call, привязка задаётся явно
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
     setter.call(input, text);
     input.dispatchEvent(new Event("input", { bubbles: true }));

@@ -241,7 +241,7 @@ export function WordEditorScreen() {
               onClick={async () => {
                 setConfirming(false);
                 await deleteWord(draft.id);
-                navigate("/words");
+                void navigate("/words");
               }}
             >
               Удалить

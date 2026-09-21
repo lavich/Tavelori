@@ -14,6 +14,8 @@
     "typecheck": "tsc -b",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "lint": "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix",
     "spec": "openspec validate --all --strict",
     "test": "vitest run",
     "test:e2e": "playwright test"
@@ -47,6 +49,8 @@
     "@vitejs/plugin-react": "^6.1.1",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
+    "oxlint": "^1.84.0",
+    "oxlint-tsgolint": "^7.0.2002",
     "prettier": "^3.9.8",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",

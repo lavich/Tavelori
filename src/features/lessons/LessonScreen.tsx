@@ -314,7 +314,7 @@ export function LessonScreen() {
           ? `В группе «${GROUPS.find((group) => group.kind === kind)!.title}» нет доступных заданий.`
           : "В уроке нет доступных заданий.",
       );
-    navigate("/session");
+    void navigate("/session");
   };
   const download = async () => {
     setDownloading(true);
@@ -427,7 +427,7 @@ export function LessonScreen() {
             variant="quiet"
             className="w-auto justify-self-start"
             onClick={() => {
-              updateLesson(lesson!.id, { targetDate: null });
+              void updateLesson(lesson!.id, { targetDate: null });
               setSaved(false);
             }}
           >

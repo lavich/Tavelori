@@ -64,8 +64,8 @@ function useAutoSpeak(card: SessionCard, enabled: boolean) {
   useEffect(() => {
     if (!enabled || played.current || card.kind === "cloze") return;
     played.current = true;
-    if (card.kind === "word") playWord(card.word);
-    else playText(card.phrase.text, card.phrase.audioAssetId);
+    if (card.kind === "word") void playWord(card.word);
+    else void playText(card.phrase.text, card.phrase.audioAssetId);
   }, [card, enabled]);
 }
 
@@ -80,8 +80,8 @@ function useRevealSpeech(card: SessionCard, itemId: string, answered: boolean, e
   useEffect(() => {
     if (!answered || !enabled || spoken.current === itemId) return;
     spoken.current = itemId;
-    if (card.kind === "word") playWord(card.word);
-    else if (card.kind === "phrase") playText(card.phrase.text, card.phrase.audioAssetId);
+    if (card.kind === "word") void playWord(card.word);
+    else if (card.kind === "phrase") void playText(card.phrase.text, card.phrase.audioAssetId);
   }, [answered, enabled]);
 }
 
@@ -430,7 +430,7 @@ function useReplay(card: SessionCard, itemId: string, autoSpeak: boolean | undef
   useEffect(() => {
     if (autoSpeak && !played.current) {
       played.current = true;
-      play();
+      void play();
     }
   }, [itemId, autoSpeak]);
   if (!word && !phrase) throw new Error("Аудиоупражнение получило карточку с пропуском");
@@ -703,7 +703,7 @@ function AnswerMask({ mask, value }: { mask: WritingMask | null; value: string }
   /** Слово набора в ячейках своей группы: что не поместилось — следом за ними. */
   const word = (group: MaskSymbol[], text: string, index: number) => {
     const cells = group.map((symbol, offset) => ({ symbol, char: text[offset], offset }));
-    const over = [...text.slice(group.length)].map((char, offset) => ({
+    const over = Array.from(text.slice(group.length), (char, offset) => ({
       symbol: null,
       char,
       offset: group.length + offset,
@@ -914,7 +914,7 @@ export function ClozeExercise({ item, onAnswer, onNext }: Props) {
   };
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    check(value);
+    void check(value);
   };
   const choices = item.options.length === 4 ? item.options : null;
   const sentence = fillGap(cloze.template, result?.expected ?? cloze.answer);

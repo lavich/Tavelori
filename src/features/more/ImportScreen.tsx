@@ -37,7 +37,7 @@ export function ImportScreen() {
           lessonId: target === "new" ? null : target,
           lessonTitle: title.trim() || "Новый набор",
         });
-        navigate(`/lessons/${outcome.lessonId}`);
+        void navigate(`/lessons/${outcome.lessonId}`);
       },
       (error) =>
         error instanceof Error ? `Ничего не сохранено: ${error.message}` : "Ничего не сохранено: хранилище недоступно.",

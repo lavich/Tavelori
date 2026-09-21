@@ -1,6 +1,6 @@
 import type { LexiDatabase } from "../storage/db";
 import type { SyncAdapter } from "./adapter";
-import { concurrent, dominates, mergeClocks, sameClock } from "./clock";
+import { dominates, mergeClocks, sameClock } from "./clock";
 import { syncEvents } from "./events";
 import {
   applySnapshot,

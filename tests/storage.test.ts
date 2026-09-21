@@ -11,16 +11,15 @@ import {
   markIntroduced,
   prepareObjectiveSession,
   saveCourseTempo,
-  saveSettings,
   saveWord,
   settleLessons,
   submitAnswer,
   updateLesson,
 } from "../src/storage/ops";
 import { makePlan, makeSession } from "../src/domain/learning";
-import { defaultSettings, type Settings } from "../src/domain/types";
+import { type Settings } from "../src/domain/types";
 import { parseImport } from "../src/domain/import";
-import { content, installLessons, wordsOf } from "./helpers/content";
+import { installLessons, wordsOf } from "./helpers/content";
 import { installMixed, mixedPackage } from "./helpers/mixed";
 import { unitKey } from "./helpers/cards";
 import { applyPackage } from "../src/content/client";

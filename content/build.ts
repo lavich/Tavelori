@@ -123,7 +123,7 @@ export const phraseRevisionOf = (phrase: Omit<PackagePhrase, "revision">) =>
 /** Ревизия пропуска включает `target`: уточнение цели меняет ревизию, но не идентификатор и не прогресс. */
 export const clozeRevisionOf = (cloze: Omit<PackageCloze, "revision">) => hash(canonical(pick(cloze, CLOZE_FIELDS)));
 
-const fail = (message: string) => {
+const fail: (message: string) => never = (message) => {
   throw new ContentError(message);
 };
 const text = (value: unknown, where: string, required = true): string | undefined => {
@@ -143,7 +143,12 @@ const nfc = (value: unknown): unknown =>
       : value && typeof value === "object"
         ? Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, nfc(v)]))
         : value;
-const idOf = (doc: { id?: unknown }, file: string) => String(doc.id ?? basename(file, extname(file))).normalize("NFC");
+const idOf = (doc: { id?: unknown }, file: string) => {
+  // id приходит из YAML нетипизированным: карта или список молча стали бы идентификатором «[object Object]».
+  const raw = doc.id ?? basename(file, extname(file));
+  if (typeof raw !== "string" && typeof raw !== "number") fail(`${file}: поле id — строка или число`);
+  return String(raw).normalize("NFC");
+};
 const checkId = (id: string, where: string) => {
   if (!/^[\p{L}\p{N}][\p{L}\p{N}-]*$/u.test(id))
     fail(`${where}: идентификатор «${id}» — буквы, цифры и дефис без пробелов`);

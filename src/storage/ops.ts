@@ -125,7 +125,7 @@ export async function recordAnswer({
         const position = items.findIndex((entry) => entry.id === item.id);
         items.splice(Math.min(position + 3, items.length), 0, {
           ...item,
-          ...(easier ?? {}),
+          ...easier,
           id: `${item.id}-retry`,
           isNew: false,
           mode: "practice",

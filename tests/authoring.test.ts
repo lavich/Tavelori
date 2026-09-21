@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
@@ -105,7 +105,17 @@ describe("шаблоны инструкции", () => {
  */
 describe("прогон инструкции на существующем материале проекта", () => {
   const phrases = Object.entries(MIXED_PHRASES) as [string, Record<string, string | undefined>][];
-  const clozes = Object.entries(MIXED_CLOZES) as [string, Record<string, unknown>][];
+  const clozes = Object.entries(MIXED_CLOZES) as [
+    string,
+    {
+      template: string;
+      answer: string;
+      context?: string;
+      explanation?: string;
+      target?: { kind: string; features?: Record<string, unknown> };
+      provenance: { operation: string; parts?: Record<string, { operation: string; request?: string }> };
+    },
+  ][];
   it("тексты фраз и восстановленные предложения пропусков есть в материале проекта, новых предложений нет", () => {
     for (const [id, phrase] of phrases) {
       const source = projectExamples.find((example) => norm(example.greek) === norm(phrase.text!));
@@ -117,10 +127,10 @@ describe("прогон инструкции на существующем мат
       });
     }
     for (const [id, cloze] of clozes) {
-      const restored = String(cloze.template).replace("{{gap}}", String(cloze.answer));
+      const restored = cloze.template.replace("{{gap}}", cloze.answer);
       const source = projectExamples.find((example) => norm(example.greek) === norm(restored));
       expect(source, id).toBeTruthy();
-      expect((cloze.provenance as { operation: string }).operation).toBe("cloze-from-source");
+      expect(cloze.provenance.operation).toBe("cloze-from-source");
     }
   });
   it("переводы взяты из того же материала, нового перевода нет; фраза без перевода им не дополняется", () => {
@@ -132,9 +142,9 @@ describe("прогон инструкции на существующем мат
     expect(silent.translation).toBeUndefined(); // перевода в материале нет и переводить не просили
     // Контекст пропуска — тот же перевод исходного предложения, а не новый текст.
     for (const [id, cloze] of clozes) {
-      const restored = String(cloze.template).replace("{{gap}}", String(cloze.answer));
+      const restored = cloze.template.replace("{{gap}}", cloze.answer);
       const source = projectExamples.find((example) => norm(example.greek) === norm(restored))!;
-      if (cloze.context) expect(norm(String(cloze.context)), id).toBe(norm(source.russian));
+      if (cloze.context) expect(norm(cloze.context), id).toBe(norm(source.russian));
     }
   });
   it("учебная цель размечена только по запросу, и есть пропуск без цели", () => {
@@ -143,11 +153,11 @@ describe("прогон инструкции на существующем мат
     expect(targeted.length).toBeGreaterThan(0);
     expect(plain.length).toBeGreaterThan(0); // карточка без цели полноценна
     for (const [id, cloze] of targeted) {
-      const parts = (cloze.provenance as { parts?: Record<string, { operation: string; request?: string }> }).parts;
+      const parts = cloze.provenance.parts;
       expect(parts?.target, id).toMatchObject({ operation: "requested-transform" });
       expect(parts!.target.request, id).toBeTruthy();
       if (cloze.explanation) expect(parts?.explanation, id).toMatchObject({ operation: "requested-transform" }); // объяснения нет в материале — оно по запросу
-      const target = cloze.target as { kind: string; features?: Record<string, unknown> };
+      const target = cloze.target!;
       expect(target.kind, id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
       for (const key of Object.keys(target.features ?? {})) expect(key, id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
     }
