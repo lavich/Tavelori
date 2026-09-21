@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {assemblyOptions, formatSyllables, restoreWriting, splitSyllables, splitWriting, tiles} from '../src/domain/syllables';
+import {agreedMask, assemblyOptions, formatSyllables, maskWriting, restoreWriting, splitSyllables, splitWriting, tiles} from '../src/domain/syllables';
 import {buildContent} from '../content/build';
 const seedWords=buildContent().words;
 
@@ -69,5 +69,66 @@ describe('деление на слоги',()=>{
   expect(assemblyOptions('διαβάζω',['βά','δια','ζω'])).toEqual(['βά','δια','ζω']);
   expect(assemblyOptions('το φρούτο',['φρού','το'])).toEqual(['φρού','το']);
   expect(assemblyOptions('το φρούτο',['το','φρού','το'])).toEqual(['φρού','το']);
+ });
+});
+
+/** Читаемая запись маски: подчёркивание на скрытой букве, сам знак — на показанном. */
+const shown=(greek:string,lead=false)=>maskWriting(greek,{lead}).groups
+ .map(group=>group.map(symbol=>symbol.kind==='hidden'?'_':symbol.char).join('')).join(' ');
+
+describe('маска ожидаемого написания',()=>{
+ it.each([
+  ['σπίτι','_____',5],
+  ['το σπίτι','__ _____',7],
+  ['Πώς σε λένε;','___ __ ____;',9],
+  ["μ' αρέσει","_' ______",7],
+  ['σιγά-σιγά','____-____',8],
+  ['φως','___',3],
+ ])('%s → %s',(greek,mask,letters)=>{
+  expect(shown(greek)).toBe(mask);
+  expect(maskWriting(greek).letters).toBe(letters);
+ });
+ it('делит на группы по пробелам и не считает знаки буквами',()=>{
+  expect(maskWriting('το σπίτι').groups.map(group=>group.length)).toEqual([2,5]);
+  expect(maskWriting('Πώς σε λένε;').groups.map(group=>group.length)).toEqual([3,2,5]);
+  expect(maskWriting('Πώς σε λένε;').groups[2].at(-1)).toEqual({kind:'mark',char:';'});
+ });
+ it('скрытая буква не хранит саму букву',()=>{
+  expect(maskWriting('φως').groups[0]).toEqual([{kind:'hidden'},{kind:'hidden'},{kind:'hidden'}]);
+ });
+ it('lead открывает первую букву каждого слова, остальные остаются скрытыми',()=>{
+  expect(shown('σπίτι',true)).toBe('σ____');
+  expect(shown('το σπίτι',true)).toBe('τ_ σ____');
+  expect(shown('Πώς σε λένε;',true)).toBe('Π__ σ_ λ___;');
+  expect(maskWriting('σπίτι',{lead:true}).groups[0][0]).toEqual({kind:'lead',char:'σ'});
+  expect(maskWriting('σπίτι',{lead:true}).letters).toBe(5);
+ });
+ it('lead не открывает букву, когда она в ответе единственная',()=>{
+  expect(shown('ο',true)).toBe('_');
+  expect(shown("μ'",true)).toBe("_'");
+ });
+ it('пустое написание даёт пустую маску',()=>{
+  expect(maskWriting('')).toEqual({groups:[],letters:0});
+  expect(maskWriting('   ')).toEqual({groups:[],letters:0});
+ });
+});
+
+describe('общая маска допустимых ответов',()=>{
+ it('одинаковая структура даёт маску с открытой первой буквой канонического написания',()=>{
+  expect(agreedMask(['Γράφω','γράφω'])?.letters).toBe(5);
+  expect(agreedMask(['Γράφω','γράφω'])?.groups[0][0]).toEqual({kind:'lead',char:'Γ'});
+  expect(agreedMask(['Πώς σε λένε;','πως σε λενε;'])?.groups.map(group=>group.length)).toEqual([3,2,5]);
+ });
+ it('разная длина или разное число слов маски не даёт',()=>{
+  expect(agreedMask(['τηλεόραση','την τηλεόραση'])).toBeNull();
+  expect(agreedMask(['Γράφω','Εγώ γράφω'])).toBeNull();
+  expect(agreedMask(['καφέ','καφέδες'])).toBeNull();
+ });
+ it('разные знаки препинания маски не дают',()=>{
+  expect(agreedMask(['σιγά-σιγά','σιγά σιγά'])).toBeNull();
+ });
+ it('пустой список и пустые написания дают null',()=>{
+  expect(agreedMask([])).toBeNull();
+  expect(agreedMask(['   '])).toBeNull();
  });
 });

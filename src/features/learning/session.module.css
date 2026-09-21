@@ -43,3 +43,20 @@
 .answer{font-size:24px;text-align:center}
 
 .gap{display:inline-block;min-width:3ch;border-bottom:2px solid currentColor;text-align:center;opacity:.7}
+/*
+ * Маска лежит подложкой в поле ответа и служит строкой ввода: собственный текст и каретка поля скрыты
+ * (`.masked`), а набранное показывают ячейки. Поле остаётся настоящим полем — фокус, клавиатура и `lang`
+ * не трогаются.
+ */
+.field{position:relative;display:grid}
+.masked{color:transparent;caret-color:transparent}
+.mask{position:absolute;inset:0;display:flex;flex-wrap:wrap;align-items:flex-end;align-content:center;justify-content:center;gap:4px 10px;padding:0 14px;color:var(--muted-foreground);pointer-events:none}
+.maskWord{display:flex;align-items:flex-end;gap:3px;font-size:20px;line-height:1.2}
+.maskLetter{min-width:.8em;height:1.15em;border-bottom:2px solid currentColor;text-align:center}
+.maskLead{color:var(--muted-foreground);opacity:.75}
+.maskTyped{color:var(--foreground);border-color:var(--foreground)}
+/* Каретка рисуется сама: собственная каретка поля стоит по скрытому тексту и в ячейки не попадает. */
+.field:focus-within .maskCaretAfter{animation:caretAfter 1.1s step-end infinite}
+.field:focus-within .maskCaretBefore{animation:caretBefore 1.1s step-end infinite}
+@keyframes caretAfter{0%,50%{box-shadow:inset -2px 0 0 -1px var(--primary)}50.01%,100%{box-shadow:none}}
+@keyframes caretBefore{0%,50%{box-shadow:inset 2px 0 0 -1px var(--primary)}50.01%,100%{box-shadow:none}}
