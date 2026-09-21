@@ -4,14 +4,14 @@ import {basename, extname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parse} from 'yaml';
 import {wordKey} from '../src/domain/import.ts';
-import {clozeKey, phraseKey} from '../src/domain/refs.ts';
-import {CLOZE_FIELDS, ContentError, GAP, PHRASE_FIELDS, SCHEMA_VERSION, SHIPPED_FIELDS, validateCloze, validatePhrase, type Catalog, type CatalogCourse, type CatalogEntry, type ContentPackage, type PackageCloze, type PackageItem, type PackageMedia, type PackagePhrase, type PackageWord} from '../src/content/schema.ts';
+import {phraseKey} from '../src/domain/refs.ts';
+import {ContentError, PHRASE_FIELDS, SCHEMA_VERSION, SHIPPED_FIELDS, validatePhrase, type Catalog, type CatalogCourse, type CatalogEntry, type ContentPackage, type PackageItem, type PackageMedia, type PackagePhrase, type PackageWord} from '../src/content/schema.ts';
 import {CARD_KINDS, type CardKind, type Example, type Segment} from '../src/domain/types.ts';
 import {checkArt, LEGACY_FILE, readLegacy, type ArtReport} from './art.ts';
 
 /**
  * Публикация контента. Исходники — YAML: одно слово — один файл в `words/` с греческим именем, фраза — файл
- * в `phrases/`, задание с пропуском — файл в `clozes/`, урок — упорядоченный список карточек в `lessons/`
+ * в `phrases/`, урок — упорядоченный список карточек в `lessons/`
  * (`words` для словарного урока либо `items` из пар `{kind, id}` для смешанного), иллюстрации и аудио —
  * отдельные файлы в `art/` и `audio/`. Идентификатор карточки — поле `id`, а без него — имя файла; у исходных
  * слов сохранены прежние `w11-01`, чтобы прогресс и миграция пользователей не зависели от переименования файлов.
@@ -30,7 +30,6 @@ export interface WordSource {
  examples?:{greek:string;russian:string;target:string;source?:string}[];
 }
 export interface PhraseSource {id?:string;text:string;translation?:string;usage?:string;note?:string;audio?:string;provenance:unknown}
-export interface ClozeSource {id?:string;template:string;answer:string;acceptedAnswers:string[];context?:string;explanation?:string;target?:unknown;related?:unknown;audio?:string;provenance:unknown}
 export interface LessonItemSource {kind:string;id:string}
 export interface LessonSource {title:string;language?:string;words?:string[];items?:LessonItemSource[]}
 export interface CourseSource {id?:string;title:string;source?:string;lessons:string[]}
@@ -41,8 +40,6 @@ const canonical=(value:unknown):string=>JSON.stringify(value,(_,v)=>v&&typeof v=
 const pick=<T extends object>(value:T,fields:readonly (keyof T)[])=>Object.fromEntries(fields.map(field=>[field,value[field]]));
 export const revisionOf=(word:Omit<PackageWord,'revision'>)=>hash(canonical(pick(word,SHIPPED_FIELDS)));
 export const phraseRevisionOf=(phrase:Omit<PackagePhrase,'revision'>)=>hash(canonical(pick(phrase,PHRASE_FIELDS)));
-/** Ревизия пропуска включает `target`: уточнение цели меняет ревизию, но не идентификатор и не прогресс. */
-export const clozeRevisionOf=(cloze:Omit<PackageCloze,'revision'>)=>hash(canonical(pick(cloze,CLOZE_FIELDS)));
 
 const fail=(message:string)=>{throw new ContentError(message)};
 const text=(value:unknown,where:string,required=true):string|undefined=>{
@@ -56,7 +53,7 @@ const idOf=(doc:{id?:unknown},file:string)=>String(doc.id??basename(file,extname
 const checkId=(id:string,where:string)=>{if(!/^[\p{L}\p{N}][\p{L}\p{N}-]*$/u.test(id))fail(`${where}: идентификатор «${id}» — буквы, цифры и дефис без пробелов`)};
 
 type Sourced<T>=T&{file:string};
-export interface ContentRoot {words:Map<string,Sourced<WordSource>>;phrases:Map<string,Sourced<PhraseSource>>;clozes:Map<string,Sourced<ClozeSource>>;lessons:Map<string,LessonSource>;courses:Map<string,Sourced<CourseSource>>;files:Map<string,Uint8Array>}
+export interface ContentRoot {words:Map<string,Sourced<WordSource>>;phrases:Map<string,Sourced<PhraseSource>>;lessons:Map<string,LessonSource>;courses:Map<string,Sourced<CourseSource>>;files:Map<string,Uint8Array>}
 export function readSources(root:string):ContentRoot{
  const list=(dir:string)=>(existsSync(join(root,dir))?readdirSync(join(root,dir)):[]).filter(file=>/\.ya?ml$/.test(file)).sort();
  const load=<T,>(dir:string,file:string)=>parse(readFileSync(join(root,dir,file),'utf8')) as T;
@@ -71,15 +68,15 @@ export function readSources(root:string):ContentRoot{
   }
   return map;
  };
- const words=byId<WordSource>('words'), phrases=byId<PhraseSource>('phrases'), clozes=byId<ClozeSource>('clozes'), courses=byId<CourseSource>('courses');
+ const words=byId<WordSource>('words'), phrases=byId<PhraseSource>('phrases'), courses=byId<CourseSource>('courses');
  const lessons=new Map(list('lessons').map(file=>[basename(file,extname(file)),load<LessonSource>('lessons',file)]));
  const files=new Map<string,Uint8Array>();
  for(const dir of ['art','audio']) if(existsSync(join(root,dir))) for(const file of readdirSync(join(root,dir)))files.set(`${dir}/${file}`,readFileSync(join(root,dir,file)));
- return {words,phrases,clozes,lessons,courses,files};
+ return {words,phrases,lessons,courses,files};
 }
 
 export interface BuiltFile {path:string;body:string|Uint8Array;mimeType:string}
-export interface BuiltContent {catalog:Catalog;packages:ContentPackage[];files:BuiltFile[];words:PackageWord[];phrases:PackagePhrase[];clozes:PackageCloze[];sources:ContentRoot;art:ArtReport}
+export interface BuiltContent {catalog:Catalog;packages:ContentPackage[];files:BuiltFile[];words:PackageWord[];phrases:PackagePhrase[];sources:ContentRoot;art:ArtReport}
 
 function describe(id:string,src:Sourced<WordSource>):PackageWord{
  const where=`words/${src.file}`;
@@ -113,7 +110,7 @@ function describe(id:string,src:Sourced<WordSource>):PackageWord{
  return {...draft,revision:revisionOf(draft)};
 }
 
-/** Фраза и пропуск проходят ту же проверку формы, что и при установке пакета; сборка добавляет ревизию. */
+/** Фраза проходит ту же проверку формы, что и при установке пакета; сборка добавляет ревизию. */
 function describePhrase(id:string,src:Sourced<PhraseSource>):PackagePhrase{
  const where=`phrases/${src.file}`;
  checkId(id,where);
@@ -124,22 +121,6 @@ function describePhrase(id:string,src:Sourced<PhraseSource>):PackagePhrase{
   return {...fields,revision:phraseRevisionOf(fields)};
  }catch(error){throw error instanceof ContentError?new ContentError(error.message.startsWith(where)?error.message:`${where}: ${error.message}`):error}
 }
-const spaces=(value:string)=>value.normalize('NFC').replace(/\s+/g,' ').trim();
-function describeCloze(id:string,src:Sourced<ClozeSource>):PackageCloze{
- const where=`clozes/${src.file}`;
- checkId(id,where);
- const {file:_file,audio,id:_id,...rest}=src;
- let draft:PackageCloze;
- try{draft=validateCloze(nfc({...rest,id,revision:'',...(audio?{audioAssetId:audioAssetId(id)}:{})}),where)}
- catch(error){throw error instanceof ContentError?new ContentError(error.message.startsWith(where)?error.message:`${where}: ${error.message}`):error}
- // Пропуск, вырезанный из материала, обязан восстанавливаться в цитату: иначе задание проверяет не то предложение.
- const {excerpt,operation}=draft.provenance;
- if(operation==='cloze-from-source'&&excerpt&&!spaces(excerpt).includes(spaces(draft.template.replace(GAP,draft.answer))))
-  fail(`${where}: восстановленное предложение «${draft.template.replace(GAP,draft.answer)}» не найдено в provenance.excerpt`);
- const {revision:_r,...fields}=draft;
- return {...fields,revision:clozeRevisionOf(fields)};
-}
-
 function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8Array>,labels:{alt:string;source:string},where:string,legacy:Set<string>,art:ArtReport):{item:PackageMedia;body:Uint8Array}{
  const body=files.get(`${dir}/${file}`);
  if(!body)fail(`${where}: файла ${dir}/${file} нет`);
@@ -154,12 +135,12 @@ function mediaFor(id:string,file:string,dir:'art'|'audio',files:Map<string,Uint8
  }};
 }
 
-const KIND_LABEL:Record<CardKind,{one:string;dir:string}>={word:{one:'слова',dir:'words'},phrase:{one:'фразы',dir:'phrases'},cloze:{one:'пропуска',dir:'clozes'}};
+const KIND_LABEL:Record<CardKind,{one:string;dir:string}>={word:{one:'слова',dir:'words'},phrase:{one:'фразы',dir:'phrases'}};
 
 /**
  * Одно и то же слово живёт в одном файле и получает один идентификатор во всех уроках.
  * Два файла с одинаковой парой «написание + перевод» — ошибка публикации, а не тихий дубликат.
- * Для фраз дубликат — тот же текст и перевод, для пропусков — тот же шаблон, ответ и допустимые ответы:
+ * Для фраз дубликат — тот же текст и перевод:
  * то же предложение с другим скрытым местом — другая карточка.
  */
 export function buildContent(root=defaultRoot()):BuiltContent{
@@ -180,18 +161,6 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(twin)fail(`phrases/${src.file} повторяет фразу «${phrase.text}» из phrases/${sources.phrases.get(twin)!.file}`);
   phraseByKey.set(key,id); phrases.set(id,phrase);
  }
- const clozes=new Map<string,PackageCloze>(); const clozeByKey=new Map<string,string>();
- for(const [id,src] of sources.clozes){
-  const cloze=describeCloze(id,src);
-  const key=clozeKey(cloze.template,cloze.answer,cloze.acceptedAnswers);
-  const twin=clozeByKey.get(key);
-  if(twin)fail(`clozes/${src.file} повторяет пропуск «${cloze.template}» из clozes/${sources.clozes.get(twin)!.file}`);
-  clozeByKey.set(key,id); clozes.set(id,cloze);
-  if(cloze.related){
-   const exists=cloze.related.kind==='word'?words.has(cloze.related.id):phrases.has(cloze.related.id);
-   if(!exists)fail(`clozes/${src.file}.related: ${KIND_LABEL[cloze.related.kind].one} ${cloze.related.id} нет в ${KIND_LABEL[cloze.related.kind].dir}/`);
-  }
- }
  /** Список унаследованных картинок только сокращается: имя без файла — мусор, а не исключение. */
  const legacy=readLegacy(sources.files); const art:ArtReport={files:0,legacy:0};
  for(const file of legacy) if(!sources.files.has(`art/${file}`))fail(`art/${LEGACY_FILE}: файла art/${file} нет — уберите имя из списка`);
@@ -203,7 +172,6 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(src.audio)media.set(word.audioAssetId!,mediaFor(word.audioAssetId!,src.audio,'audio',sources.files,{alt:'',source:word.source??''},`words/${src.file}`,legacy,art));
  }
  for(const [id,src] of sources.phrases) if(src.audio)media.set(audioAssetId(id),mediaFor(audioAssetId(id),src.audio,'audio',sources.files,{alt:'',source:phrases.get(id)!.provenance.sourceLabel},`phrases/${src.file}`,legacy,art));
- for(const [id,src] of sources.clozes) if(src.audio)media.set(audioAssetId(id),mediaFor(audioAssetId(id),src.audio,'audio',sources.files,{alt:'',source:clozes.get(id)!.provenance.sourceLabel},`clozes/${src.file}`,legacy,art));
 
  /** Урок принадлежит ровно одному курсу: без курса он потеряется в каталоге, в двух — попадёт в занятие дважды. */
  const courseOf=new Map<string,string>(); const courses:CatalogCourse[]=[];
@@ -225,8 +193,8 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   courses.push(course);
  }
 
- const used={word:new Set<string>(),phrase:new Set<string>(),cloze:new Set<string>()};
- const cards={word:words,phrase:phrases,cloze:clozes} as const;
+ const used={word:new Set<string>(),phrase:new Set<string>()};
+ const cards={word:words,phrase:phrases} as const;
  const packages:ContentPackage[]=[]; const entries:CatalogEntry[]=[]; const files:BuiltFile[]=[];
  for(const [id,src] of sources.lessons){
   const where=`lessons/${id}.yaml`;
@@ -251,12 +219,11 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   if(new Set(items.map(item=>`${item.kind}/${item.id}`)).size!==items.length)fail(`${where}: карточка повторяется в списке`);
   const packWords=items.filter(item=>item.kind==='word').map(item=>words.get(item.id)!);
   const packPhrases=items.filter(item=>item.kind==='phrase').map(item=>phrases.get(item.id)!);
-  const packClozes=items.filter(item=>item.kind==='cloze').map(item=>clozes.get(item.id)!);
-  const packMedia=[...packWords.flatMap(word=>[word.imageAssetId,word.audioAssetId]),...packPhrases.map(p=>p.audioAssetId),...packClozes.map(c=>c.audioAssetId)]
+  const packMedia=[...packWords.flatMap(word=>[word.imageAssetId,word.audioAssetId]),...packPhrases.map(p=>p.audioAssetId)]
    .filter((ref):ref is string=>!!ref).map(ref=>media.get(ref)!.item);
   const draft:ContentPackage={
    schemaVersion:SCHEMA_VERSION,id,courseId,version:'',language:src.language??LANGUAGE,
-   lesson:{title},words:packWords,phrases:packPhrases,clozes:packClozes,items,
+   lesson:{title},words:packWords,phrases:packPhrases,items,
    links:items.filter(item=>item.kind==='word').map(item=>({wordId:item.id,position:item.position})),media:packMedia,
   };
   const version=hash(canonical({...draft,version:undefined}));
@@ -267,18 +234,17 @@ export function buildContent(root=defaultRoot()):BuiltContent{
   files.push({path:url,body,mimeType:'application/json'});
   entries.push({
    id,courseId,language:pack.language,title,
-   wordCount:packWords.length,phraseCount:packPhrases.length,clozeCount:packClozes.length,cardCount:items.length,
+   wordCount:packWords.length,phraseCount:packPhrases.length,cardCount:items.length,
    version,url,bytes:Buffer.byteLength(body),
    media:{count:packMedia.length,bytes:packMedia.reduce((sum,item)=>sum+item.bytes,0)},
   });
  }
  for(const id of words.keys()) if(!used.word.has(id))fail(`words/${sources.words.get(id)!.file} не входит ни в один урок и не будет опубликовано`);
  for(const id of phrases.keys()) if(!used.phrase.has(id))fail(`phrases/${sources.phrases.get(id)!.file} не входит ни в один урок и не будет опубликована`);
- for(const id of clozes.keys()) if(!used.cloze.has(id))fail(`clozes/${sources.clozes.get(id)!.file} не входит ни в один урок и не будет опубликован`);
  for(const {item,body} of media.values())files.push({path:item.url,body,mimeType:item.mimeType});
  const catalog:Catalog={schemaVersion:SCHEMA_VERSION,generatedAt:new Date().toISOString(),courses,lessons:entries};
  files.push({path:'content/catalog.json',body:JSON.stringify(catalog),mimeType:'application/json'});
- return {catalog,packages,files,words:[...words.values()],phrases:[...phrases.values()],clozes:[...clozes.values()],sources,art};
+ return {catalog,packages,files,words:[...words.values()],phrases:[...phrases.values()],sources,art};
 }
 
 export const wordsOf=(content:BuiltContent,lessonId:string)=>{
@@ -301,6 +267,6 @@ export function writeContent(publicDir='public',root=defaultRoot()){
 
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  const built=writeContent();
- console.log(`Контент: ${built.packages.length} пакетов, ${built.words.length} слов, ${built.phrases.length} фраз, ${built.clozes.length} пропусков, ${built.files.length} файлов → public/content`);
+ console.log(`Контент: ${built.packages.length} пакетов, ${built.words.length} слов, ${built.phrases.length} фраз, ${built.files.length} файлов → public/content`);
  console.log(`Иллюстрации: ${built.art.files}, вне палитры (art/${LEGACY_FILE}): ${built.art.legacy}`);
 }

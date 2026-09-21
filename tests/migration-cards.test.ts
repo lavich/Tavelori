@@ -10,10 +10,10 @@ import {makeSession} from '../src/domain/learning';
 import {dexieSource} from '../src/storage/queries';
 import {submitAnswer} from '../src/storage/ops';
 import {applyPackage} from '../src/content/client';
-import {clozeRevisionOf} from '../content/build';
+import {phraseRevisionOf} from '../content/build';
 import {unitKey, wordKeyOf, wordRef} from './helpers/cards';
 import {content, wordsOf} from './helpers/content';
-import {buildMixed, installMixed, MIXED_CLOZES, MIXED_LESSON, MIXED_PHRASES, mixedPackage} from './helpers/mixed';
+import {buildMixed, installMixed, MIXED_LESSON, MIXED_PHRASES, mixedPackage} from './helpers/mixed';
 
 /**
  * Схема 5: так выглядит база пользователя перед переходом к карточкам трёх видов. Индексы повторяют
@@ -117,7 +117,7 @@ describe('переход профиля схемы 5 к карточкам тр�
   expect(await db.courses.get('leeke')).toMatchObject({newItemsPerDay:12,schedule:{startDate:'2026-09-14',weekdays:[1,4]}});
   expect('newWordsPerDay' in (await db.courses.get('leeke'))!).toBe(false);
   // Пакет: убранная связь — ключ карточки, новые виды пустые.
-  expect(await db.packages.get('lesson-1-2')).toMatchObject({version:'v-old',removed:[wordKeyOf('w12-03')],phrases:[],clozes:[]});
+  expect(await db.packages.get('lesson-1-2')).toMatchObject({version:'v-old',removed:[wordKeyOf('w12-03')],phrases:[]});
   // Прежние хранилища пусты: данные скопированы, не продублированы.
   for(const table of [db.states,db.lessonWords,db.baseSkills,db.syncStash])expect(await table.count()).toBe(0);
   db.close();
@@ -230,42 +230,39 @@ describe('полная копия: прежние версии и смешанн
   }
   for(const table of [db.states,db.lessonWords,db.baseSkills,db.syncStash])expect(await table.count()).toBe(0);
  });
- it('смешанный профиль с активной сессией переносится целиком: цели карточек и снимков совпадают, отсутствие цели тоже',async()=>{
+ it('смешанный профиль с активной сессией переносится целиком, снимки ответов сохраняются',async()=>{
   await installMixed(db);
   const now=new Date('2026-09-16T09:00:00Z');
-  const session=await makeSession({source:dexieSource(db),now,random:()=>0.4,mode:'practice',refs:[{kind:'cloze',id:'c-grafo'},{kind:'cloze',id:'c-gramma'},{kind:'phrase',id:'p-grafo'}]});
+  const session=await makeSession({source:dexieSource(db),now,random:()=>0.4,mode:'practice',refs:[{kind:'phrase',id:'p-vouno'},{kind:'phrase',id:'p-paidi'},{kind:'phrase',id:'p-grafo'}]});
   await db.sessions.add(session);
-  const grafo=session.items.find(item=>item.ref.id==='c-grafo')!, gramma=session.items.find(item=>item.ref.id==='c-gramma')!;
+  const grafo=session.items.find(item=>item.ref.id==='p-vouno')!, gramma=session.items.find(item=>item.ref.id==='p-paidi')!;
   await submitAnswer({session,item:grafo,correct:false,answer:'γραφω',responseTimeMs:800,activeTimeMs:800,timezone:'Asia/Nicosia',now,database:db});
   await submitAnswer({session,item:gramma,correct:true,answer:'γράμμα',responseTimeMs:800,activeTimeMs:1600,timezone:'Asia/Nicosia',now,database:db});
   const blob=await exportFull(db);
   const parsed=JSON.parse(await blob.text());
   const names=parsed.data.tables.map((t:{name:string})=>t.name);
-  expect(names).toEqual(expect.arrayContaining(['phrases','clozes','lessonItems','cardStates','events','sessions']));
+  expect(names).toEqual(expect.arrayContaining(['phrases','lessonItems','cardStates','events','sessions']));
   const fresh=new LexiDatabase('lexi-cards-restore');
   await fresh.delete(); await fresh.open();
   await restoreBackup(asLexi(parsed),fresh);
-  for(const name of ['words','phrases','clozes','lessonItems','cardStates','events','sessions','packages','media'] as const)
+  for(const name of ['words','phrases','lessonItems','cardStates','events','sessions','packages','media'] as const)
    expect(await fresh.table(name).toArray(),name).toEqual(await db.table(name).toArray());
-  const cloze=(await fresh.clozes.get('c-vouno'))!;
-  expect(cloze.target).toEqual({kind:'adjective-form',features:{gender:'neuter',number:'singular'}}); // неизвестный клиенту вид сохранён целиком
   const events=await fresh.events.where('sessionId').equals(session.id).toArray();
-  expect(events.find(e=>e.ref.id==='c-grafo')!.snapshot).toEqual({template:'{{gap}} ένα γράμμα.',answer:'Γράφω',target:{kind:'verb-form',ref:'w11-27',features:{tense:'present',person:1,number:'singular'}}});
-  expect(events.find(e=>e.ref.id==='c-gramma')!.snapshot).toEqual({template:'Γράφω ένα {{gap}}.',answer:'γράμμα'}); // цели не было — не появилась
+  expect(events.find(e=>e.ref.id==='p-vouno')!.snapshot).toEqual({text:'Το βουνό είναι ψηλό.',translation:'Гора высокая.'});
+  expect(events.find(e=>e.ref.id==='p-paidi')!.snapshot).toEqual({text:'Το παιδί παίζει στο πάρκο.',translation:'Ребёнок играет в парке.'});
   expect((await fresh.sessions.get(session.id))!.status).toBe('active');
   fresh.close(); await fresh.delete();
  });
- it('копия с фразами и пропусками без слов допустима, а связь с отсутствующей карточкой отклоняется до замены данных',async()=>{
-  const noWords=buildMixed({phrases:{'p-grafo':MIXED_PHRASES['p-grafo']},clozes:{'c-grafo':MIXED_CLOZES['c-grafo'],'c-gramma':MIXED_CLOZES['c-gramma']},lesson:{title:'Без слов',language:'el',items:[{kind:'phrase',id:'p-grafo'},{kind:'cloze',id:'c-grafo'},{kind:'cloze',id:'c-gramma'}]}});
+ it('копия с одними фразами допустима, а связь с отсутствующей карточкой отклоняется до замены данных',async()=>{
+  const noWords=buildMixed({phrases:{'p-grafo':MIXED_PHRASES['p-grafo'],'p-vouno':MIXED_PHRASES['p-vouno']},lesson:{title:'Без слов',language:'el',items:[{kind:'phrase',id:'p-grafo'},{kind:'phrase',id:'p-vouno'}]}});
   await installMixed(db,[MIXED_LESSON],noWords);
   expect(await db.words.count()).toBe(0);
   const parsed=JSON.parse(await (await exportFull(db)).text());
   const fresh=new LexiDatabase('lexi-cards-nowords');
   await fresh.delete(); await fresh.open();
   await restoreBackup(asLexi(parsed),fresh);
-  expect(await fresh.phrases.count()).toBe(1);
-  expect(await fresh.clozes.count()).toBe(2);
-  expect((await lessonItems(MIXED_LESSON,fresh)).map(link=>link.ref.kind)).toEqual(['phrase','cloze','cloze']);
+  expect(await fresh.phrases.count()).toBe(2);
+  expect((await lessonItems(MIXED_LESSON,fresh)).map(link=>link.ref.kind)).toEqual(['phrase','phrase']);
   // Битая ссылка на фразу: текущие данные не меняются.
   const broken=JSON.parse(JSON.stringify(parsed));
   broken.data.data.find((t:{tableName:string})=>t.tableName==='lessonItems').rows.push({lessonId:MIXED_LESSON,unitKey:unitKey({kind:'phrase',id:'нет'}),ref:{kind:'phrase',id:'нет'},position:9});
@@ -280,18 +277,18 @@ describe('полная копия: прежние версии и смешанн
   const lines=tsv.split('\n');
   expect(lines).toHaveLength(1+await db.words.count());
   expect(tsv).not.toContain('Γράφω ένα γράμμα.');
-  expect(tsv).not.toContain('{{gap}}');
+  expect(tsv).not.toContain('Το βουνό είναι ψηλό.');
  });
- it('обновление пакета, добавившее цель, меняет ревизию, но не ID и не копию прогресса',async()=>{
+ it('обновление пакета, изменившее перевод, меняет ревизию, но не ID и не копию прогресса',async()=>{
   await installMixed(db);
   const pack=mixedPackage();
-  const gramma=pack.clozes.find(c=>c.id==='c-gramma')!;
+  const gramma=pack.phrases.find(p=>p.id==='p-paidi')!;
   const {revision:_r,...fields}=gramma;
-  const retargeted={...fields,target:{kind:'noun-form',features:{case:'accusative'}}};
-  const next={...pack,version:`${pack.version}-target`,clozes:pack.clozes.map(c=>c.id==='c-gramma'?{...retargeted,revision:clozeRevisionOf(retargeted)}:c)};
+  const retranslated={...fields,translation:'Ребёнок играет во дворе.'};
+  const next={...pack,version:`${pack.version}-fix`,phrases:pack.phrases.map(p=>p.id==='p-paidi'?{...retranslated,revision:phraseRevisionOf(retranslated)}:p)};
   await applyPackage(next,db);
-  const stored=(await db.clozes.get('c-gramma'))!;
-  expect(stored.target).toEqual({kind:'noun-form',features:{case:'accusative'}});
+  const stored=(await db.phrases.get('p-paidi'))!;
+  expect(stored.translation).toBe('Ребёнок играет во дворе.');
   expect(stored.revision).not.toBe(gramma.revision);
   expect(content.packages.length).toBeGreaterThan(0);
  });

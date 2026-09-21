@@ -9,7 +9,6 @@ export type {LearningRef} from './types.ts';
 export const unitKey=(ref:LearningRef):string=>JSON.stringify([ref.kind,ref.id]);
 export const wordRef=(id:string):LearningRef=>({kind:'word',id});
 export const phraseRef=(id:string):LearningRef=>({kind:'phrase',id});
-export const clozeRef=(id:string):LearningRef=>({kind:'cloze',id});
 export const wordKeyOf=(id:string)=>unitKey(wordRef(id));
 export const isCardKind=(value:unknown):value is CardKind=>typeof value==='string'&&(CARD_KINDS as readonly string[]).includes(value);
 /** Ключ старой словарной записи: голый ID слова без сериализации. */
@@ -28,15 +27,11 @@ export function parseUnitKey(key:string):LearningRef{
 export const itemOfLink=(link:LessonWord):LessonItem=>({lessonId:link.lessonId,unitKey:wordKeyOf(link.wordId),ref:wordRef(link.wordId),position:link.position});
 
 /** Ссылка на содержимое сессии и снимок для события ответа. */
-export const refOfCard=(card:SessionCard):LearningRef=>card.kind==='word'?wordRef(card.word.id):card.kind==='phrase'?phraseRef(card.phrase.id):clozeRef(card.cloze.id);
+export const refOfCard=(card:SessionCard):LearningRef=>card.kind==='word'?wordRef(card.word.id):phraseRef(card.phrase.id);
 export const snapshotOf=(card:SessionCard):CardSnapshot=>card.kind==='word'?{greek:card.word.greek,russian:card.word.russian}
- :card.kind==='phrase'?{text:card.phrase.text,...(card.phrase.translation?{translation:card.phrase.translation}:{})}
- :{template:card.cloze.template,answer:card.cloze.answer,...(card.cloze.target?{target:card.cloze.target}:{})};
+ :{text:card.phrase.text,...(card.phrase.translation?{translation:card.phrase.translation}:{})};
 /** Поставленная пакетом карточка имеет ревизию; у пользовательских слов её нет. */
-export const isShippedCard=(card:SessionCard)=>(card.kind==='word'?card.word:card.kind==='phrase'?card.phrase:card.cloze).revision!==undefined;
+export const isShippedCard=(card:SessionCard)=>(card.kind==='word'?card.word:card.phrase).revision!==undefined;
 
 /** Дубликат фразы — тот же текст с тем же переводом; фраза без перевода не равна фразе с переводом. */
 export const phraseKey=(text:string,translation:string|undefined)=>`${normalize(text)} ${translation===undefined?'':normalize(translation)}`;
-/** Дубликат cloze — тот же шаблон, канонический ответ и множество допустимых ответов; цель и порядок ответов не учитываются. */
-export const clozeKey=(template:string,answer:string,acceptedAnswers:string[])=>
- [normalize(template),normalize(answer),[...new Set(acceptedAnswers.map(normalize))].sort().join('')].join(' ');

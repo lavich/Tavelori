@@ -73,7 +73,7 @@ export const TRANSFER_TEXT:Record<TransferOutcome,string>={
 };
 export const backupName=(now=new Date())=>`lexi-backup-${now.toISOString().slice(0,10)}.json`;
 
-/** TSV — только слова: фразы и пропуски в него не входят, и полной копией он не является. */
+/** TSV — только слова: фразы в него не входят, и полной копией он не является. */
 export async function exportWordsTsv(database:LexiDatabase=db):Promise<Blob>{
  const rows:string[]=['Греческий\tРусский\tIPA'];
  await database.words.orderBy('[sortKey+id]').each(word=>{
@@ -110,7 +110,7 @@ export async function inspectBackup(file:Blob):Promise<{ok:true;report:BackupRep
 
 /**
  * Копия сначала разворачивается в отдельной базе, мигрируется по тем же правилам, что и локальная схема,
- * и проверяется на целостность; только затем одной транзакцией заменяет данные. Копия с фразами или пропусками
+ * и проверяется на целостность; только затем одной транзакцией заменяет данные. Копия с одними фразами
  * без слов допустима; связь с отсутствующей карточкой любого вида отклоняет восстановление до замены.
  */
 export async function restoreBackup(file:Blob,database:LexiDatabase=db):Promise<void>{
@@ -129,9 +129,9 @@ export async function restoreBackup(file:Blob,database:LexiDatabase=db):Promise<
   await staging.transaction('rw',all,()=>migrateCards(staging));
   const payload=await Promise.all(TABLES.map(async name=>[name,await staging.table(name).toArray()] as const));
   const rows=<T,>(name:typeof TABLES[number])=>payload.find(([table])=>table===name)![1] as T[];
-  const ids=(name:'words'|'phrases'|'clozes')=>new Set(rows<{id:string}>(name).map(row=>row.id));
-  const cards={word:ids('words'),phrase:ids('phrases'),cloze:ids('clozes')};
-  if(!cards.word.size&&!cards.phrase.size&&!cards.cloze.size)throw new Error('В копии нет ни одной карточки — восстановление отменено.');
+  const ids=(name:'words'|'phrases')=>new Set(rows<{id:string}>(name).map(row=>row.id));
+  const cards={word:ids('words'),phrase:ids('phrases')};
+  if(!cards.word.size&&!cards.phrase.size)throw new Error('В копии нет ни одной карточки — восстановление отменено.');
   const lessonIds=new Set(rows<{id:string}>('lessons').map(lesson=>lesson.id));
   const broken=rows<LessonItem>('lessonItems').find(link=>!link.ref||!cards[link.ref.kind]?.has(link.ref.id)||!lessonIds.has(link.lessonId));
   if(broken)throw new Error(`Копия повреждена: связь урока ${broken.lessonId} указывает на несуществующую запись.`);

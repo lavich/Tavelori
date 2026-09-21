@@ -55,7 +55,7 @@ describe('миграция схемы без сети',()=>{
   await seedLegacy();
   const db=new LexiDatabase(NAME);
   await db.open();
-  expect(db.verno).toBe(6);
+  expect(db.verno).toBe(7);
   const l12=wordsOf('lesson-1-2');
   expect((await lessonItems('lesson-1-2',db)).map(link=>link.ref.id)).toEqual(l12.map(w=>w.id));
   expect((await lessonItems('lesson-own',db)).map(link=>[link.ref.id,link.position])).toEqual([['w-own',0],['w12-16',1]]);
@@ -89,7 +89,7 @@ describe('миграция схемы без сети',()=>{
   await seedLegacy();
   const db=new LexiDatabase(NAME);
   await db.open();
-  expect(db.verno).toBe(6);
+  expect(db.verno).toBe(7);
   expect(await db.courses.get('my')).toMatchObject({id:'my',origin:'local',subscribed:true});
   expect((await db.lessons.get('lesson-own'))!.courseId).toBe('my'); // создан пользователем — пакета нет
   expect((await db.lessons.get('lesson-1-2'))!.courseId).toBeUndefined(); // пакет прежней сборки курса не знает
@@ -100,7 +100,7 @@ describe('миграция схемы без сети',()=>{
   await seedLegacy();
   const db=new LexiDatabase(NAME);
   await db.open();
-  expect(db.verno).toBe(6);
+  expect(db.verno).toBe(7);
   const settings=(await db.settings.get('settings'))! as unknown as Record<string,unknown>;
   expect(settings.newWordsPerDay).toBeUndefined();
   expect(settings.schedule).toBeUndefined();
@@ -146,7 +146,7 @@ describe('резервная копия',()=>{
   const blob=await exportFull(db);
   const parsed=JSON.parse(await blob.text());
   const names=parsed.data.tables.map((t:{name:string})=>t.name);
-  expect(names).toEqual(expect.arrayContaining(['lessonItems','cardStates','phrases','clozes','packages','media','words']));
+  expect(names).toEqual(expect.arrayContaining(['lessonItems','cardStates','phrases','packages','media','words']));
   expect(names).not.toEqual(expect.arrayContaining(['lessonWords'])); // пустые площадки старых хранилищ в копию не входят
   expect(parsed.data.data.find((t:{tableName:string})=>t.tableName==='catalog')?.rows??[]).toEqual([]);
   const copy=asLexi(parsed);
@@ -191,7 +191,7 @@ describe('резервная копия',()=>{
   await installLessons(db,['lesson-1-1']);
   const before=await db.words.count();
   expect(await inspectBackup(new Blob(['{не json']))).toMatchObject({ok:false});
-  expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:7,tables:[],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/более новой версией/)});
+  expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:8,tables:[],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/более новой версией/)});
   expect(await inspectBackup(new Blob([JSON.stringify({formatName:'dexie',formatVersion:1,data:{databaseName:'lexi',databaseVersion:2,tables:[{name:'words',rowCount:0}],data:[]}})]))).toMatchObject({ok:false,message:expect.stringMatching(/обязательных таблиц/)});
   const good=JSON.parse(await (await exportFull(db)).text());
   const links=good.data.data.find((t:{tableName:string})=>t.tableName==='lessonItems');

@@ -56,7 +56,7 @@ export function LessonsScreen(){
         <ItemMedia variant="icon"><CloudDownload/></ItemMedia>
         <ItemContent>
          <ItemTitle className="text-base">{shortTitle(entry.title)} · не загружен</ItemTitle>
-         <ItemDescription>{entry.phraseCount||entry.clozeCount?withCount(entry.cardCount,CARDS):withCount(entry.wordCount,WORDS)} · {fileSize(entry.bytes+entry.media.bytes)}</ItemDescription>
+         <ItemDescription>{entry.phraseCount?withCount(entry.cardCount,CARDS):withCount(entry.wordCount,WORDS)} · {fileSize(entry.bytes+entry.media.bytes)}</ItemDescription>
         </ItemContent>
         <ItemActions><ChevronRight className="text-muted-foreground"/></ItemActions>
        </Item>

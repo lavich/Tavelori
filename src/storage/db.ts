@@ -2,7 +2,7 @@ import Dexie, {type Table, type Transaction} from 'dexie';
 import type {CatalogEntry} from '../content/schema';
 import {normalize, wordKey} from '../domain/import';
 import {isUnitKey, unitKey, wordRef} from '../domain/refs';
-import {defaultSchedule, defaultSettings, DEFAULT_NEW_ITEMS_PER_DAY, LOCAL_COURSE, type Asset, type Cloze, type Course, type InstalledPackage, type Schedule, type LearningState, type Lesson, type LessonItem, type LessonWord, type MediaRef, type Phrase, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from '../domain/types';
+import {defaultSchedule, defaultSettings, DEFAULT_NEW_ITEMS_PER_DAY, LOCAL_COURSE, type Asset, type Course, type InstalledPackage, type Schedule, type LearningState, type Lesson, type LessonItem, type LessonWord, type MediaRef, type Phrase, type ReviewEvent, type Session, type SessionItem, type Settings, type Word} from '../domain/types';
 import type {BaseSkillRow, BaseSummaryRow, StashRow, SyncVersionRow} from '../sync/types';
 import {currentProfile} from './profile';
 
@@ -25,7 +25,7 @@ export interface LegacyStash {wordId:string;state:{wordId:string;card:unknown;in
 export interface LegacySkill {wordId:string;skills:BaseSkillRow['skills']}
 
 export class LexiDatabase extends Dexie {
- words!:Table<StoredWord,string>; phrases!:Table<Phrase,string>; clozes!:Table<Cloze,string>;
+ words!:Table<StoredWord,string>; phrases!:Table<Phrase,string>;
  lessons!:Table<Lesson,string>; lessonItems!:Table<LessonItem,[string,string]>;
  courses!:Table<Course,string>;
  assets!:Table<Asset,string>; media!:Table<MediaRef,string>; packages!:Table<InstalledPackage,string>; catalog!:Table<CatalogEntry,string>;
@@ -91,13 +91,36 @@ export class LexiDatabase extends Dexie {
    cardSkills:'unitKey',
    cardStash:'unitKey',
   }).upgrade(tx=>migrateCards(tx));
+  /**
+   * Схема 7 снимает вид карточек «заполни пропуск»: таблица `clozes` уходит, а его ключи — из связей,
+   * состояний, навыков и отложенного облачного прогресса, иначе они висели бы без карточек и попадали
+   * в счётчики урока. История ответов остаётся: событие — запись о том, что было, и снятый вид ещё
+   * встречается в ней, в старых копиях и в облаке чужих устройств.
+   */
+  this.version(7).stores({clozes:null}).upgrade(tx=>dropClozeCards(tx));
+ }
+}
+/** Ключ снятого вида: `unitKey` сериализует пару, поэтому все такие ключи начинаются одинаково. */
+const CLOZE_KEY_PREFIX='["cloze"';
+export async function dropClozeCards(tx:Pick<Transaction,'table'>):Promise<void>{
+ for(const name of ['lessonItems','cardStates','cardSkills','cardStash'] as const){
+  const table=tx.table(name) as Table<{unitKey:string},unknown>;
+  const stale=(await table.toArray()).filter(row=>row.unitKey?.startsWith(CLOZE_KEY_PREFIX));
+  for(const row of stale)await table.where('unitKey').equals(row.unitKey).delete();
+ }
+ const packages=tx.table('packages') as Table<InstalledPackage&{clozes?:unknown[]},string>;
+ for(const pack of await packages.toArray()){
+  if(!('clozes' in pack))continue;
+  const {clozes:_dropped,...rest}=pack;
+  const items=(rest.items as {kind:string}[]).filter(item=>item.kind!=='cloze') as typeof rest.items;
+  await packages.put({...rest,items});
  }
 }
 /** База текущего профиля: обычный браузер — `lexi`, Telegram — отдельная база на бота и пользователя. */
 export const db=new LexiDatabase(currentProfile().databaseName);
-export const SCHEMA_VERSION=6;
+export const SCHEMA_VERSION=7;
 /** Таблицы пользовательских данных: входят в полную копию. Каталог — кеш, а не данные пользователя; альтернативные версии облака — тоже. */
-export const TABLES=['words','phrases','clozes','lessons','courses','lessonItems','assets','media','packages','cardStates','events','sessions','settings','meta','cardSkills','baseSummary','cardStash'] as const;
+export const TABLES=['words','phrases','lessons','courses','lessonItems','assets','media','packages','cardStates','events','sessions','settings','meta','cardSkills','baseSummary','cardStash'] as const;
 /** Наборы обязательных таблиц прежних копий: копия старого файла не обязана знать новые таблицы. */
 export const TABLES_V5=['words','lessons','courses','lessonWords','assets','media','packages','states','events','sessions','settings','meta','baseSkills','baseSummary','syncStash'] as const;
 export const TABLES_V3=['words','lessons','lessonWords','assets','media','packages','states','events','sessions','settings','meta','baseSkills','baseSummary','syncStash'] as const;
@@ -174,7 +197,7 @@ export async function migrateLegacy(tx:Pick<Transaction,'table'>):Promise<void>{
    await lessons.put(lesson);
   }
   if(seeded&&SEED_LESSON.test(lesson.id)&&!(await packages.get(lesson.id)))
-   await packages.put({lessonId:lesson.id,version:'legacy',schemaVersion:0,installedAt:now,words:[],phrases:[],clozes:[],items:[],media:[],removed:[]});
+   await packages.put({lessonId:lesson.id,version:'legacy',schemaVersion:0,installedAt:now,words:[],phrases:[],items:[],media:[],removed:[]});
  }
  await words.toCollection().modify(word=>{
   Object.assign(word,indexWord(word));
@@ -243,7 +266,7 @@ export async function migrateCards(tx:Pick<Transaction,'table'>):Promise<void>{
  });
  const packages=tx.table('packages') as Table<InstalledPackage,string>;
  await packages.toCollection().modify(pack=>{
-  pack.phrases??=[]; pack.clozes??=[];
+  pack.phrases??=[];
   // Прежняя запись не хранила состав: у словарного пакета это его слова, у установки старой версии он неизвестен.
   pack.items??=pack.words.map((word,position)=>({kind:'word' as const,id:word.id,position}));
   pack.removed=(pack.removed??[]).map(key=>isUnitKey(key)?key:unitKey(wordRef(key)));

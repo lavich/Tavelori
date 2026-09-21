@@ -13,9 +13,9 @@ export const LEECH_LAPSES=8;
 /** Список — сообщение пользователю, а не очередь работы: длинный перечень в него не помещается и не нужен. */
 export const LEECH_LIMIT=20;
 export interface Leech {unitKey:string;ref:LearningRef;lapses:number;label:string}
-/** Короткая подпись карточки для списков: у слова — написание, у фразы — текст, у пропуска — пропущенная форма. */
-export const cardLabel=(card:SessionCard):string=>card.kind==='word'?card.word.greek:card.kind==='phrase'?card.phrase.text:card.cloze.answer;
-/** `totals.cards` — уникальные карточки любого вида с ответами; фразы и пропуски не выдаются за слова. */
+/** Короткая подпись карточки для списков: у слова — написание, у фразы — текст. */
+export const cardLabel=(card:SessionCard):string=>card.kind==='word'?card.word.greek:card.phrase.text;
+/** `totals.cards` — уникальные карточки любого вида с ответами; фразы не выдаются за слова. */
 export interface Progress {days:DayStat[];skills:SkillStat[];due:{today:number;tomorrow:number;week:number};groups:{fresh:number;learning:number;review:number;solid:number};leeches:Leech[];totals:{answers:number;cards:number;byKind:Record<CardKind,number>}}
 
 export interface StatsSource {
@@ -37,10 +37,10 @@ export interface StatsSource {
 
 /**
  * Типы проверки в порядке показа; сводка по ним описывает форматы проверки, а не освоение грамматических тем.
- * Перечислены только предлагаемые сейчас типы: у снятого `recall` постоянная строка «Ещё не проверяли»
- * не описывала бы ни навык, ни историю. Его ответы остаются в общем числе и в разбивке по дням.
+ * Перечислены только предлагаемые сейчас типы: у снятых `recall` и `cloze` постоянная строка
+ * «Ещё не проверяли» не описывала бы ни навык, ни историю. Их ответы остаются в общем числе и в разбивке по дням.
  */
-export const SKILL_TYPES:ExerciseType[]=['recognition','assembly','spelling','listening','comprehension','cloze'];
+export const SKILL_TYPES:ExerciseType[]=['recognition','assembly','spelling','listening','comprehension'];
 /** Статистика считается по записанным событиям, а не по показам экрана. */
 export async function progress(source:StatsSource,now:Date):Promise<Progress>{
  const {timezone}=await source.settings();

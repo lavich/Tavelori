@@ -26,15 +26,14 @@ export const parseClock=(raw:string|null):Clock=>{try{const clock=raw?JSON.parse
 const isStandardLesson=(id:string,packages:Set<string>)=>packages.has(id)||SEED_LESSON.test(id);
 /**
  * Ключи поставляемых карточек среди перечисленных: слово — по ревизии или исходному набору,
- * фраза и пропуск — по наличию записи с ревизией. Пользовательские слова в облако не уходят.
+ * фраза — по наличию записи с ревизией. Пользовательские слова в облако не уходят.
  */
 async function standardKeys(database:LexiDatabase,refs:LearningRef[]):Promise<Set<string>>{
- const ids:Record<CardKind,string[]>={word:[],phrase:[],cloze:[]};
+ const ids:Record<CardKind,string[]>={word:[],phrase:[]};
  for(const ref of refs)ids[ref.kind].push(ref.id);
  const keys=new Set<string>();
  if(ids.word.length)for(const word of await database.words.bulkGet(ids.word))if(word&&isStandardWord(word))keys.add(unitKey({kind:'word',id:word.id}));
  if(ids.phrase.length)for(const phrase of await database.phrases.bulkGet(ids.phrase))if(phrase?.revision!==undefined)keys.add(unitKey({kind:'phrase',id:phrase.id}));
- if(ids.cloze.length)for(const cloze of await database.clozes.bulkGet(ids.cloze))if(cloze?.revision!==undefined)keys.add(unitKey({kind:'cloze',id:cloze.id}));
  return keys;
 }
 const uniqueRefs=(refs:LearningRef[])=>[...new Map(refs.map(ref=>[unitKey(ref),ref])).values()];
@@ -75,7 +74,7 @@ export async function commitBase(database:LexiDatabase,snapshot:CompactSnapshot,
  await database.cardSkills.bulkPut(snapshot.skills.map(entry=>({unitKey:unitKey(entry.ref),ref:entry.ref,skills:entry.skills})));
  await database.baseSummary.put({id:'base',asOf,versionId,stats:snapshot.stats});
 }
-export const SNAPSHOT_TABLES=['cardSkills','baseSummary','cardStates','words','phrases','clozes','events','settings','courses','lessons','packages','cardStash','meta'] as const;
+export const SNAPSHOT_TABLES=['cardSkills','baseSummary','cardStates','words','phrases','events','settings','courses','lessons','packages','cardStash','meta'] as const;
 /** Сборка и фиксация базы одной транзакцией: ответ, записанный после, гарантированно попадёт в следующую версию. */
 export async function buildAndCommit(database:LexiDatabase,now:Date,versionId:string):Promise<CompactSnapshot>{
  return database.transaction('rw',SNAPSHOT_TABLES.map(name=>database.table(name)),async()=>{
@@ -88,7 +87,7 @@ export async function buildAndCommit(database:LexiDatabase,now:Date,versionId:st
 export type PendingLessons=Record<string,CompactLesson>;
 export const readPending=async(database:LexiDatabase):Promise<PendingLessons>=>{try{return JSON.parse(await readMeta(database,META.pendingLessons)??'{}')}catch{return {}}};
 
-/** Есть ли сохранённый прогресс фраз или пропусков: состояния, события или сводки. Само наличие их контента не считается. */
+/** Есть ли сохранённый прогресс фраз: состояния, события или сводки. Само наличие их контента не считается. */
 export async function hasMixedProgress(database:LexiDatabase):Promise<boolean>{
  const mixed=(ref:LearningRef)=>ref.kind!=='word';
  if(await database.cardStates.where('ref.kind').anyOf(['phrase','cloze']).count())return true;
@@ -103,12 +102,12 @@ export async function hasMixedProgress(database:LexiDatabase):Promise<boolean>{
  * Применение целой версии одной транзакцией: настройки, даты стандартных уроков, состояния FSRS стандартных карточек,
  * база навыков и сводок. История ответов остаётся локальной. Состояния неизвестных карточек откладываются
  * до установки пакета, а не обнуляются и не попадают в план. Словарный снимок формата 1 не может представлять
- * фразы и пропуски: при уже сохранённом прогрессе новых видов он отклоняется до изменения данных.
+ * фразы: при уже сохранённом прогрессе фраз он отклоняется до изменения данных.
  */
 export async function applySnapshot(database:LexiDatabase,snapshot:CompactSnapshot,versionId:string,clock:Clock,now:Date,sourceFormat:number=SNAPSHOT_FORMAT):Promise<void>{
  await database.transaction('rw',SNAPSHOT_TABLES.map(name=>database.table(name)),async()=>{
   if(sourceFormat===LEGACY_SNAPSHOT_FORMAT&&await hasMixedProgress(database))
-   throw new SyncError('format','Облачная версия словарного формата 1 не может заменить прогресс фраз и пропусков на этом устройстве. Обновите приложение на другом устройстве; локальные данные не изменены.');
+   throw new SyncError('format','Облачная версия словарного формата 1 не может заменить прогресс фраз на этом устройстве. Обновите приложение на другом устройстве; локальные данные не изменены.');
   const current=await loadSettings(database);
   await database.settings.put(fillSettings({...current,...snapshot.settings}));
   // Темп курса переносится, а курс, которого здесь ещё нет, будет заведён каталогом с этими же значениями.

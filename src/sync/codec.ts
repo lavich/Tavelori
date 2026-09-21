@@ -10,7 +10,8 @@ import {LEGACY_SNAPSHOT_FORMAT, SNAPSHOT_FORMAT, type CompactCourse, type Compac
  */
 const TYPE_CODE:Record<ExerciseType,string>={recall:'c',recognition:'r',assembly:'a',spelling:'s',listening:'l',comprehension:'m',cloze:'z'};
 const CODE_TYPE=Object.fromEntries(Object.entries(TYPE_CODE).map(([type,code])=>[code,type])) as Record<string,ExerciseType>;
-const KIND_CODE:Record<CardKind,string>={word:'w',phrase:'p',cloze:'c'};
+// Код `c` занят снятым видом карточек и переиспользованию не подлежит: в облаке старых устройств он ещё встречается.
+const KIND_CODE:Record<CardKind,string>={word:'w',phrase:'p'};
 const CODE_KIND=Object.fromEntries(Object.entries(KIND_CODE).map(([kind,code])=>[code,kind])) as Record<string,CardKind>;
 const ms=(iso:string|undefined)=>iso?Date.parse(iso):0;
 const iso=(value:number)=>new Date(value).toISOString();

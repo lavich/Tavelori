@@ -9,5 +9,3 @@ items:
     id: p-example
   - kind: word
     id: w-example
-  - kind: cloze
-    id: c-example

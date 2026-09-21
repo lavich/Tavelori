@@ -119,17 +119,16 @@ export async function seedMixedLesson(page:Page,options:{lessonId?:string;title?
  const lessonId=options.lessonId??pack.id;
  const items=pack.items.filter(item=>!options.only||options.only.includes(item.id)).map((item,position)=>({...item,position}));
  const payload={lessonId,title:options.title??pack.lesson.title,courseId:pack.courseId,version:pack.version,schemaVersion:pack.schemaVersion,items,
-  phrases:pack.phrases.filter(p=>items.some(i=>i.kind==='phrase'&&i.id===p.id)),clozes:pack.clozes.filter(c=>items.some(i=>i.kind==='cloze'&&i.id===c.id)),
+  phrases:pack.phrases.filter(p=>items.some(i=>i.kind==='phrase'&&i.id===p.id)),
   targetDate:options.targetDate??null};
  await page.evaluate(async([payload,databaseName])=>{
   const database=await new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(databaseName);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
   const now=new Date().toISOString();
-  const tx=database.transaction(['lessons','lessonItems','phrases','clozes','packages'],'readwrite');
+  const tx=database.transaction(['lessons','lessonItems','phrases','packages'],'readwrite');
   tx.objectStore('lessons').put({id:payload.lessonId,courseId:payload.courseId,title:payload.title,targetDate:payload.targetDate,status:'upcoming',createdAt:now,updatedAt:now});
   for(const item of payload.items)tx.objectStore('lessonItems').put({lessonId:payload.lessonId,unitKey:JSON.stringify([item.kind,item.id]),ref:{kind:item.kind,id:item.id},position:item.position});
   for(const phrase of payload.phrases)tx.objectStore('phrases').put({...phrase,createdAt:now,updatedAt:now});
-  for(const cloze of payload.clozes)tx.objectStore('clozes').put({...cloze,createdAt:now,updatedAt:now});
-  tx.objectStore('packages').put({lessonId:payload.lessonId,courseId:payload.courseId,version:payload.version,schemaVersion:payload.schemaVersion,installedAt:now,words:[],phrases:payload.phrases,clozes:payload.clozes,items:payload.items,media:[],removed:[]});
+  tx.objectStore('packages').put({lessonId:payload.lessonId,courseId:payload.courseId,version:payload.version,schemaVersion:payload.schemaVersion,installedAt:now,words:[],phrases:payload.phrases,items:payload.items,media:[],removed:[]});
   await new Promise<void>((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)});
   database.close();
  },[payload,options.databaseName??'lexi'] as const);

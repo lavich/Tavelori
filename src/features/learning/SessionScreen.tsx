@@ -12,7 +12,7 @@ import {hapticsEnabled} from '../../platform/haptics';
 import {useBackHandler, useHaptics, usePlatform} from '../../platform/platform';
 import {db} from '../../storage/db';
 import {ConflictError, endSession, recordAnswer, markIntroduced, prepareObjectiveSession, skipItem} from '../../storage/ops';
-import {Assembly, ClozeExercise, Comprehension, Introduction, Listening, Recognition, Spelling, type Answer} from './exercises';
+import {Assembly, Comprehension, Introduction, Listening, Recognition, Spelling, type Answer} from './exercises';
 import ui from '../../shared/ui.module.css';
 import s from './session.module.css';
 
@@ -32,7 +32,7 @@ export function SessionScreen(){
   active.current={ms:session.activeTimeMs,since:Date.now()}; // время прошлых заходов не теряется
  },[session?.id]);
  const [cursor,setCursor]=useState<number|null>(null);
- // Одна жалоба на экран: её ставят и знакомство, и сохранение ответа, и пропуск. `busy` здесь — идущее знакомство.
+ // Одна жалоба на экран: её ставят и знакомство, и сохранение ответа, и пропуск упражнения. `busy` — идущее знакомство.
  const {busy:introducing,problem,setProblem,run}=useAction('Не удалось сохранить знакомство. Попробуйте ещё раз.');
  const [preparing,setPreparing]=useState(false);
  useEffect(()=>{
@@ -131,7 +131,6 @@ export function SessionScreen(){
  // key по упражнению: иначе следующая карточка успевает показаться с ответом предыдущей.
  const view=session.objectiveVersion!==1?null:introduction
   ?<Introduction key={introduction.id} item={introduction} onReady={introduce} saving={introducing} autoSpeak={settingsReady&&settings.autoSpeak}/>
-  :item.type==='cloze'?<ClozeExercise key={item.id} item={item} onAnswer={answer} onNext={next}/>
   :item.type==='recognition'?<Recognition key={item.id} item={item} onAnswer={answer} onNext={next} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='listening'?<Listening key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip} autoSpeak={settingsReady&&settings.autoSpeak}/>
   :item.type==='comprehension'?<Comprehension key={item.id} item={item} onAnswer={answer} onNext={next} onSkip={skip} autoSpeak={settingsReady&&settings.autoSpeak}/>

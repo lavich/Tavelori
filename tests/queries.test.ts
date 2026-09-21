@@ -208,15 +208,14 @@ describe('локальный поиск',()=>{
 describe('смешанный урок в выборках',()=>{
  it('список уроков считает состав по видам и прогресс по ключам связей; урок без слов не пуст',async()=>{
   await installMixed(db);
-  await db.cardStates.add({unitKey:unitKey({kind:'cloze',id:'c-grafo'}),ref:{kind:'cloze',id:'c-grafo'},introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:30} as never});
+  await db.cardStates.add({unitKey:unitKey({kind:'phrase',id:'p-vouno'}),ref:{kind:'phrase',id:'p-vouno'},introducedAt:iso,version:1,card:{due:now,state:State.Review,scheduled_days:30} as never});
   await db.cardStates.add({unitKey:unitKey({kind:'phrase',id:'p-grafo'}),ref:{kind:'phrase',id:'p-grafo'},introducedAt:iso,version:1,card:{due:now,state:State.Learning,scheduled_days:0} as never});
   const [view]=(await lessonViews(db,true)).filter(v=>v.id===MIXED_LESSON);
-  expect(view).toMatchObject({cardCount:11,wordCount:1,phraseCount:5,clozeCount:5,progress:{solid:1,review:1,fresh:9}});
+  expect(view).toMatchObject({cardCount:6,wordCount:1,phraseCount:5,progress:{solid:1,review:1,fresh:4}});
   const detail=(await lessonDetail(MIXED_LESSON,db))!;
   expect(detail.items.map(item=>item.ref.kind)).toEqual(mixedPackage().items.map(item=>item.kind));
   expect(detail.words.map(w=>w.id)).toEqual(['w11-27']);
   expect(detail.phrases.map(p=>p.id)).toEqual(['p-grafo','p-vouno','p-paidi','p-anoixi','p-silent']);
-  expect(detail.clozes.map(c=>c.id)).toEqual(['c-grafo','c-gramma','c-vouno','c-paidi','c-anoixi']);
   expect(detail.states.size).toBe(2);
   // Убранная фраза исчезает из состава, но не из базы; словарь остаётся словарём слов.
   await removeFromLesson(MIXED_LESSON,{kind:'phrase',id:'p-silent'},db);
@@ -224,16 +223,16 @@ describe('смешанный урок в выборках',()=>{
   expect(await db.phrases.get('p-silent')).toBeTruthy();
   const page=await wordPage({query:'',filter:'all',lessonId:MIXED_LESSON,cursor:null},db);
   expect(page.items.map(item=>item.word.id)).toEqual(['w11-27']);
-  expect(await lessonsOfCard({kind:'cloze',id:'c-grafo'},db)).toHaveLength(1);
+  expect(await lessonsOfCard({kind:'phrase',id:'p-grafo'},db)).toHaveLength(1);
  });
  it('план и сессия на базе совпадают со снимком для смешанного урока при том же источнике случайности',async()=>{
   await installMixed(db);
   const data:Snapshot={
-   words:await db.words.toArray(),phrases:await db.phrases.toArray(),clozes:await db.clozes.toArray(),
+   words:await db.words.toArray(),phrases:await db.phrases.toArray(),
    lessons:await db.lessons.toArray(),courses:await db.courses.toArray(),links:[],items:await db.lessonItems.toArray(),
    states:[],events:[],sessions:[],settings:await db.settings.get('settings')??defaultSettings,
   };
-  const refs=[{kind:'cloze' as const,id:'c-grafo'},{kind:'phrase' as const,id:'p-grafo'},{kind:'word' as const,id:'w11-27'}];
+  const refs=[{kind:'phrase' as const,id:'p-vouno'},{kind:'phrase' as const,id:'p-grafo'},{kind:'word' as const,id:'w11-27'}];
   const record=async(source:ReturnType<typeof dexieSource>)=>({
    plan:(({newRefs,unavailable,budget,deadlines})=>({newRefs,unavailable,budget,deadlines}))(await makePlan(source,now,{hasVoice:true})),
    session:(await makeSession({source,now,random:mulberry32(5),hasVoice:true})).items.map(item=>({key:item.unitKey,type:item.type,options:item.options,isNew:item.isNew})),
@@ -243,6 +242,5 @@ describe('смешанный урок в выборках',()=>{
   expect(fromDb).toEqual(fromMemory);
   expect(fromDb.plan.unavailable).toEqual([]); // с голосом и пятью фразами фраза без перевода проверяема аудированием
   expect((await makePlan(dexieSource(db),now)).unavailable).toEqual([{kind:'phrase',id:'p-silent'}]);
-  expect(fromDb.session.some(item=>item.type==='cloze')).toBe(true);
  });
 });

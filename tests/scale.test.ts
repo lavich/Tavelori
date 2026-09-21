@@ -51,12 +51,11 @@ beforeAll(async()=>{
  }
  await db.lessons.bulkAdd(Array.from({length:LESSONS},(_,i)=>({id:`lesson-${pad(i)}`,title:`Урок ${i}`,targetDate:i<3?`2026-09-${17+i}`:null,status:'upcoming' as const,createdAt:iso,updatedAt:iso})));
  await db.lessonItems.bulkAdd(Array.from({length:LESSONS*35},(_,i)=>itemOfLink({lessonId:`lesson-${pad(Math.floor(i/35))}`,wordId:`w${pad(i*3)}`,position:i%35})));
- // Смешанный урок на той же базе: фразы и пропуски в отдельных таблицах, связи типизированы.
+ // Смешанный урок на той же базе: фразы в отдельной таблице, связи типизированы.
  const at=iso, provenance={sourceLabel:'тест',operation:'verbatim' as const};
  await db.phrases.bulkAdd(Array.from({length:500},(_,i)=>({id:`p${pad(i)}`,text:`Φράση ${i}.`,translation:`Фраза ${i}.`,provenance,createdAt:at,updatedAt:at})));
- await db.clozes.bulkAdd(Array.from({length:500},(_,i)=>({id:`c${pad(i)}`,template:`Εγώ {{gap}} ${i}.`,answer:`κάνω${i}`,acceptedAnswers:[`κάνω${i}`],provenance:{...provenance,operation:'cloze-from-source' as const},createdAt:at,updatedAt:at})));
  await db.lessons.add({id:'lesson-mixed',title:'Смешанный',targetDate:'2026-09-16',status:'upcoming',createdAt:iso,updatedAt:iso});
- const mixedRefs=Array.from({length:35},(_,i)=>i%3===0?{kind:'phrase' as const,id:`p${pad(i)}`}:i%3===1?{kind:'cloze' as const,id:`c${pad(i)}`}:{kind:'word' as const,id:`w${pad(i*7+1)}`});
+ const mixedRefs=Array.from({length:35},(_,i)=>i%2===0?{kind:'phrase' as const,id:`p${pad(i)}`}:{kind:'word' as const,id:`w${pad(i*7+1)}`});
  await db.lessonItems.bulkAdd(mixedRefs.map((ref,position)=>({lessonId:'lesson-mixed',unitKey:JSON.stringify([ref.kind,ref.id]),ref,position})));
  await db.settings.put({...defaultSettings,sessionSize:20});
  await db.courses.put({id:'my',title:'Мои слова',origin:'local',subscribed:true,schedule:{startDate:null,weekdays:[]},newItemsPerDay:10,createdAt:iso,updatedAt:iso});
@@ -97,16 +96,14 @@ describe('ограниченные выборки на большой базе',
   expect(reads.events).toBe(0);
   expect(reads.sessions).toBe(0);
   expect(reads.cardStates).toBeLessThan(STATES);
-  expect(reads.clozes).toBe(0); // признаки пропуска не требуют чтения записи
-  expect(reads.phrases).toBeLessThanOrEqual(12); // только фразы-кандидаты урока, не таблица целиком
+  expect(reads.phrases).toBeLessThanOrEqual(18); // только фразы-кандидаты урока, не таблица целиком
  },60_000);
  it('сессия загружает полные карточки только для своих карточек и пула вариантов, историю — только своих карточек',async()=>{
   track();
   const session=await makeSession({source:dexieSource(db),now,random:()=>0.37});
   expect(session.items).toHaveLength(20);
   expect(reads.words).toBeLessThanOrEqual(20+48*2);
-  expect(reads.phrases).toBeLessThanOrEqual(20+48*2+12); // выбранные фразы, пул вариантов и признаки кандидатов
-  expect(reads.clozes).toBeLessThanOrEqual(20); // только выбранные пропуски: ключи ответов остальных не читаются
+  expect(reads.phrases).toBeLessThanOrEqual(20+48*2+18); // выбранные фразы, пул вариантов и признаки кандидатов
   const reviewed=session.items.filter(item=>!item.isNew).length;
   expect(reads.events).toBeLessThanOrEqual(reviewed*Math.ceil(EVENTS/STATES)+reviewed);
   expect(reads.sessions).toBe(0);
@@ -131,9 +128,8 @@ describe('ограниченные выборки на большой базе',
   track();
   const views=await lessonViews(db,true);
   expect(views).toHaveLength(LESSONS+1);
-  expect(views.find(view=>view.id==='lesson-mixed')).toMatchObject({cardCount:35,phraseCount:12,clozeCount:12,wordCount:11});
+  expect(views.find(view=>view.id==='lesson-mixed')).toMatchObject({cardCount:35,phraseCount:18,wordCount:17});
   expect(reads.phrases).toBe(0);
-  expect(reads.clozes).toBe(0);
   expect(views.every(view=>view.progress!.solid+view.progress!.review+view.progress!.fresh===view.cardCount)).toBe(true);
   expect(reads.words).toBe(0);
   expect(reads.events).toBe(0);

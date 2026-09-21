@@ -35,7 +35,7 @@ test('полная копия переносит слова, правки и м�
   for(const key of Object.keys(row.$types??{}))if(key.startsWith('schedule'))delete row.$types[key];
  }
  writeFileSync(file,JSON.stringify(parsed));
- expect(parsed.data.tables.map((table:{name:string})=>table.name)).toEqual(expect.arrayContaining(['words','phrases','clozes','lessonItems','packages','media','assets','cardStates','events','sessions','settings','meta']));
+ expect(parsed.data.tables.map((table:{name:string})=>table.name)).toEqual(expect.arrayContaining(['words','phrases','lessonItems','packages','media','assets','cardStates','events','sessions','settings','meta']));
  // Картинка σπίτι скачана при просмотре карточки и входит в копию; остальные медиа не тянулись.
  expect(parsed.data.tables.find((table:{name:string})=>table.name==='assets').rowCount).toBe(1);
  // Курс подписан открытием урока, поэтому в профиле лежат пакеты всех его уроков — по одному на урок.

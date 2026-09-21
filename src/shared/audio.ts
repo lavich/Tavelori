@@ -156,7 +156,7 @@ export function useAudioKind(word:Word|undefined):AudioKind{
  return kind;
 }
 
-/** Файл, если он обещан записью, иначе системный голос: общий путь для слова, фразы и полного предложения пропуска. */
+/** Файл, если он обещан записью, иначе системный голос: общий путь для слова и фразы. */
 export async function playText(text:string,audioAssetId?:string):Promise<PlayResult>{
  const stopped=stopAudio();
  if(audioAssetId){

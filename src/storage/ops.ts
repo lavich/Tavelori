@@ -1,8 +1,8 @@
 import Dexie from 'dexie';
 import {db, ensureLocalCourse, indexWord, type LexiDatabase} from './db';
-import {clozePool, optionPool, phrasePool} from './queries';
+import {optionPool, phrasePool} from './queries';
 import {easierExercise, exerciseFor, gradeFor, hasEasierStep, localDay, nextState, OPTION_POOL, spaceSingleIntroduction} from '../domain/learning';
-import type {TextAnswerStatus} from '../domain/cloze';
+import type {TextAnswerStatus} from '../domain/text-answer';
 import {normalize, wordKey, type ImportRow} from '../domain/import';
 import {snapshotOf, unitKey, wordRef} from '../domain/refs';
 import {emptySkills} from '../domain/skills';
@@ -84,7 +84,6 @@ async function easierRetry(item:SessionItem,database:LexiDatabase):Promise<Pick<
  const pools={
   words:item.card.kind==='word'?await optionPool(OPTION_POOL,database):[],
   phrases:item.card.kind==='phrase'?await phrasePool(OPTION_POOL,database):[],
-  clozes:item.card.kind==='cloze'?await clozePool(OPTION_POOL,database):[],
  };
  return easierExercise(item.card,item.type,pools);
 }

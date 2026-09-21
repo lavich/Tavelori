@@ -1,9 +1,9 @@
 import {describe,expect,it} from 'vitest';
 import {createEmptyCard, Rating, State} from 'ts-fsrs';
-import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,exerciseFor,isCheckable,FAST_ANSWER_MS,FAST_TYPES,gradeFor,makePlan as planOf,nextState,scheduler,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
+import {availableTypes,easierExercise,hasEasierStep,localDay,daysBetween,isCheckable,FAST_ANSWER_MS,FAST_TYPES,gradeFor,makePlan as planOf,nextState,scheduler,chooseType,makeSession as sessionOf,objectiveExercise,phraseExercise,type OptionPools} from '../src/domain/learning';
 import {emptySkills, type SkillSummary} from '../src/domain/skills';
 import {fromSnapshot} from '../src/domain/snapshot-source';
-import {defaultSchedule,defaultSettings,LOCAL_COURSE,type Cloze,type Course,type ExerciseType,type Phrase,type SessionCard,type Word,type Lesson,type Snapshot} from '../src/domain/types';
+import {defaultSchedule,defaultSettings,LOCAL_COURSE,type Course,type ExerciseType,type Phrase,type SessionCard,type Word,type Lesson,type Snapshot} from '../src/domain/types';
 import {idsOf, wordEvent, wordKeyOf, wordRef, wordState} from './helpers/cards';
 const now=new Date('2026-09-15T09:00:00Z');
 const words:Word[]=Array.from({length:30},(_,i)=>({id:`w${i}`,greek:`λέξη${i}`,russian:`слово${i}`,ipa:'',segments:[],examples:[],verified:false,createdAt:now.toISOString(),updatedAt:now.toISOString()}));
@@ -28,7 +28,6 @@ describe('оценка объективного ответа',()=>{
  it('«Почти» получает Hard, а не Again',()=>expect(gradeFor('almost','spelling',9000)).toBe(Rating.Hard));
  it('неверный ответ и «Не знаю» получают Again',()=>{
   expect(gradeFor('wrong','recognition',900)).toBe(Rating.Again);
-  expect(gradeFor('wrong','cloze',900)).toBe(Rating.Again);
  });
  it('быстрый верный выбор получает Easy',()=>{
   for(const type of FAST_TYPES)expect(gradeFor('correct',type,FAST_ANSWER_MS-1)).toBe(Rating.Easy);
@@ -37,7 +36,7 @@ describe('оценка объективного ответа',()=>{
   for(const type of FAST_TYPES)expect(gradeFor('correct',type,FAST_ANSWER_MS)).toBe(Rating.Good);
  });
  it('у заданий без вариантов время не читается',()=>{
-  for(const type of ['assembly','spelling','cloze'] as const)expect(gradeFor('correct',type,1)).toBe(Rating.Good);
+  for(const type of ['assembly','spelling'] as const)expect(gradeFor('correct',type,1)).toBe(Rating.Good);
  });
 });
 
@@ -105,7 +104,6 @@ describe('упражнения для фраз и пропусков',()=>{
   expect(heard.options).toContain('Φράση s.');
   expect(isCheckable({kind:'phrase',hasTranslation:false,hasAudio:true},{hasVoice:false,phrasePool:4})).toBe(true);
   expect(isCheckable({kind:'phrase',hasTranslation:false,hasAudio:false},{hasVoice:true,phrasePool:3})).toBe(false);
-  expect(isCheckable({kind:'cloze'},{hasVoice:false,phrasePool:0})).toBe(true);
  });
  it('слабый навык фразы выбирается чаще: ошибочное написание при удачном узнавании — написание',()=>{
   // Все доступные навыки уже проверены: иначе непроверенный выбирается раньше слабого.
@@ -114,17 +112,12 @@ describe('упражнения для фраз и пропусков',()=>{
   const weakRecognition=skills({recognition:[false,false,true],spelling:[true,true],listening:[true],comprehension:[true]},['spelling','listening']);
   expect(phraseExercise(pool[0],pool,weakRecognition,()=>0.5,true)!.type).toBe('recognition');
  });
- it('пропуск всегда проверяется вводом текста без вариантов',()=>{
-  const cloze:Cloze={id:'c',template:'{{gap}} ένα γράμμα.',answer:'Γράφω',acceptedAnswers:['Γράφω'],provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso};
-  expect(exerciseFor({kind:'cloze',cloze},{words:[],phrases:[]},emptySkills(),()=>0.5,true)).toEqual({type:'cloze',options:[]});
-  expect(exerciseFor({kind:'cloze',cloze},{words:[],phrases:[]},skills({cloze:[false,false]}),()=>0.5,false)).toEqual({type:'cloze',options:[]});
- });
  it('единственная новая карточка любого вида идёт после доступных проверок; знакомство сохраняет основные места',async()=>{
-  const cloze:Cloze={id:'c',template:'{{gap}} ένα γράμμα.',answer:'Γράφω',acceptedAnswers:['Γράφω'],provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso};
+  const phrase:Phrase={id:'p',text:'Γράφω ένα γράμμα.',translation:'Я пишу письмо.',provenance:{sourceLabel:'тест',operation:'verbatim'},createdAt:iso,updatedAt:iso};
   const state=nextState(undefined,wordRef(words[1].id),3,new Date('2026-09-01'));
-  const session=await sessionOf({source:fromSnapshot(snapshot({...data,words:words.slice(0,2),clozes:[cloze],states:[state]})),now,refs:[{kind:'cloze',id:'c'},wordRef(words[1].id)]});
-  expect(session.items.map(item=>[item.ref.kind,item.ref.id,item.type,item.isNew])).toEqual([['word',words[1].id,expect.any(String),false],['cloze','c','cloze',true]]);
-  expect(session.items[1].card.kind==='cloze'&&session.items[1].card.cloze.acceptedAnswers).toEqual(['Γράφω']);
+  const session=await sessionOf({source:fromSnapshot(snapshot({...data,words:words.slice(0,2),phrases:[phrase],states:[state]})),now,refs:[{kind:'phrase',id:'p'},wordRef(words[1].id)]});
+  expect(session.items.map(item=>[item.ref.kind,item.ref.id,item.isNew])).toEqual([['word',words[1].id,false],['phrase','p',true]]);
+  expect(session.items[1].card.kind==='phrase'&&session.items[1].card.phrase.text).toBe('Γράφω ένα γράμμα.');
   expect(session.introducedKeys).toEqual([]);
  });
 });
@@ -134,7 +127,7 @@ describe('дополнительная попытка на ступень про
  const word=(id:string,greek:string):Word=>({...words[0],id,greek,russian:`перевод ${id}`});
  const cardOfWord=(w:Word):SessionCard=>({kind:'word',word:w});
  const pool=['p1','p2','p3','p4','p5'].map((id,i)=>word(id,`λέξις${i}`));
- const pools=(over:Partial<OptionPools>={}):OptionPools=>({words:pool,phrases:[],clozes:[],...over});
+ const pools=(over:Partial<OptionPools>={}):OptionPools=>({words:pool,phrases:[],...over});
  const family=word('family','η οικογένεια');
  const light=word('light','το φως');
  it('под написанием стоит сборка, а не повторный набор',()=>{
@@ -161,20 +154,7 @@ describe('дополнительная попытка на ступень про
    expect(easierExercise(cardOfWord(family),type,pools(),()=>0.5)).toBeNull();
   expect(hasEasierStep('spelling')).toBe(true);
   expect(hasEasierStep('assembly')).toBe(true);
-  expect(hasEasierStep('cloze')).toBe(true);
   expect(['recognition','listening'].some(type=>hasEasierStep(type as ExerciseType))).toBe(false);
- });
- it('под пропуском — тот же пропуск с вариантами, а при бедном пуле ступени нет',()=>{
-  const cloze=(id:string,answer:string):Cloze=>({id,template:'{{gap}} κάτι.',answer,acceptedAnswers:[answer],
-   provenance:{sourceLabel:'тест',operation:'cloze-from-source'},createdAt:iso,updatedAt:iso});
-  const own=cloze('c1','Γράφω');
-  const clozes=[own,cloze('c2','Διαβάζω'),cloze('c3','Τρώω'),cloze('c4','Πίνω')];
-  const card:SessionCard={kind:'cloze',cloze:own};
-  const step=easierExercise(card,'cloze',pools({clozes}),()=>0.5)!;
-  expect(step.type).toBe('cloze'); // отдельного типа упражнения нет: варианты едут в том же пропуске
-  expect(step.options).toHaveLength(4);
-  expect(step.options).toContain('Γράφω');
-  expect(easierExercise(card,'cloze',pools({clozes:clozes.slice(0,3)}),()=>0.5)).toBeNull();
  });
  it('фразе сборка недоступна: под написанием сразу узнавание среди фраз',()=>{
   const phrases:Phrase[]=['a','b','c','d','e'].map(id=>({id,text:`Φράση ${id}.`,translation:`Фраза ${id}.`,provenance:{sourceLabel:'тест',operation:'verbatim'},createdAt:iso,updatedAt:iso}));
@@ -212,7 +192,7 @@ describe('понимание на слух',()=>{
  });
  it('под ним стоит узнавание: та же проверка значения, но с написанием на экране',()=>{
   const pool=Array.from({length:6},(_,i)=>({...words[0],id:`d${i}`,greek:`λέξη${i}`,russian:`перевод ${i}`}));
-  const step=easierExercise({kind:'word',word:pool[0]},'comprehension',{words:pool,phrases:[],clozes:[]},()=>0.5)!;
+  const step=easierExercise({kind:'word',word:pool[0]},'comprehension',{words:pool,phrases:[]},()=>0.5)!;
   expect(step.type).toBe('recognition');
   expect(step.options).toHaveLength(4);
   expect(hasEasierStep('comprehension')).toBe(true);

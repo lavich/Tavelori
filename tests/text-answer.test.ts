@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest';
-import {checkTextAnswer, fillGap, splitTemplate} from '../src/domain/cloze';
+import {checkTextAnswer} from '../src/domain/text-answer';
 
-/** Проверка пропуска и целой фразы отдельна от словарной: без послаблений артиклю, без угадывания формы. */
-describe('проверка ответа пропуска и фразы',()=>{
+/** Проверка целой фразы отдельна от словарной: без послаблений артиклю, без угадывания формы. */
+describe('проверка письменного ответа фразы',()=>{
  it('точное совпадение после нормализации Unicode, регистра, пробелов и конечной сигмы — правильно',()=>{
   expect(checkTextAnswer('γράφω',['γράφω']).status).toBe('correct');
   expect(checkTextAnswer('  ΓΡΆΦΩ ',['γράφω']).status).toBe('correct');
@@ -43,14 +43,6 @@ describe('проверка ответа пропуска и фразы',()=>{
   expect(checkTextAnswer('γράφω.',['γράφω']).status).toBe('wrong');
   expect(checkTextAnswer('Γράφω ένα γράμμα',['Γράφω ένα γράμμα.']).status).toBe('wrong');
  });
- it('целое предложение вместо пропуска — неверно с просьбой заполнить только пропуск',()=>{
-  const result=checkTextAnswer('Γράφω ένα γράμμα.',['Γράφω'],{template:'{{gap}} ένα γράμμα.'});
-  expect(result.status).toBe('wrong');
-  expect(result.message).toMatch(/только пропуск/);
-  const bare=checkTextAnswer('Γράφω ένα γράμμα.',['Γράφω']);
-  expect(bare.status).toBe('wrong');
-  expect(bare.message).not.toMatch(/только пропуск/);
- });
  it('пустой ввод и пустой список ответов — неверно без исключений',()=>{
   expect(checkTextAnswer('',['γράφω']).status).toBe('wrong');
   expect(checkTextAnswer('   ',['γράφω']).status).toBe('wrong');
@@ -58,17 +50,5 @@ describe('проверка ответа пропуска и фразы',()=>{
  });
  it('при неверном ответе показывается канонический (первый) вариант',()=>{
   expect(checkTextAnswer('κάτι',['γράφω','γράφεις']).expected).toBe('γράφω');
- });
-});
-
-describe('шаблон пропуска',()=>{
- it('разбивается на текст до и после пропуска и восстанавливается ответом',()=>{
-  expect(splitTemplate('{{gap}} ένα γράμμα.')).toEqual({before:'',after:' ένα γράμμα.'});
-  expect(splitTemplate('Εμείς {{gap}} γυμναστική.')).toEqual({before:'Εμείς ',after:' γυμναστική.'});
-  expect(fillGap('Εμείς {{gap}} γυμναστική.','κάνουμε')).toBe('Εμείς κάνουμε γυμναστική.');
- });
- it('повторяющееся слово: скрыто только размеченное место',()=>{
-  expect(fillGap('Το {{gap}} είναι το σπίτι μου.','σπίτι')).toBe('Το σπίτι είναι το σπίτι μου.');
-  expect(splitTemplate('Το {{gap}} είναι το σπίτι μου.').after).toContain('σπίτι');
  });
 });

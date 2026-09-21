@@ -8,7 +8,7 @@ import {Screen} from '../../app/Screen';
 import {formatDay, localDay} from '../../domain/learning';
 import type {CardKind, LearningRef} from '../../domain/types';
 import {useNow} from '../../shared/clock';
-import {CARDS, CLOZES, minutes, PHRASES, plural, withCount, WORDS} from '../../shared/format';
+import {CARDS, minutes, PHRASES, plural, withCount, WORDS} from '../../shared/format';
 import {StatTile} from '../../shared/StatTile';
 import {useSettings} from '../../shared/store';
 import {statesOf} from '../../storage/queries';
@@ -16,8 +16,8 @@ import {db} from '../../storage/db';
 import {startSession} from './session-actions';
 import ui from '../../shared/ui.module.css';
 
-/** Состав уникальных карточек по видам: «2 слова · 1 фраза · 1 пропуск», только непустые группы. */
-export const compositionText=(byKind:Record<CardKind,number>)=>([['word',WORDS],['phrase',PHRASES],['cloze',CLOZES]] as const)
+/** Состав уникальных карточек по видам: «2 слова · 1 фраза», только непустые группы. */
+export const compositionText=(byKind:Record<CardKind,number>)=>([['word',WORDS],['phrase',PHRASES]] as const)
  .filter(([kind])=>byKind[kind]).map(([kind,forms])=>withCount(byKind[kind],forms)).join(' · ');
 
 export function ResultScreen(){
@@ -35,9 +35,10 @@ export function ResultScreen(){
  const events=result?.events??[], mistakes=result?.mistakes??[], mistakeRefs=result?.mistakeRefs??[];
  // Повторная попытка той же карточки не увеличивает число уникальных карточек.
  const unique=new Map(events.map(event=>[event.unitKey,event.ref]));
- const byKind:Record<CardKind,number>={word:0,phrase:0,cloze:0};
- for(const ref of unique.values())byKind[ref.kind]++;
- const mixed=byKind.phrase>0||byKind.cloze>0;
+ const byKind:Record<CardKind,number>={word:0,phrase:0};
+ // Снятый вид ещё встречается в старой истории: в состав по видам он не идёт.
+ for(const ref of unique.values())if(byKind[ref.kind]!==undefined)byKind[ref.kind]++;
+ const mixed=byKind.phrase>0;
  const objective=events.filter(event=>event.correct!==null);
  const readyAgain:LearningRef[]=mistakeRefs.filter(ref=>{
   const state=result?.states.get(JSON.stringify([ref.kind,ref.id]));
@@ -61,7 +62,7 @@ export function ResultScreen(){
     <p className="m-0">Ошибок: <b>{mistakes.length}</b></p>
     <p className="m-0 text-sm text-muted-foreground">
      {objective.length
-      ?`Объективная точность (выбор, сборка, аудирование, написание, пропуск): ${Math.round(objective.filter(event=>event.correct).length/objective.length*100)}% из ${withCount(objective.length,['ответа','ответов','ответов'])}`
+      ?`Объективная точность (выбор, сборка, аудирование, написание): ${Math.round(objective.filter(event=>event.correct).length/objective.length*100)}% из ${withCount(objective.length,['ответа','ответов','ответов'])}`
       :'Объективных проверок в этом занятии не было — только самооценка. Точность: нет данных.'}
     </p>
     <p className="m-0 text-sm text-muted-foreground">Активное время: {minutes(session?.activeTimeMs??0)}</p>

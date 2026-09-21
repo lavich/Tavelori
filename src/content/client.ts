@@ -1,9 +1,9 @@
 import {db, indexWord, type LexiDatabase} from '../storage/db';
 import {reportError} from '../reporting/reporting';
 import {adoptStash} from '../sync/snapshot';
-import {CLOZE_FIELDS, ContentError, parseCatalog, parsePackage, PHRASE_FIELDS, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackageCloze, type PackagePhrase, type PackageWord, type ShippedField} from './schema';
+import {ContentError, parseCatalog, parsePackage, PHRASE_FIELDS, SHIPPED_FIELDS, type Catalog, type ContentPackage, type PackagePhrase, type PackageWord, type ShippedField} from './schema';
 import {unitKey, wordRef} from '../domain/refs';
-import {defaultSchedule, DEFAULT_NEW_ITEMS_PER_DAY, type Asset, type Cloze, type Course, type InstalledPackage, type LearningRef, type Phrase, type Word} from '../domain/types';
+import {defaultSchedule, DEFAULT_NEW_ITEMS_PER_DAY, type Asset, type Course, type InstalledPackage, type LearningRef, type Phrase, type Word} from '../domain/types';
 
 export interface ContentFetcher {json(url:string):Promise<unknown>;blob(url:string):Promise<Blob>}
 
@@ -218,12 +218,12 @@ async function applyCards<P extends {id:string;revision:string},L extends {id:st
 }
 
 /**
- * Установка одной транзакцией: слова, фразы, пропуски, связи, медиа и запись пакета. Ошибка в любой карточке
+ * Установка одной транзакцией: слова, фразы, связи, медиа и запись пакета. Ошибка в любой карточке
  * откатывает всё — корректная часть отдельно не устанавливается. Убранные пользователем связи не восстанавливаются.
  */
 export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db):Promise<InstallResult>{
  const now=new Date().toISOString();
- return database.transaction('rw',[database.words,database.phrases,database.clozes,database.lessons,database.lessonItems,database.packages,database.media,database.cardStates,database.cardStash,database.meta],async()=>{
+ return database.transaction('rw',[database.words,database.phrases,database.lessons,database.lessonItems,database.packages,database.media,database.cardStates,database.cardStash,database.meta],async()=>{
   const installed=await database.packages.get(pack.id);
   // Курс дописывается и на неизменной версии: у базы, пережившей переход на курсы, его ещё нет.
   const known=await database.lessons.get(pack.id);
@@ -237,8 +237,6 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
    database.words as never,(card,at)=>({...shipped(card),id:card.id,createdAt:at,updatedAt:at,revision:card.revision}),indexWord,now,result);
   await applyCards<PackagePhrase,Phrase>(pack.phrases,new Map((installed?.phrases??[]).map(phrase=>[phrase.id,phrase])),PHRASE_FIELDS,'phrase',card=>card.text,
    database.phrases,(card,at)=>{const {revision,...rest}=card;return {...rest,createdAt:at,updatedAt:at,revision}},row=>row,now,result);
-  await applyCards<PackageCloze,Cloze>(pack.clozes,new Map((installed?.clozes??[]).map(cloze=>[cloze.id,cloze])),CLOZE_FIELDS,'cloze',card=>card.template,
-   database.clozes,(card,at)=>{const {revision,...rest}=card;return {...rest,createdAt:at,updatedAt:at,revision}},row=>row,now,result);
   const removed=new Set(installed?.removed??[]);
   const incoming=new Set<string>();
   for(const item of pack.items){
@@ -257,10 +255,10 @@ export async function applyPackage(pack:ContentPackage,database:LexiDatabase=db)
    if(!incoming.has(key))await database.lessonItems.delete([pack.id,key]);
   }
   await database.media.bulkPut(pack.media);
-  const record:InstalledPackage={lessonId:pack.id,courseId:pack.courseId||undefined,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,phrases:pack.phrases,clozes:pack.clozes,items:pack.items,media:pack.media,removed:[...removed]};
+  const record:InstalledPackage={lessonId:pack.id,courseId:pack.courseId||undefined,version:pack.version,schemaVersion:pack.schemaVersion,installedAt:now,words:pack.words,phrases:pack.phrases,items:pack.items,media:pack.media,removed:[...removed]};
   await database.packages.put(record);
   // Полученный из облака прогресс карточек этого пакета ждал установки: теперь он становится обычным состоянием.
-  await adoptStash(database,pack.id,[...pack.words.map(word=>wordRef(word.id)),...pack.phrases.map(p=>({kind:'phrase' as const,id:p.id})),...pack.clozes.map(c=>({kind:'cloze' as const,id:c.id}))]);
+  await adoptStash(database,pack.id,[...pack.words.map(word=>wordRef(word.id)),...pack.phrases.map(p=>({kind:'phrase' as const,id:p.id}))]);
   return result;
  });
 }

@@ -311,7 +311,7 @@ test.describe('аудио, копии и облако',()=>{
    const all=database.transaction('events').objectStore('events').getAllKeys();
    return new Promise<number>(resolve=>{all.onsuccess=()=>resolve((all.result as string[]).filter(key=>String(key).startsWith('e-')).length)});
   });
-  expect(events).toBe(0); // пропуск не создал события; подготовленная история не в счёт
+  expect(events).toBe(0); // отказ аудио не создал события; подготовленная история не в счёт
   expect((await tg(page).calls()).filter(call=>call.startsWith('haptic:'))).toHaveLength(0);
  });
  test('копия: границы синхронизации, нейтральный статус передачи, отмена защитной копии останавливает замену',async({page,browser})=>{

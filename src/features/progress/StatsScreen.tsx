@@ -5,7 +5,7 @@ import {Progress} from '@/components/ui/progress';
 import {Screen} from '../../app/Screen';
 import {SKILL_NAMES} from '../../domain/stats';
 import {useNow} from '../../shared/clock';
-import {CARDS, CLOZES, dayMonth, PHRASES, withCount, WORDS} from '../../shared/format';
+import {CARDS, dayMonth, PHRASES, withCount, WORDS} from '../../shared/format';
 import {StatTile} from '../../shared/StatTile';
 import {useStats} from '../../shared/store';
 import ui from '../../shared/ui.module.css';
@@ -92,7 +92,7 @@ export function StatsScreen(){
    </Card>
 
    <p className={ui.note}>
-    Всего записано {withCount(stats.totals.answers,['ответ','ответа','ответов'])} по {withCount(stats.totals.cards,CARDS)}{stats.totals.byKind.phrase||stats.totals.byKind.cloze?` (${withCount(stats.totals.byKind.word,WORDS)} · ${withCount(stats.totals.byKind.phrase,PHRASES)} · ${withCount(stats.totals.byKind.cloze,CLOZES)})`:''}.
+    Всего записано {withCount(stats.totals.answers,['ответ','ответа','ответов'])} по {withCount(stats.totals.cards,CARDS)}{stats.totals.byKind.phrase?` (${withCount(stats.totals.byKind.word,WORDS)} · ${withCount(stats.totals.byKind.phrase,PHRASES)})`:''}.
    </p>
   </Screen>
  );

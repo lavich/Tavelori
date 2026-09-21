@@ -29,8 +29,8 @@ export const useActiveSession=():Session|undefined|null=>useLiveQuery(()=>
 export const useCounts=()=>useLiveQuery(async()=>{
  const live=async(table:{count():Promise<number>;where(index:string):{above(value:string):{count():Promise<number>}}})=>
   await table.count()-await table.where('deletedAt').above('').count();
- const [words,phrases,clozes,answers]=await Promise.all([live(db.words),live(db.phrases),live(db.clozes),db.events.count()]);
- return {words,cards:words+phrases+clozes,answers};
+ const [words,phrases,answers]=await Promise.all([live(db.words),live(db.phrases),db.events.count()]);
+ return {words,cards:words+phrases,answers};
 },[]);
 
 export const useCatalog=()=>useLiveQuery(async()=>({entries:await db.catalog.toArray(),packages:await db.packages.toArray()}),[]);
