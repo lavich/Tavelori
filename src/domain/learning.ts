@@ -42,7 +42,6 @@ export function localDay(date: Date, timezone: string): string {
   const get = (type: string) => parts.find((p) => p.type === type)!.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
-/** Час 0–23 в выбранной зоне: рубеж подготовки к занятию считается по местному времени, а не по UTC. */
 export function localHour(date: Date, timezone: string): number {
   return Number(
     new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", hourCycle: "h23" }).format(date),
@@ -55,10 +54,9 @@ export function daysBetween(from: string, to: string): number {
 export const addDays = (day: string, count: number) =>
   new Date(Date.parse(`${day}T00:00:00Z`) + count * 86400000).toISOString().slice(0, 10);
 /**
- * Последний день, занятия которого уже считаются прошедшими. Подготовка к уроку кончается в час
- * занятия его курса, а не в полночь: календарный день здесь не та единица. Час входит в систему
- * только здесь и сразу превращается обратно в день, поэтому всё остальное планирование остаётся
- * сравнением дат.
+ * Последний день, занятия которого уже считаются прошедшими: подготовка кончается в час занятия курса,
+ * а не в полночь. Час входит в систему только здесь и сразу превращается обратно в день, поэтому
+ * остальное планирование остаётся сравнением дат.
  */
 export function preparedThrough(now: Date, timezone: string, lessonHour: number): string {
   const today = localDay(now, timezone);
@@ -235,7 +233,6 @@ export async function makePlan(source: PlanSource, now: Date, options: PlanOptio
     if (!own.length && course.id !== LOCAL_COURSE) continue;
     const introducedToday = introduced.get(course.id) ?? 0;
     const budget = Math.max(0, course.newItemsPerDay - introducedToday);
-    // Подготовка к занятию кончается в его час, а не в полночь: иначе день занятия пропадает впустую.
     const prepared = preparedThrough(now, timezone, fillSchedule(course.schedule).lessonHour);
     const past = own.filter((l) => l.status === "completed" || (l.targetDate && l.targetDate <= prepared)).sort(order);
     const upcoming = own.filter((l) => l.targetDate && l.status !== "completed" && l.targetDate > prepared).sort(order);

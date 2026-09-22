@@ -284,7 +284,6 @@ export async function settleLessons(now: Date, database: LexiDatabase = db): Pro
     const stored = await database.lessons.toArray();
     const raw = new Map(stored.map((lesson) => [lesson.id, lesson]));
     const courses = await database.courses.toArray();
-    // Рубеж у каждого курса свой: подготовка кончается в час его занятия, а не в общую полночь.
     const prepared = preparedByCourse(courses, now, settings.timezone);
     const passed = scheduleCourses(stored, courses).filter(
       (lesson) =>

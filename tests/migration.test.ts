@@ -460,7 +460,6 @@ describe("резервная копия", () => {
     expect((await fresh.packages.get("lesson-1-2"))!.version).toBe(packageOf("lesson-1-2").version);
     expect(await fresh.words.get("w12-16")).toMatchObject({ russian: "дом (правка)", edited: true });
     expect(await fresh.catalog.count()).toBe(0);
-    // Час занятия — часть расписания курса и переживает копию вместе с ним.
     expect((await fresh.courses.get("leeke"))!.schedule.lessonHour).toBe(19);
     fresh.close();
     await fresh.delete();

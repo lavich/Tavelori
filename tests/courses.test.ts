@@ -90,7 +90,7 @@ describe("группировка уроков по курсам", () => {
 });
 
 describe("ближайшее занятие в списке уроков", () => {
-  /** Рубеж подготовки: до него занятие ещё впереди. Календарный день здесь — уже готовый результат. */
+  /** Рубеж: занятия этого дня и раньше уже прошли. */
   const today = () => "2026-09-16";
   const dated = (id: string, courseId: string, targetDate: string | null, over: Partial<LessonView> = {}) =>
     lesson(id, courseId, 10, { targetDate, ...over });

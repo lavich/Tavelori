@@ -38,10 +38,7 @@ export const byTargetDate = (
   (a.targetDate ?? "").localeCompare(b.targetDate ?? "") ||
   a.createdAt.localeCompare(b.createdAt);
 
-/**
- * Рубеж подготовки для каждого курса одним вызовом: у курсов свои часы занятий, а урок без известного
- * курса живёт по часу по умолчанию.
- */
+/** Урок без известного курса живёт по часу по умолчанию. */
 export function preparedByCourse(courses: Course[], now: Date, timezone: string): (courseId?: string) => string {
   const byId = new Map(
     courses.map((course) => [course.id, preparedThrough(now, timezone, fillSchedule(course.schedule).lessonHour)]),

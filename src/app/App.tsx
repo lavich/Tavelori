@@ -38,7 +38,6 @@ export function App() {
   // Резервный возврат Telegram: на «Сегодня» кнопка скрыта, на остальных экранах без своего обработчика ведёт назад или на главный.
   const goBack = useGoBack();
   useBackHandler(pathname === "/" ? null : goBack, 0);
-  // Рубеж подготовки зависит от часа занятия курса, поэтому сторож следит за днём и часом, а не за днём.
   useSettleWatch(useNow(), settings.timezone, () => {
     settleLessons(new Date()).catch((error) => console.error("Не удалось закрепить прошедшие уроки", error));
   });
