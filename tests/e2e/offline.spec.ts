@@ -48,7 +48,7 @@ test("работает без сети после закрытия страни�
   await offlinePage.getByRole("link", { name: /το σπίτι/ }).click();
   // Картинка читается из IndexedDB, а не из сети.
   await expect(offlinePage.getByTestId("word-art")).toBeVisible();
-  await expect(offlinePage.getByText("Το σπίτι είναι μικρό.")).toBeVisible();
+  await expect(offlinePage.getByText("Το σπίτι μας είναι μεγάλο.")).toBeVisible();
   await offlinePage.getByRole("button", { name: "Потренировать слово" }).click();
   await expect(offlinePage.getByText("Новое слово")).toBeVisible();
   // Неустановленный урок без сети: понятное состояние и повтор, а не пустой урок.

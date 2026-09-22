@@ -74,7 +74,7 @@ test("исходные уроки, карточка слова и ручная �
   await page.getByRole("link", { name: /το σπίτι/ }).click();
   await expect(page.getByText("/to ˈspiti/")).toBeVisible();
   await expect(page.getByText("Ударение на первый слог")).toBeVisible();
-  await expect(page.getByText("Το σπίτι είναι μικρό.")).toBeVisible();
+  await expect(page.getByText("Το σπίτι μας είναι μεγάλο.")).toBeVisible();
   await expect(page.getByTestId("word-art")).toBeVisible();
   await page.getByRole("button", { name: "Потренировать слово" }).click();
   await expect(page.getByText("Новое слово")).toBeVisible();

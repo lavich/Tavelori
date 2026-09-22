@@ -78,7 +78,7 @@ test("экран урока: группы двух видов, просмотр 
   await ilios.getByRole("button", { name: /Η κόρη βλέπει τον ήλιο/ }).click();
   await expect(ilios.getByTestId("phrase-details")).toContainText("Винительный падеж");
   // Удаление связи: карточка исчезает из группы, сама карточка и запись об удалении остаются.
-  await page.getByTestId("phrase-row").filter({ hasText: "Η άνοιξη" }).getByRole("button", { name: "Убрать" }).click();
+  await page.getByTestId("phrase-row").filter({ hasText: "άνοιξη" }).getByRole("button", { name: "Убрать" }).click();
   await expect(page.getByRole("heading", { name: "Фразы · 5" })).toBeVisible();
   await expect(page.getByTestId("composition")).toContainText("6 карточек");
   expect((await readTable(page, "phrases")).some((row) => row.id === "p-anoixi")).toBe(true);
