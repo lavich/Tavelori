@@ -1,9 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { GREEK_VOICE, installLessons, ready, setSettings } from "./helpers";
 
-async function installSession(page: Page, type: string, isNew = false, count = 1) {
+async function installSession(page: Page, type: string, isNew = false, count = 1, wordId = "w12-16") {
   await page.evaluate(
-    async ({ type, isNew, count }) => {
+    async ({ type, isNew, count, wordId }) => {
       const db = await new Promise<IDBDatabase>((resolve) => {
         const r = indexedDB.open("lexi");
         r.onsuccess = () => resolve(r.result);
@@ -12,7 +12,7 @@ async function installSession(page: Page, type: string, isNew = false, count = 1
       const request = tx.objectStore("words").getAll();
       request.onsuccess = () => {
         const pool = request.result;
-        const selected = count === 1 ? [pool.find((word) => word.id === "w12-16")] : pool.slice(0, count);
+        const selected = count === 1 ? [pool.find((word) => word.id === wordId)] : pool.slice(0, count);
         const items = selected.map((word, index) => ({
           id: `objective-${index}`,
           ref: { kind: "word", id: word.id },
@@ -49,7 +49,7 @@ async function installSession(page: Page, type: string, isNew = false, count = 1
       });
       db.close();
     },
-    { type, isNew, count },
+    { type, isNew, count, wordId },
   );
   await page.goto("/session");
   await page.getByTestId("prompt").first().waitFor();
@@ -221,4 +221,28 @@ test("неверный выбор отмечается крестиком, пр�
   await expect(wrong).toHaveCSS("opacity", "1");
   await expect(page.getByTestId("feedback")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Далее", exact: true })).toBeVisible();
+});
+
+test("маска длинного ответа переносится и целиком помещается в поле", async ({ page }) => {
+  await installLessons(page, ["lesson-3-4"]);
+  // «η ηλεκτρική κουζίνα» — 19 знаков: на 390px маска не умещается в одну строку.
+  await installSession(page, "spelling", false, 1, "w34-10");
+  await expect(page.getByTestId("prompt").first()).toHaveText("Напиши по-гречески");
+  const box = await page.evaluate(() => {
+    const mask = document.querySelector('[data-testid="answer-mask"]')!;
+    const field = mask.parentElement!;
+    const words = [...mask.querySelectorAll('[data-testid="mask-word"]')].map((n) => n.getBoundingClientRect());
+    const rows = new Set(words.map((r) => Math.round(r.top)));
+    const f = field.getBoundingClientRect();
+    return {
+      rows: rows.size,
+      cellsTop: Math.min(...words.map((r) => r.top)),
+      cellsBottom: Math.max(...words.map((r) => r.bottom)),
+      fieldTop: f.top,
+      fieldBottom: f.bottom,
+    };
+  });
+  expect(box.rows, "маска должна переноситься, иначе сценарий ничего не проверяет").toBeGreaterThan(1);
+  expect(box.cellsTop).toBeGreaterThanOrEqual(box.fieldTop - 0.5);
+  expect(box.cellsBottom).toBeLessThanOrEqual(box.fieldBottom + 0.5);
 });
