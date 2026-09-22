@@ -120,3 +120,32 @@ test("у курса своё расписание и свой предел; со
     )
     .toEqual({ leeke: 3, my: 12 }); // «Мои слова» остаются на пределе по умолчанию: правка соседнего курса их не задела
 });
+
+test("список часов занятия остаётся на экране и прокручивается внутри себя", async ({ page }) => {
+  await page.goto("/");
+  await ready(page);
+  await page.getByRole("navigation").getByRole("link", { name: "Уроки" }).click();
+  await page.getByRole("button", { name: "Учить курс" }).click();
+  const leeke = page.locator("section").filter({ has: page.getByRole("heading", { name: "Греческий A2" }) });
+  await leeke.getByRole("button", { name: "Задать расписание" }).click();
+  await leeke.getByLabel("Время занятия").click();
+
+  const popup = page.locator('[data-slot="select-content"]');
+  await expect(popup).toBeVisible();
+  const box = await popup.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    return {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      height: Math.round(rect.height),
+      scrollable: node.scrollHeight > node.clientHeight,
+      viewport: window.innerHeight,
+    };
+  });
+  // Двадцать четыре часа целиком на экран не помещаются ни на одном телефоне: список обязан прокручиваться,
+  // а не разворачиваться во весь рост и уезжать под шапку клиента.
+  expect(box.scrollable).toBe(true);
+  expect(box.height).toBeLessThanOrEqual(280);
+  expect(box.top).toBeGreaterThanOrEqual(0);
+  expect(box.bottom).toBeLessThanOrEqual(box.viewport);
+});

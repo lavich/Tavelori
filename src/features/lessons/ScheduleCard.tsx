@@ -114,7 +114,8 @@ export function ScheduleCard({ course, today, first }: { course: Course; today: 
                 <SelectTrigger id={`lesson-hour-${course.id}`} className="w-full">
                   <SelectValue>{(value: string) => hourLabel(Number(value))}</SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                {/* Двадцать четыре часа во весь экран уезжают под шапку клиента: список ограничен и прокручивается. */}
+                <SelectContent alignItemWithTrigger={false} className="max-h-60">
                   <SelectGroup>
                     {HOURS.map((item) => (
                       <SelectItem key={item} value={String(item)}>
