@@ -4,11 +4,18 @@ import { nextLessonDay } from "../../src/domain/schedule";
 import { dayMonth } from "../../src/shared/format";
 import { ready } from "./helpers";
 
-/** Каталог без последнего урока курса: так выглядит поставка до того, как урок опубликован. */
+/**
+ * Каталог без последнего урока курса: так выглядит поставка до того, как урок опубликован.
+ * Состав уроков читается из самой поставки: новый урок в каталоге не должен править этот сценарий.
+ */
 async function withoutLastLesson(page: Page) {
+  const published: string[] = [];
+  let dropped = "";
   await page.route("**/content/catalog.json", async (route) => {
     const catalog = await (await route.fetch()).json();
-    const dropped = catalog.lessons.at(-1).id;
+    const ids: string[] = catalog.lessons.map((entry: { id: string }) => entry.id);
+    dropped = ids[ids.length - 1];
+    published.splice(0, published.length, ...ids.sort());
     await route.fulfill({
       json: {
         ...catalog,
@@ -20,10 +27,11 @@ async function withoutLastLesson(page: Page) {
       },
     });
   });
+  return { published, unpublished: () => dropped };
 }
 
 test("«Учить курс» ставит все уроки курса, а новый урок подхватывается при следующем запуске", async ({ page }) => {
-  await withoutLastLesson(page);
+  const catalog = await withoutLastLesson(page);
   await page.goto("/");
   await ready(page);
   await page.getByRole("navigation").getByRole("link", { name: "Уроки" }).click();
@@ -45,42 +53,13 @@ test("«Учить курс» ставит все уроки курса, а но
       database.close();
       return keys.sort();
     });
-  await expect
-    .poll(installed)
-    .toEqual([
-      "lesson-1-1",
-      "lesson-1-1-extra",
-      "lesson-1-2",
-      "lesson-1-3",
-      "lesson-1-4",
-      "lesson-2-1",
-      "lesson-2-2",
-      "lesson-2-3",
-      "lesson-2-4",
-      "lesson-3-1",
-      "lesson-3-2",
-    ]);
+  await expect.poll(installed).toEqual(catalog.published.filter((id) => id !== catalog.unpublished()));
 
   // Урок опубликован: подписанный курс доустанавливает его сам, без нажатий.
   await page.unroute("**/content/catalog.json");
   await page.goto("/");
   await ready(page);
-  await expect
-    .poll(installed, { timeout: 20000 })
-    .toEqual([
-      "lesson-1-1",
-      "lesson-1-1-extra",
-      "lesson-1-2",
-      "lesson-1-3",
-      "lesson-1-4",
-      "lesson-2-1",
-      "lesson-2-2",
-      "lesson-2-3",
-      "lesson-2-4",
-      "lesson-3-1",
-      "lesson-3-2",
-      "lesson-3-3",
-    ]);
+  await expect.poll(installed, { timeout: 20000 }).toEqual(catalog.published);
 });
 
 test("свой набор попадает в «Мои слова» отдельной группой", async ({ page }) => {
