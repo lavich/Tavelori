@@ -23,7 +23,8 @@ export const isCardKind = (value: unknown): value is CardKind =>
 /** Ключ старой словарной записи: голый ID слова без сериализации. */
 export const isUnitKey = (value: string) => value.startsWith('["');
 
-export function parseUnitKey(key: string): LearningRef {
+/** Пара вида и идентификатора из ключа: сам вид не проверяется. */
+function splitUnitKey(key: string): [unknown, string] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(key);
@@ -32,7 +33,20 @@ export function parseUnitKey(key: string): LearningRef {
   }
   if (!Array.isArray(parsed) || parsed.length !== 2 || typeof parsed[1] !== "string")
     throw new Error(`Некорректный ключ карточки: ${key}`);
-  const [kind, id] = parsed;
+  return [parsed[0], parsed[1]];
+}
+
+/**
+ * Ссылка из ключа или `null`, если вид карточки снят: такие ключи остались в истории ответов и в сводках,
+ * и читатель решает сам, отбросить их или счесть ошибкой. Там, где ссылка обязана быть — `parseUnitKey`.
+ */
+export function tryParseUnitKey(key: string): LearningRef | null {
+  const [kind, id] = splitUnitKey(key);
+  return isCardKind(kind) ? { kind, id } : null;
+}
+
+export function parseUnitKey(key: string): LearningRef {
+  const [kind, id] = splitUnitKey(key);
   if (!isCardKind(kind)) throw new Error(`Неизвестный вид карточки «${String(kind)}»`);
   return { kind, id };
 }
