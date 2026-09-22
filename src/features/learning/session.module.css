@@ -203,20 +203,27 @@
   position: relative;
   display: grid;
 }
+/*
+ * Поле и маска лежат в одной клетке сетки, а не друг поверх друга абсолютом: высоту клетки задаёт
+ * тот, кто выше. Маска переносится по словам, и у длинного ответа строк больше одной — абсолютная
+ * маска высоту поля не двигала, и подчёркивание нижней строки уходило под границу.
+ */
+.field > * {
+  grid-area: 1 / 1;
+}
 .masked {
   color: transparent;
   caret-color: transparent;
 }
 .mask {
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   align-content: center;
   justify-content: center;
   gap: 4px 10px;
-  padding: 0 14px;
+  /* Отступ по вертикали — воздух под подчёркиванием: без него линейка нижней строки липнет к границе поля. */
+  padding: 4px 14px;
   color: var(--muted-foreground);
   pointer-events: none;
 }
