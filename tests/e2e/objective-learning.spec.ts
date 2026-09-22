@@ -243,7 +243,6 @@ test("маска длинного ответа переносится и цел�
     };
   });
   expect(box.rows, "маска должна переноситься, иначе сценарий ничего не проверяет").toBeGreaterThan(1);
-  // Подчёркивание нижней строки — это край ячейки: оно обязано лежать внутри поля, а не под его границей.
   expect(box.cellsTop).toBeGreaterThanOrEqual(box.fieldTop - 0.5);
   expect(box.cellsBottom).toBeLessThanOrEqual(box.fieldBottom + 0.5);
 });
