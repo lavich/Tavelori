@@ -323,7 +323,7 @@ describe("импорт", () => {
 });
 
 describe("расписание занятий", () => {
-  const monThu = { startDate: "2026-09-14", weekdays: [1, 4] };
+  const monThu = { startDate: "2026-09-14", weekdays: [1, 4], lessonHour: 12 };
   const legacy = {
     id: "settings",
     timezone: "Asia/Nicosia",
@@ -334,7 +334,7 @@ describe("расписание занятий", () => {
     await ensureSeed(db);
     await db.settings.put(legacy);
     expect((await source().settings()).sessionSize).toBe(20);
-    expect((await db.courses.get("leeke"))!.schedule).toEqual({ startDate: null, weekdays: [] });
+    expect((await db.courses.get("leeke"))!.schedule).toEqual({ startDate: null, weekdays: [], lessonHour: 12 });
   });
   it("снимок даёт урокам 1.3 и 1.4 дни расписания после 1.2, а план считает сроки по ним", async () => {
     await ensureSeed(db);
@@ -356,7 +356,7 @@ describe("расписание занятий", () => {
 });
 
 describe("операции над уроками при расписании", () => {
-  const monThu = { startDate: "2026-09-14", weekdays: [1, 4] };
+  const monThu = { startDate: "2026-09-14", weekdays: [1, 4], lessonHour: 12 };
   const prepare = async () => {
     await ensureSeed(db);
     await db.courses.update("leeke", { schedule: monThu });
@@ -375,7 +375,7 @@ describe("операции над уроками при расписании", (
     expect(created.courseId).toBe("my");
     expect(created.targetDate).toBeNull();
     expect((await shown(created.id)).targetDate).toBeNull(); // чужое расписание набор не подхватывает
-    await db.courses.update("my", { schedule: { startDate: "2026-09-28", weekdays: [1, 4] } });
+    await db.courses.update("my", { schedule: { startDate: "2026-09-28", weekdays: [1, 4], lessonHour: 12 } });
     expect((await shown(created.id)).targetDate).toBe("2026-09-28");
   });
   it("закрепляет прошедший урок один раз и не трогает его при смене дней недели", async () => {
@@ -390,7 +390,7 @@ describe("операции над уроками при расписании", (
     expect(await db.lessons.toArray()).toEqual(before);
     await saveCourseTempo(
       "leeke",
-      { schedule: { startDate: "2026-09-14", weekdays: [2, 5] } },
+      { schedule: { startDate: "2026-09-14", weekdays: [2, 5], lessonHour: 12 } },
       new Date("2026-09-22T06:00:00Z"),
       db,
     );
@@ -400,6 +400,25 @@ describe("операции над уроками при расписании", (
       dateSource: "manual",
     });
     expect((await shown("lesson-1-4")).targetDate).toBe("2026-09-22");
+  });
+  it("закрепляет урок в его час занятия, а не на следующие сутки", async () => {
+    await prepare(); // курс leeke: понедельник и четверг, час занятия 12
+    // 09:00 в Asia/Nicosia: занятие 1.3 сегодня, но его час ещё не настал.
+    expect(await settleLessons(new Date("2026-09-21T06:00:00Z"), db)).toBe(2); // 1.1 и 1.2
+    expect(await raw("lesson-1-3")).toMatchObject({ targetDate: null, status: "upcoming" });
+    // 12:00 в Asia/Nicosia: подготовка к 1.3 окончена.
+    expect(await settleLessons(new Date("2026-09-21T09:00:00Z"), db)).toBe(1);
+    expect(await raw("lesson-1-3")).toMatchObject({ targetDate: "2026-09-21", status: "completed" });
+    expect(await raw("lesson-1-4")).toMatchObject({ targetDate: null, status: "upcoming" });
+    expect(await settleLessons(new Date("2026-09-21T09:00:00Z"), db)).toBe(0);
+  });
+  it("вечерний час занятия отодвигает закрепление на тот же вечер", async () => {
+    await ensureSeed(db);
+    await db.courses.update("leeke", { schedule: { ...monThu, lessonHour: 19 } });
+    expect(await settleLessons(new Date("2026-09-21T09:00:00Z"), db)).toBe(2); // 1.1 и 1.2, но не 1.3
+    expect(await raw("lesson-1-3")).toMatchObject({ status: "upcoming" });
+    expect(await settleLessons(new Date("2026-09-21T16:00:00Z"), db)).toBe(1);
+    expect(await raw("lesson-1-3")).toMatchObject({ targetDate: "2026-09-21", status: "completed" });
   });
   it("закрепляет ручную дату в прошлом у предстоящего урока и не трогает будущие", async () => {
     await prepare();
@@ -415,7 +434,7 @@ describe("операции над уроками при расписании", (
     expect(
       await saveCourseTempo(
         "leeke",
-        { schedule: { startDate: "2026-09-01", weekdays: [2, 5] } },
+        { schedule: { startDate: "2026-09-01", weekdays: [2, 5], lessonHour: 12 } },
         new Date("2026-09-16T06:00:00Z"),
         db,
       ),
@@ -424,7 +443,11 @@ describe("операции над уроками при расписании", (
     expect(await raw("lesson-1-2")).toMatchObject({ targetDate: "2026-09-04", status: "completed" });
     expect(await raw("lesson-1-3")).toMatchObject({ targetDate: "2026-09-08", status: "completed" });
     expect(await raw("lesson-1-4")).toMatchObject({ targetDate: "2026-09-11", status: "completed" });
-    expect((await db.courses.get("leeke"))!.schedule).toEqual({ startDate: "2026-09-01", weekdays: [2, 5] });
+    expect((await db.courses.get("leeke"))!.schedule).toEqual({
+      startDate: "2026-09-01",
+      weekdays: [2, 5],
+      lessonHour: 12,
+    });
   });
   it("день считается по зоне пользователя", async () => {
     await prepare();

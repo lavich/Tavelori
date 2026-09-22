@@ -456,9 +456,13 @@ describe("подготовка к нескольким занятиям", () => 
     );
     expect(plan.backlog).toEqual({ refs: [], lessons: 0 });
   });
-  it("день занятия считается догоняющей подготовкой с делителем один", async () => {
+  it("день занятия до часа занятия считается догоняющей подготовкой с делителем один", async () => {
     const ids = pool.slice(0, 8).map((w) => w.id);
-    const plan = await planOf(base({ words: pool, lessons: [lesson("today", ids, "2026-09-15")] }));
+    // 09:00 в Asia/Nicosia: час занятия (12) ещё не настал, поэтому сегодняшний урок остаётся предстоящим.
+    const plan = await planOf(
+      base({ words: pool, lessons: [lesson("today", ids, "2026-09-15")] }),
+      new Date("2026-09-15T06:00:00Z"),
+    );
     expect(plan.deadlines[0].daysLeft).toBe(0);
     expect(plan.deadlines[0].requiredPerDay).toBe(8);
   });
@@ -894,5 +898,51 @@ describe("дневной план со смешанными карточками
     });
     const plan = await planOf(data);
     expect(plan.reviews.map((review) => review.ref)).toEqual([W(pool[0].id), P("q1"), P("p1")]);
+  });
+});
+
+describe("подготовка кончается в час занятия", () => {
+  const pool = words(40, "h");
+  const ids = (from: number, to: number) => pool.slice(from, to).map((w) => w.id);
+  /** Занятие сегодня: его карточки уже вводили, у следующего все новые. */
+  const data = (lessonHour = 12, introducedToday = 0) =>
+    base({
+      words: pool,
+      courses: [course("leeke", 12, { schedule: { ...defaultSchedule, lessonHour } })],
+      lessons: [
+        lesson("l3", ids(0, 10), "2026-09-15", { courseId: "leeke" }),
+        lesson("l4", ids(10, 30), "2026-09-18", { courseId: "leeke" }),
+      ],
+      states: [
+        ...ids(0, 10).map((id) => learned(id, "2026-09-30T09:00:00Z")),
+        ...ids(10, 10 + introducedToday).map((id) =>
+          wordState(id, {
+            introducedAt: "2026-09-15T06:00:00Z",
+            version: 1,
+            card: { ...createEmptyCard(new Date("2026-09-15")), due: new Date("2026-09-30T09:00:00Z") },
+          }),
+        ),
+      ],
+    });
+
+  it("до часа занятия очередь держит сегодняшний урок", async () => {
+    const plan = await planOf(data(), new Date("2026-09-15T06:00:00Z"));
+    expect(idsOf(plan.newRefs)).toEqual([]);
+    expect(plan.deadlines[0]?.lessonId).toBe("l3");
+  });
+  it("ровно в час занятия очередь переходит к следующему уроку", async () => {
+    const plan = await planOf(data(), new Date("2026-09-15T09:00:00Z"));
+    expect(idsOf(plan.newRefs)).toEqual(ids(10, 22));
+    expect(plan.deadlines[0]?.lessonId).toBe("l4");
+  });
+  it("час занятия у каждого курса свой", async () => {
+    const early = await planOf(data(9), new Date("2026-09-15T07:00:00Z"));
+    const late = await planOf(data(18), new Date("2026-09-15T07:00:00Z"));
+    expect(early.deadlines[0]?.lessonId).toBe("l4");
+    expect(late.deadlines[0]?.lessonId).toBe("l3");
+  });
+  it("смена ближайшего занятия не выдаёт дневной бюджет заново", async () => {
+    const plan = await planOf(data(12, 12), new Date("2026-09-15T09:00:00Z"));
+    expect(idsOf(plan.newRefs)).toEqual([]);
   });
 });

@@ -1,5 +1,13 @@
-import { addDays } from "./learning";
-import { defaultSchedule, LOCAL_COURSE, type Course, type Lesson, type Schedule } from "./types";
+import { addDays, preparedThrough } from "./learning";
+import {
+  DEFAULT_LESSON_HOUR,
+  defaultSchedule,
+  fillSchedule,
+  LOCAL_COURSE,
+  type Course,
+  type Lesson,
+  type Schedule,
+} from "./types";
 
 const numberOf = (title: string) =>
   title
@@ -29,6 +37,18 @@ export const byTargetDate = (
   Number(!!b.targetDate) - Number(!!a.targetDate) ||
   (a.targetDate ?? "").localeCompare(b.targetDate ?? "") ||
   a.createdAt.localeCompare(b.createdAt);
+
+/**
+ * Рубеж подготовки для каждого курса одним вызовом: у курсов свои часы занятий, а урок без известного
+ * курса живёт по часу по умолчанию.
+ */
+export function preparedByCourse(courses: Course[], now: Date, timezone: string): (courseId?: string) => string {
+  const byId = new Map(
+    courses.map((course) => [course.id, preparedThrough(now, timezone, fillSchedule(course.schedule).lessonHour)]),
+  );
+  const fallback = preparedThrough(now, timezone, DEFAULT_LESSON_HOUR);
+  return (courseId?: string) => byId.get(courseId ?? LOCAL_COURSE) ?? fallback;
+}
 
 export const isoWeekday = (day: string) => new Date(`${day}T00:00:00Z`).getUTCDay() || 7;
 export const scheduleSet = (schedule: Schedule) => !!schedule.startDate && schedule.weekdays.length > 0;

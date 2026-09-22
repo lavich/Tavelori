@@ -3,13 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { scheduleSet } from "../../domain/schedule";
-import { defaultSchedule, type Course } from "../../domain/types";
+import { defaultSchedule, fillSchedule, type Course } from "../../domain/types";
 import { dayMonth } from "../../shared/format";
 import { saveCourseTempo } from "../../storage/ops";
 import ui from "../../shared/ui.module.css";
 
 const SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+/** Час занятия выбирается из целых часов: минуты рубежу подготовки ничего не добавляют. */
+const hourLabel = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 /** «Пн и Чт», «Пн, Ср и Пт» — дни всегда в порядке недели, а не в порядке нажатий. */
 export const listDays = (days: number[]) => {
   const names = [...days].sort((a, b) => a - b).map((day) => SHORT[day - 1]);
@@ -17,15 +21,17 @@ export const listDays = (days: number[]) => {
 };
 
 export function ScheduleCard({ course, today, first }: { course: Course; today: string; first?: string }) {
-  const { schedule } = course;
+  const schedule = fillSchedule(course.schedule);
   const active = scheduleSet(schedule);
   const [editing, setEditing] = useState(false);
   const [start, setStart] = useState("");
   const [days, setDays] = useState<number[]>([]);
+  const [hour, setHour] = useState(schedule.lessonHour);
   const [problem, setProblem] = useState("");
   const open = () => {
     setStart(schedule.startDate ?? "");
     setDays(schedule.weekdays);
+    setHour(schedule.lessonHour);
     setProblem("");
     setEditing(true);
   };
@@ -37,7 +43,7 @@ export function ScheduleCard({ course, today, first }: { course: Course; today: 
     if (!start) return setProblem("Укажите дату первого занятия.");
     await saveCourseTempo(
       course.id,
-      { schedule: { startDate: start, weekdays: [...days].sort((a, b) => a - b) } },
+      { schedule: { startDate: start, weekdays: [...days].sort((a, b) => a - b), lessonHour: hour } },
       new Date(),
     );
     setEditing(false);
@@ -102,6 +108,24 @@ export function ScheduleCard({ course, today, first }: { course: Course; today: 
                 );
               })}
             </div>
+            <Field className="mt-3">
+              <FieldLabel htmlFor={`lesson-hour-${course.id}`}>Время занятия</FieldLabel>
+              <Select value={String(hour)} onValueChange={(value) => value && setHour(Number(value))}>
+                <SelectTrigger id={`lesson-hour-${course.id}`} className="w-full">
+                  <SelectValue>{(value: string) => hourLabel(Number(value))}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {HOURS.map((item) => (
+                      <SelectItem key={item} value={String(item)}>
+                        {hourLabel(item)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <FieldDescription>После этого часа Lexi переходит к следующему набору.</FieldDescription>
+            </Field>
             {problem && (
               <p className={ui.error} role="alert">
                 {problem}

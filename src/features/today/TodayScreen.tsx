@@ -6,12 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ItemGroup } from "@/components/ui/item";
 import { Screen } from "../../app/Screen";
 import { localDay } from "../../domain/learning";
-import { byTargetDate } from "../../domain/schedule";
+import { byTargetDate, preparedByCourse } from "../../domain/schedule";
 import { useAction } from "../../shared/action";
 import { useNow } from "../../shared/clock";
 import { capitalize, CARDS, dativeWeekday, dayMonth, DAYS, LESSONS, shortTitle, withCount } from "../../shared/format";
 import { StatTile } from "../../shared/StatTile";
-import { useActiveSession, useCatalog, useLessons, usePlan, useSettings } from "../../shared/store";
+import { useActiveSession, useCatalog, useCourses, useLessons, usePlan, useSettings } from "../../shared/store";
 import { startSession } from "../learning/session-actions";
 import { LessonRow } from "../lessons/LessonRow";
 import { nextLessonIds } from "../lessons/courses";
@@ -26,11 +26,12 @@ export function TodayScreen() {
   const installed = useLessons(true);
   const unfinished = useActiveSession();
   const catalog = useCatalog();
+  const courses = useCourses();
   const ready = !!plan && !!installed && unfinished !== undefined;
   const next = plan?.deadlines[0];
   const lesson = next && installed?.find((item) => item.id === next.lessonId);
   const today = localDay(now, settings.timezone);
-  const nextIds = nextLessonIds(installed ?? [], today);
+  const nextIds = nextLessonIds(installed ?? [], preparedByCourse(courses ?? [], now, settings.timezone));
   const lessons = [...(installed ?? [])].sort(byTargetDate);
   const available = (catalog?.entries ?? []).filter(
     (entry) => !catalog?.packages.some((pack) => pack.lessonId === entry.id),

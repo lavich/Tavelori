@@ -102,6 +102,32 @@ describe("компактный снимок формата 2", () => {
     for (const secret of ["Γράφω ένα γράμμα", "Я пишу письмо"]) expect(text, secret).not.toContain(secret);
     expect(text).toContain(encodeRef(P("p-grafo"))); // ссылка на карточку — вид и идентификатор
   });
+  it("час занятия переживает круг, а снимок без часа применяется как полдень", async () => {
+    const phone = await device("hour", { mixed: true });
+    const courseId = (await phone.db.courses.toArray())[0].id;
+    await phone.db.courses.update(courseId, {
+      schedule: { startDate: "2026-09-14", weekdays: [1, 4], lessonHour: 9 },
+    });
+    const snapshot = await buildAndCommit(phone.db, now(), "dev-1");
+    const decoded = decodeSnapshot(encodeSnapshot(snapshot));
+    expect(decoded.courses.find((course) => course.id === courseId)!.schedule).toEqual({
+      startDate: "2026-09-14",
+      weekdays: [1, 4],
+      lessonHour: 9,
+    });
+
+    // Снимок прежнего клиента: у расписания часа занятия нет вовсе.
+    const older = await device("hour-old", { mixed: true });
+    const legacy = {
+      ...decoded,
+      courses: decoded.courses.map((course) => ({
+        ...course,
+        schedule: { startDate: course.schedule.startDate, weekdays: course.schedule.weekdays },
+      })),
+    } as CompactSnapshot;
+    await applySnapshot(older.db, legacy, "hour-1", { other: 1 }, now());
+    expect((await older.db.courses.get(courseId))!.schedule.lessonHour).toBe(12);
+  });
   it("ссылка снятого вида из чужого снимка отбрасывается, а слова и фразы применяются", async () => {
     const phone = await device("phone", { mixed: true });
     await study(phone, [W("w11-27"), P("p-grafo")], [true, true]);

@@ -437,6 +437,7 @@ describe("резервная копия", () => {
   it("новая копия содержит связи, медиа и метаданные пакетов, но не каталог; восстановление воспроизводит данные", async () => {
     await installLessons(db, ["lesson-1-2"]);
     await saveWord({ ...(await db.words.get("w12-16"))!, russian: "дом (правка)" }, db);
+    await db.courses.update("leeke", { schedule: { startDate: "2026-09-14", weekdays: [1, 4], lessonHour: 19 } });
     const blob = await exportFull(db);
     const parsed = JSON.parse(await blob.text());
     const names = parsed.data.tables.map((t: { name: string }) => t.name);
@@ -459,6 +460,8 @@ describe("резервная копия", () => {
     expect((await fresh.packages.get("lesson-1-2"))!.version).toBe(packageOf("lesson-1-2").version);
     expect(await fresh.words.get("w12-16")).toMatchObject({ russian: "дом (правка)", edited: true });
     expect(await fresh.catalog.count()).toBe(0);
+    // Час занятия — часть расписания курса и переживает копию вместе с ним.
+    expect((await fresh.courses.get("leeke"))!.schedule.lessonHour).toBe(19);
     fresh.close();
     await fresh.delete();
   });
@@ -531,7 +534,8 @@ describe("резервная копия", () => {
     expect(await db.words.count()).toBe(2);
     expect((await lessonItems("lesson-1-2", db)).map((link) => link.ref.id)).toEqual(["w12-16", "w-own"]);
     expect((await db.packages.toArray()).map((p) => [p.lessonId, p.version])).toEqual([["lesson-1-2", "legacy"]]);
-    expect((await db.courses.get("my"))!.schedule).toEqual({ startDate: null, weekdays: [] });
+    // Копия сохранена до появления часа занятия: курс получает час по умолчанию.
+    expect((await db.courses.get("my"))!.schedule).toEqual({ startDate: null, weekdays: [], lessonHour: 12 });
     expect(await searchWordIds("καρ", db)).toEqual(["w-own"]);
     expect(await db.catalog.count()).toBe(content.catalog.lessons.length); // каталог не считается данными пользователя и остаётся
   });

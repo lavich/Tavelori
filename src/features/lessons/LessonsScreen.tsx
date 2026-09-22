@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Screen } from "../../app/Screen";
 import { localDay } from "../../domain/learning";
-import { byTargetDate, lessonOrder } from "../../domain/schedule";
+import { byTargetDate, lessonOrder, preparedByCourse } from "../../domain/schedule";
 import { useNow } from "../../shared/clock";
 import { CARDS, shortTitle, withCount, WORDS } from "../../shared/format";
 import { fileSize } from "../../shared/offline";
@@ -26,7 +26,8 @@ export function LessonsScreen() {
   const installed = useLessons(true) ?? [];
   const catalog = useCatalog();
   const courses = useCourses();
-  const today = localDay(useNow(), settings.timezone);
+  const now = useNow();
+  const today = localDay(now, settings.timezone);
   const [params, setParams] = useSearchParams();
   const [title, setTitle] = useState("");
   const [problem, setProblem] = useState("");
@@ -40,7 +41,7 @@ export function LessonsScreen() {
     setParams({});
   };
   const groups = groupByCourse(courses ?? [], [...installed].sort(byTargetDate), catalog?.entries ?? []);
-  const next = nextLessonIds(installed, today);
+  const next = nextLessonIds(installed, preparedByCourse(courses ?? [], now, settings.timezone));
   return (
     <Screen>
       <h1>Уроки</h1>
