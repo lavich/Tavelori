@@ -121,6 +121,24 @@ describe("компактный снимок формата 2", () => {
     expect(await applySnapshot(phone.db, decoded, "mixed-1", { other: 1 }, now())).toBeUndefined();
     expect((await phone.db.cardStates.toArray()).map((state) => state.ref.kind)).not.toContain("cloze");
   });
+  it("ключ снятого вида в своей сводке не срывает публикацию снимка", async () => {
+    const phone = await device("phone", { mixed: true });
+    await study(phone, [W("w11-27"), P("p-grafo")], [true, true]);
+    const snapshot = await buildAndCommit(phone.db, now(), "dev-1");
+    // История ответов снятый вид сохранила, поэтому его ключ остаётся в сводке дня и в списке отвеченных.
+    const dropped = JSON.stringify(["cloze", "c-grafo"]);
+    const local: CompactSnapshot = {
+      ...snapshot,
+      stats: {
+        ...snapshot.stats,
+        answeredKeys: [...snapshot.stats.answeredKeys, dropped],
+        days: snapshot.stats.days.map((day) => ({ ...day, keys: [...day.keys, dropped] })),
+      },
+    };
+    const text = encodeSnapshot(local);
+    expect(text).not.toContain("cloze"); // ключ снятого вида в облако не уходит
+    expect(decodeSnapshot(text).stats).toEqual(snapshot.stats); // ответы сочтены, ключи живых карточек на месте
+  });
   it("смешанный снимок укладывается в лимиты Telegram и не публикуется частично при их превышении", async () => {
     const phone = await device("phone", { mixed: true });
     await study(phone, [P("p-grafo"), P("p-vouno")], [true, true]);

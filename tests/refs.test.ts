@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseUnitKey, phraseKey, unitKey, wordRef, type LearningRef } from "../src/domain/refs";
+import { parseUnitKey, phraseKey, tryParseUnitKey, unitKey, wordRef, type LearningRef } from "../src/domain/refs";
 
 describe("типизированная ссылка на карточку", () => {
   it("одинаковые ID разных видов дают разные ключи", () => {
@@ -21,6 +21,11 @@ describe("типизированная ссылка на карточку", () =
   it("неизвестный вид карточки отклоняется при разборе ключа", () => {
     expect(() => parseUnitKey(JSON.stringify(["grammar", "g1"]))).toThrow(/вид карточки/);
     expect(() => parseUnitKey("w1")).toThrow(/ключ/);
+  });
+  it("щадящий разбор отдаёт `null` на снятом виде и всё так же отклоняет негодный ключ", () => {
+    expect(tryParseUnitKey(JSON.stringify(["cloze", "c1"]))).toBeNull();
+    expect(tryParseUnitKey(unitKey(wordRef("w1")))).toEqual({ kind: "word", id: "w1" });
+    expect(() => tryParseUnitKey("w1")).toThrow(/ключ/);
   });
 });
 
