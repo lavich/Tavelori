@@ -136,8 +136,8 @@ describe("компактный снимок формата 2", () => {
       },
     };
     const text = encodeSnapshot(local);
-    expect(text).not.toContain("cloze"); // ключ снятого вида в облако не уходит
-    expect(decodeSnapshot(text).stats).toEqual(snapshot.stats); // ответы сочтены, ключи живых карточек на месте
+    expect(text).not.toContain("cloze");
+    expect(decodeSnapshot(text).stats).toEqual(snapshot.stats);
   });
   it("смешанный снимок укладывается в лимиты Telegram и не публикуется частично при их превышении", async () => {
     const phone = await device("phone", { mixed: true });

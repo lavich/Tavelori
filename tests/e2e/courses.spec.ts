@@ -1,4 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { addDays } from "../../src/domain/learning";
+import { nextLessonDay } from "../../src/domain/schedule";
+import { dayMonth } from "../../src/shared/format";
 import { ready } from "./helpers";
 
 /** Каталог без последнего урока курса: так выглядит поставка до того, как урок опубликован. */
@@ -105,13 +108,17 @@ test("у курса своё расписание и свой предел; со
   const leeke = page.locator("section").filter({ has: page.getByRole("heading", { name: "Греческий A2" }) });
   const mine = page.locator("section").filter({ has: page.getByRole("heading", { name: "Мои слова" }) });
 
+  // Предлог «К» достаётся только предстоящему занятию, поэтому первое занятие — ближайший будущий понедельник.
+  const monday = nextLessonDay(new Date().toISOString().slice(0, 10), [1], false);
+  const third = addDays(monday, 14);
+  const link = (text: string) => new RegExp(text.replace(/\./g, "\\."));
   await leeke.getByRole("button", { name: "Задать расписание" }).click();
-  await leeke.getByLabel("Первое занятие").fill("2026-09-21");
+  await leeke.getByLabel("Первое занятие").fill(monday);
   await leeke.getByRole("button", { name: "Пн", exact: true }).click();
   await leeke.getByRole("button", { name: "Сохранить" }).click();
-  await expect(leeke.getByText("Пн, первое занятие 21 сентября")).toBeVisible();
-  await expect(leeke.getByRole("link", { name: /1\.1 · К понедельнику, 21 сентября/ })).toBeVisible();
-  await expect(leeke.getByRole("link", { name: /1\.3 · 5 октября/ })).toBeVisible(); // не ближайшее занятие — только дата
+  await expect(leeke.getByText(`Пн, первое занятие ${dayMonth(monday)}`)).toBeVisible();
+  await expect(leeke.getByRole("link", { name: link(`1.1 · К понедельнику, ${dayMonth(monday)}`) })).toBeVisible();
+  await expect(leeke.getByRole("link", { name: link(`1.3 · ${dayMonth(third)}`) })).toBeVisible(); // не ближайшее занятие — только дата
   await expect(mine.getByRole("link", { name: /Мой набор · Без даты/ })).toBeVisible();
 
   // Предел тоже принадлежит курсу.

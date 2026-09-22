@@ -23,7 +23,7 @@ export const isCardKind = (value: unknown): value is CardKind =>
 /** Ключ старой словарной записи: голый ID слова без сериализации. */
 export const isUnitKey = (value: string) => value.startsWith('["');
 
-/** Пара вида и идентификатора из ключа; вид не проверяется. Негодный ключ — всегда ошибка разбора. */
+/** Пара вида и идентификатора из ключа: сам вид не проверяется. */
 function splitUnitKey(key: string): [unknown, string] {
   let parsed: unknown;
   try {

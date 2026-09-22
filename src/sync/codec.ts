@@ -51,10 +51,7 @@ export function decodeRef(wire: string): LearningRef | null {
   const kind = CODE_KIND[wire[0]];
   return kind ? { kind, id: wire.slice(1) } : null;
 }
-/**
- * `null` — ключ карточки снятого вида из сводок этого устройства: история ответов его сохранила, а кода
- * вида для него нет. Отбрасывается так же, как при чтении, иначе один такой ключ отменил бы публикацию.
- */
+/** `null` — ключ снятого вида: кода для него нет, а срывать из-за одного такого ключа публикацию нельзя. */
 const encodeKey = (key: string): string | null => {
   const ref = tryParseUnitKey(key);
   return ref && encodeRef(ref);
