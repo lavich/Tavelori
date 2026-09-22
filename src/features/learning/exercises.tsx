@@ -640,11 +640,12 @@ export function Assembly({ item, onAnswer, onNext, autoSpeak = false }: Props & 
  * Поле при этом ничего не ограничивает: ответить короче, длиннее и без артикля по-прежнему можно.
  * Диктору маска отдаётся числом слов и букв и открытыми буквами: разрывов между группами он не видит.
  */
-function AnswerMask({ mask, value }: { mask: WritingMask | null; value: string }) {
+function AnswerMask({ mask, value, at }: { mask: WritingMask | null; value: string; at: number }) {
   if (!mask?.letters) return null;
   const { groups, letters } = mask;
   const typed = value.split(/\s/);
-  const caret = { word: typed.length - 1, at: (typed.at(-1) ?? "").length };
+  const before = value.slice(0, Math.min(Math.max(at, 0), value.length)).split(/\s/);
+  const caret = { word: before.length - 1, at: (before.at(-1) ?? "").length };
   const leads = groups
     .flat()
     .filter((symbol) => symbol.kind === "lead")
@@ -652,7 +653,7 @@ function AnswerMask({ mask, value }: { mask: WritingMask | null; value: string }
   const count = withCount(letters, ["буквы", "букв", "букв"]);
   const words = groups.length > 1 ? `${withCount(groups.length, ["слова", "слов", "слов"])}, ` : "";
   const first = leads.length > 1 ? `, первые буквы ${leads.join(", ")}` : leads.length ? `, первая ${leads[0]}` : "";
-  /** Каретка держится за последнюю введённую букву; в пустом слове ей не за что держаться — встаёт перед первой ячейкой. */
+  /** Каретка держится за букву слева от курсора; в начале слова ей не за что держаться — встаёт перед первой ячейкой. */
   const side = (index: number, offset: number) =>
     index !== caret.word
       ? undefined
@@ -715,6 +716,10 @@ function AnswerMask({ mask, value }: { mask: WritingMask | null; value: string }
  */
 export function Spelling({ item, onAnswer, onNext, autoSpeak = false }: Props & { autoSpeak?: boolean }) {
   const [value, setValue] = useState("");
+  /** Позиция курсора в поле: маска рисует свою каретку, родная спрятана, поэтому позицию надо знать. */
+  const [caretAt, setCaretAt] = useState(0);
+  const syncCaret = (event: React.SyntheticEvent<HTMLInputElement>) =>
+    setCaretAt(event.currentTarget.selectionStart ?? event.currentTarget.value.length);
   const [result, setResult] = useState<{
     status: "correct" | "almost" | "wrong";
     message: string;
@@ -723,6 +728,7 @@ export function Spelling({ item, onAnswer, onNext, autoSpeak = false }: Props & 
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     setValue("");
+    setCaretAt(0);
     setResult(null);
     setSaving(false);
   }, [item.id]);
@@ -806,12 +812,19 @@ export function Spelling({ item, onAnswer, onNext, autoSpeak = false }: Props & 
         {!result ? (
           <form onSubmit={submit}>
             <div className={s.field}>
-              <AnswerMask mask={mask} value={value} />
+              <AnswerMask mask={mask} value={value} at={caretAt} />
               <input
                 className={cx(s.answer, mask && s.masked)}
                 type="text"
                 value={value}
-                onChange={(event) => setValue(event.target.value)}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  setCaretAt(event.target.selectionStart ?? event.target.value.length);
+                }}
+                // Одного `onSelect` мало: React собирает его из `selectionchange`, а тап каретку двигает и без выделения.
+                onSelect={syncCaret}
+                onKeyUp={syncCaret}
+                onClick={syncCaret}
                 disabled={saving}
                 autoCapitalize="off"
                 autoCorrect="off"
