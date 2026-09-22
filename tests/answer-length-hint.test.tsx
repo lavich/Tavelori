@@ -124,7 +124,6 @@ const type = async (host: HTMLElement, text: string) => {
   });
 };
 
-/** Курсор двигается в самом поле: маска обязана идти за ним, а не за длиной набранного. */
 const moveCaret = async (host: HTMLElement, position: number, by: "keys" | "tap" = "keys") => {
   const input = host.querySelector("input") as HTMLInputElement;
   await act(async () => {

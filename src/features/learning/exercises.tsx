@@ -644,7 +644,6 @@ function AnswerMask({ mask, value, at }: { mask: WritingMask | null; value: stri
   if (!mask?.letters) return null;
   const { groups, letters } = mask;
   const typed = value.split(/\s/);
-  // Каретка стоит там же, где курсор поля, а не в конце набранного: иначе правка в середине идёт вслепую.
   const before = value.slice(0, Math.min(Math.max(at, 0), value.length)).split(/\s/);
   const caret = { word: before.length - 1, at: (before.at(-1) ?? "").length };
   const leads = groups
@@ -822,7 +821,7 @@ export function Spelling({ item, onAnswer, onNext, autoSpeak = false }: Props & 
                   setValue(event.target.value);
                   setCaretAt(event.target.selectionStart ?? event.target.value.length);
                 }}
-                // Курсор двигают тапом, стрелками и выделением: на одно `onSelect` полагаться нельзя.
+                // Одного `onSelect` мало: React собирает его из `selectionchange`, а тап каретку двигает и без выделения.
                 onSelect={syncCaret}
                 onKeyUp={syncCaret}
                 onClick={syncCaret}
