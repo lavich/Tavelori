@@ -1,5 +1,5 @@
 import type { SkillSummary, StatsSummary, TypeSkill } from "../domain/skills";
-import { parseUnitKey, unitKey, wordRef } from "../domain/refs";
+import { tryParseUnitKey, unitKey, wordRef } from "../domain/refs";
 import type { CardKind, ExerciseType, LearningRef } from "../domain/types";
 import {
   LEGACY_SNAPSHOT_FORMAT,
@@ -51,7 +51,11 @@ export function decodeRef(wire: string): LearningRef | null {
   const kind = CODE_KIND[wire[0]];
   return kind ? { kind, id: wire.slice(1) } : null;
 }
-const encodeKey = (key: string) => encodeRef(parseUnitKey(key));
+/** `null` — ключ снятого вида: кода для него нет, а срывать из-за одного такого ключа публикацию нельзя. */
+const encodeKey = (key: string): string | null => {
+  const ref = tryParseUnitKey(key);
+  return ref && encodeRef(ref);
+};
 const decodeKey = (wire: string) => {
   const ref = decodeRef(wire);
   return ref && unitKey(ref);
@@ -174,14 +178,14 @@ const decodeSkill = (
   );
 };
 const encodeStats = (stats: StatsSummary): Wire["x"] => ({
-  d: stats.days.map((day) => [day.date, day.answers, day.keys.map(encodeKey)]),
+  d: stats.days.map((day) => [day.date, day.answers, day.keys.map(encodeKey).filter(alive)]),
   r: Object.fromEntries(
     Object.entries(stats.recentByType)
       .filter((entry): entry is [string, boolean[]] => !!entry[1])
       .map(([type, recent]) => [TYPE_CODE[type as ExerciseType], bits(recent)]),
   ),
   n: stats.answers,
-  w: stats.answeredKeys.map(encodeKey),
+  w: stats.answeredKeys.map(encodeKey).filter(alive),
 });
 const decodeStats = (wire: Wire["x"], key: (raw: string) => string | null): StatsSummary => ({
   days: wire.d.map(([date, answers, keys]) => ({ date, answers, keys: keys.map(key).filter(alive) })),
