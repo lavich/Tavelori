@@ -124,6 +124,20 @@ const type = async (host: HTMLElement, text: string) => {
   });
 };
 
+/** Курсор двигается в самом поле: маска обязана идти за ним, а не за длиной набранного. */
+const moveCaret = async (host: HTMLElement, position: number, by: "keys" | "tap" = "keys") => {
+  const input = host.querySelector("input") as HTMLInputElement;
+  await act(async () => {
+    input.focus();
+    input.setSelectionRange(position, position);
+    input.dispatchEvent(
+      by === "keys"
+        ? new KeyboardEvent("keyup", { bubbles: true, key: "ArrowLeft" })
+        : new MouseEvent("click", { bubbles: true }),
+    );
+  });
+};
+
 describe("подсказка длины ответа", () => {
   it("в написании слова открывает первую букву и прячет остальные", async () => {
     const host = await showSpelling(wordItem({ greek: "σπίτι" }));
@@ -185,6 +199,28 @@ describe("подсказка длины ответа", () => {
     const host = await showSpelling(wordItem({ greek: "σπίτι" }));
     await type(host, "σπίτια");
     expect(shown(host)).toBe("σπίτια");
+  });
+  it("каретка идёт за курсором внутрь слова, а не остаётся в конце", async () => {
+    const host = await showSpelling(wordItem({ greek: "σπίτι" }));
+    await type(host, "σπίτι");
+    expect(caret(host)).toEqual({ word: 0, at: 5 });
+    await moveCaret(host, 2);
+    expect(caret(host)).toEqual({ word: 0, at: 2 });
+  });
+  it("каретка возвращается в предыдущее слово вслед за курсором", async () => {
+    const host = await showSpelling(wordItem({ greek: "η γάτα" }));
+    await type(host, "η γάτα");
+    expect(caret(host)).toEqual({ word: 1, at: 4 });
+    await moveCaret(host, 1);
+    expect(caret(host)).toEqual({ word: 0, at: 1 });
+    await moveCaret(host, 2, "tap");
+    expect(caret(host)).toEqual({ word: 1, at: 0 });
+  });
+  it("после правки в середине каретка стоит за вставленной буквой", async () => {
+    const host = await showSpelling(wordItem({ greek: "σπίτι" }));
+    await type(host, "σπίι");
+    await moveCaret(host, 3);
+    expect(caret(host)).toEqual({ word: 0, at: 3 });
   });
   it("каретка видна и в пустом поле, и внутри слова", async () => {
     const host = await showSpelling(wordItem({ greek: "σπίτι" }));
