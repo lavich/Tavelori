@@ -231,7 +231,7 @@ describe("установка урока", () => {
     await installLessons(db, ["lesson-1-2", "lesson-1-3"]);
     expect(await db.words.where("greek").equals("το σπίτι").toArray()).toHaveLength(1);
     expect(await db.lessonItems.where("unitKey").equals(wordKeyOf("w12-16")).count()).toBe(2);
-    expect(await db.words.count()).toBe(30 + 35 - 1);
+    expect(await db.words.count()).toBe(wordCountOf("lesson-1-2", "lesson-1-3"));
   });
   it("одновременные запросы одного пакета объединяются, повторная установка ничего не дублирует", async () => {
     const fetcher = memoryFetcher();

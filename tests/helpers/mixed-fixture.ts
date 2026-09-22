@@ -44,9 +44,9 @@ export const MIXED_PHRASES: Record<string, Record<string, unknown>> = {
     provenance: verbatim("content/words/το-παιδί.yaml, examples[0]", "Το παιδί παίζει στο πάρκο."),
   },
   "p-anoixi": {
-    text: "Η άνοιξη φέρνει λουλούδια.",
-    translation: "Весна приносит цветы.",
-    provenance: verbatim("content/words/η-άνοιξη.yaml, examples[0]", "Η άνοιξη φέρνει λουλούδια."),
+    text: "Την άνοιξη ανθίζουν τα λουλούδια.",
+    translation: "Весной цветут цветы.",
+    provenance: verbatim("content/words/η-άνοιξη.yaml, examples[0]", "Την άνοιξη ανθίζουν τα λουλούδια."),
   },
   "p-ilios": {
     text: "Η κόρη βλέπει τον ήλιο και χαμογελάει.",

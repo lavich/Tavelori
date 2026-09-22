@@ -27,7 +27,7 @@ test("слово и пример употребления озвучиваютс
   const spoken = await page.evaluate(
     () => (window as unknown as { __spoken: { text: string; lang: string; rate: number }[] }).__spoken,
   );
-  expect(spoken.map((item) => item.text)).toEqual(["το σπίτι", "Το σπίτι είναι μικρό."]);
+  expect(spoken.map((item) => item.text)).toEqual(["το σπίτι", "Το σπίτι μας είναι μεγάλο."]);
   expect(spoken.every((item) => item.lang === "el-GR")).toBe(true);
   expect(spoken[1].rate).toBeLessThan(spoken[0].rate); // предложение читается медленнее слова
 });

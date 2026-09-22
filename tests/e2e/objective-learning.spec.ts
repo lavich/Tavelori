@@ -112,7 +112,7 @@ test("аудирование: после ответа раскрывается �
   await expect(reveal).toBeVisible();
   await expect(reveal).toContainText("дом");
   await expect(reveal).toContainText("ˈspiti");
-  await expect(reveal).toContainText("Дом маленький.");
+  await expect(reveal).toContainText("Наш дом большой.");
   // Показ ничего не сохраняет: событие ровно одно, от самого ответа.
   expect((await stored(page)).events).toHaveLength(1);
 });
