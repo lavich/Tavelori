@@ -17,13 +17,13 @@ export interface CourseGroup {
 export const UNKNOWN_COURSE = "unknown";
 
 /**
- * Ближайшее занятие каждого курса: первый непроведённый урок, чей день не раньше сегодняшнего.
- * Расписание у курсов своё, поэтому и ближайший урок у каждого свой; урок без даты им быть не может.
+ * Ближайшее занятие каждого курса: первый непроведённый урок, подготовка к которому ещё не окончена.
+ * Рубеж приходит готовым и у каждого курса свой, как и расписание; урок без даты ближайшим быть не может.
  */
-export function nextLessonIds(lessons: LessonView[], today: string): Set<string> {
+export function nextLessonIds(lessons: LessonView[], prepared: (courseId?: string) => string): Set<string> {
   const soonest = new Map<string, LessonView>();
   for (const lesson of lessons) {
-    if (lesson.status === "completed" || !lesson.targetDate || lesson.targetDate < today) continue;
+    if (lesson.status === "completed" || !lesson.targetDate || lesson.targetDate <= prepared(lesson.courseId)) continue;
     const key = lesson.courseId ?? UNKNOWN_COURSE;
     const kept = soonest.get(key);
     if (

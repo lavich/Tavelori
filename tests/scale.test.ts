@@ -147,7 +147,7 @@ beforeAll(async () => {
     title: "Мои слова",
     origin: "local",
     subscribed: true,
-    schedule: { startDate: null, weekdays: [] },
+    schedule: { startDate: null, weekdays: [], lessonHour: 12 },
     newItemsPerDay: 10,
     createdAt: iso,
     updatedAt: iso,

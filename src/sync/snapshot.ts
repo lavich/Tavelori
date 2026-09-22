@@ -2,7 +2,14 @@ import type { Card } from "ts-fsrs";
 import { isStandardWord, SEED_LESSON, type LexiDatabase } from "../storage/db";
 import { byTime, emptySkills, emptyStats, foldSkill, foldStats, type SkillSummary } from "../domain/skills";
 import { unitKey } from "../domain/refs";
-import { fillSettings, type CardKind, type LearningRef, type LearningState, type ReviewEvent } from "../domain/types";
+import {
+  fillSchedule,
+  fillSettings,
+  type CardKind,
+  type LearningRef,
+  type LearningState,
+  type ReviewEvent,
+} from "../domain/types";
 import { loadSettings } from "../storage/queries";
 import { SyncError } from "./transport";
 import {
@@ -232,7 +239,8 @@ export async function applySnapshot(
             ...stored,
             subscribed: incoming.subscribed,
             newItemsPerDay: incoming.newItemsPerDay,
-            schedule: incoming.schedule,
+            // Снимок прежнего клиента приходит без часа занятия: в базу он ложится уже с полуднем.
+            schedule: fillSchedule(incoming.schedule),
           });
       }
       const pending: PendingLessons = {};

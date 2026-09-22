@@ -4,6 +4,7 @@ import { unitKey, wordRef } from "./refs";
 import { emptySkills, summarizeEvents, type SkillSummary } from "./skills";
 import { splitWriting } from "./syllables";
 import {
+  fillSchedule,
   LOCAL_COURSE,
   type CardKind,
   type Course,
@@ -41,12 +42,26 @@ export function localDay(date: Date, timezone: string): string {
   const get = (type: string) => parts.find((p) => p.type === type)!.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
+export function localHour(date: Date, timezone: string): number {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", hourCycle: "h23" }).format(date),
+  );
+}
 /** Разница календарных дней; переход летнего времени не сдвигает результат. */
 export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
 }
 export const addDays = (day: string, count: number) =>
   new Date(Date.parse(`${day}T00:00:00Z`) + count * 86400000).toISOString().slice(0, 10);
+/**
+ * Последний день, занятия которого уже считаются прошедшими: подготовка кончается в час занятия курса,
+ * а не в полночь. Час входит в систему только здесь и сразу превращается обратно в день, поэтому
+ * остальное планирование остаётся сравнением дат.
+ */
+export function preparedThrough(now: Date, timezone: string, lessonHour: number): string {
+  const today = localDay(now, timezone);
+  return localHour(now, timezone) >= lessonHour ? today : addDays(today, -1);
+}
 export const formatDay = (day: string) =>
   new Date(`${day}T12:00:00Z`).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
 export const weekdayOf = (day: string) =>
@@ -218,12 +233,9 @@ export async function makePlan(source: PlanSource, now: Date, options: PlanOptio
     if (!own.length && course.id !== LOCAL_COURSE) continue;
     const introducedToday = introduced.get(course.id) ?? 0;
     const budget = Math.max(0, course.newItemsPerDay - introducedToday);
-    const past = own
-      .filter((l) => l.status === "completed" || (l.targetDate && daysBetween(today, l.targetDate) < 0))
-      .sort(order);
-    const upcoming = own
-      .filter((l) => l.targetDate && l.status !== "completed" && daysBetween(today, l.targetDate) >= 0)
-      .sort(order);
+    const prepared = preparedThrough(now, timezone, fillSchedule(course.schedule).lessonHour);
+    const past = own.filter((l) => l.status === "completed" || (l.targetDate && l.targetDate <= prepared)).sort(order);
+    const upcoming = own.filter((l) => l.targetDate && l.status !== "completed" && l.targetDate > prepared).sort(order);
 
     const seen = new Set<string>();
     const deadlines: DeadlinePlan[] = [];

@@ -15,7 +15,7 @@ import type { TextAnswerStatus } from "../domain/text-answer";
 import { normalize, wordKey, type ImportRow } from "../domain/import";
 import { snapshotOf, unitKey, wordRef } from "../domain/refs";
 import { emptySkills } from "../domain/skills";
-import { scheduleCourses } from "../domain/schedule";
+import { preparedByCourse, scheduleCourses } from "../domain/schedule";
 import {
   fillSettings,
   type Asset,
@@ -281,13 +281,14 @@ export async function createLesson(title: string, database: LexiDatabase = db): 
 export async function settleLessons(now: Date, database: LexiDatabase = db): Promise<number> {
   return database.transaction("rw", database.lessons, database.courses, database.settings, database.meta, async () => {
     const settings = fillSettings(await database.settings.get("settings"));
-    const today = localDay(now, settings.timezone);
     const stored = await database.lessons.toArray();
     const raw = new Map(stored.map((lesson) => [lesson.id, lesson]));
-    const passed = scheduleCourses(stored, await database.courses.toArray()).filter(
+    const courses = await database.courses.toArray();
+    const prepared = preparedByCourse(courses, now, settings.timezone);
+    const passed = scheduleCourses(stored, courses).filter(
       (lesson) =>
         lesson.targetDate &&
-        lesson.targetDate < today &&
+        lesson.targetDate <= prepared(lesson.courseId) &&
         (raw.get(lesson.id)!.status !== "completed" || !raw.get(lesson.id)!.targetDate),
     );
     for (const lesson of passed)

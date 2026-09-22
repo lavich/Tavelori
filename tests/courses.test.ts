@@ -11,7 +11,7 @@ const course = (id: string, over: Partial<Course> = {}): Course => ({
   title: id,
   origin: "content",
   subscribed: false,
-  schedule: { startDate: null, weekdays: [] },
+  schedule: { startDate: null, weekdays: [], lessonHour: 12 },
   newItemsPerDay: 10,
   createdAt: iso,
   updatedAt: iso,
@@ -90,7 +90,8 @@ describe("группировка уроков по курсам", () => {
 });
 
 describe("ближайшее занятие в списке уроков", () => {
-  const today = "2026-09-17";
+  /** Рубеж: занятия этого дня и раньше уже прошли. */
+  const today = () => "2026-09-16";
   const dated = (id: string, courseId: string, targetDate: string | null, over: Partial<LessonView> = {}) =>
     lesson(id, courseId, 10, { targetDate, ...over });
   it("у каждого курса своё ближайшее занятие: первый непроведённый урок не раньше сегодня", () => {
@@ -118,6 +119,11 @@ describe("ближайшее занятие в списке уроков", () =>
       today,
     );
     expect([...next]).toEqual(["early"]);
+  });
+  it("занятие сегодняшнего дня ведёт список до своего часа и уходит после", () => {
+    const lessons = [dated("today", "leeke", "2026-09-17"), dated("next", "leeke", "2026-09-21")];
+    expect([...nextLessonIds(lessons, () => "2026-09-16")]).toEqual(["today"]);
+    expect([...nextLessonIds(lessons, () => "2026-09-17")]).toEqual(["next"]);
   });
   /** «К пятнице» — срок, к которому готовятся; у прошедшего и дальнего урока день недели ничего не сообщает. */
   it("предлог с днём недели получает только ближайшее занятие", () => {

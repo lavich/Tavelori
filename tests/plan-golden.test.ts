@@ -202,7 +202,7 @@ export const scenarios: Record<string, Snapshot> = {
       title: id,
       origin: "content",
       subscribed: true,
-      schedule: { startDate: "2026-09-15", weekdays },
+      schedule: { startDate: "2026-09-15", weekdays, lessonHour: 12 },
       newItemsPerDay: perDay,
       createdAt: iso,
       updatedAt: iso,

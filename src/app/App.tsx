@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
@@ -7,10 +7,10 @@ import { useGoBack } from "./navigation";
 import { SyncConflictDialog, TelegramWelcome } from "./TelegramNotices";
 import { updateReady } from "../main";
 import { useBackHandler, useEnvironment } from "../platform/platform";
-import { localDay } from "../domain/learning";
 import { useNow } from "../shared/clock";
 import { useSettings } from "../shared/store";
 import { settleLessons } from "../storage/ops";
+import { useSettleWatch } from "./settle-watch";
 // «Сегодня» открывается первым и в браузере, и в Mini App, поэтому грузится сразу: иначе первый кадр пустой.
 import { TodayScreen } from "../features/today/TodayScreen";
 import ui from "../shared/ui.module.css";
@@ -38,14 +38,9 @@ export function App() {
   // Резервный возврат Telegram: на «Сегодня» кнопка скрыта, на остальных экранах без своего обработчика ведёт назад или на главный.
   const goBack = useGoBack();
   useBackHandler(pathname === "/" ? null : goBack, 0);
-  const today = localDay(useNow(), settings.timezone);
-  const seenDay = useRef(today);
-  useEffect(() => {
-    // При запуске закрепление уже сделал main.tsx; здесь ловим смену дня в открытом приложении.
-    if (seenDay.current === today) return;
-    seenDay.current = today;
+  useSettleWatch(useNow(), settings.timezone, () => {
     settleLessons(new Date()).catch((error) => console.error("Не удалось закрепить прошедшие уроки", error));
-  }, [today]);
+  });
   useEffect(() => {
     // Обновление предлагаем между занятиями, чтобы не прервать ответ.
     const notice = () => {

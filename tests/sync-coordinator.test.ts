@@ -93,7 +93,7 @@ describe("перенос компактного прогресса между у
     await saveSettings({ ...defaultSettings, timezone: "Europe/Athens", sessionSize: 6 }, phone.db);
     await saveCourseTempo(
       "leeke",
-      { newItemsPerDay: 7, schedule: { startDate: "2026-09-14", weekdays: [1, 3] } },
+      { newItemsPerDay: 7, schedule: { startDate: "2026-09-14", weekdays: [1, 3], lessonHour: 12 } },
       new Date("2026-09-16T09:00:00Z"),
       phone.db,
     );
@@ -111,7 +111,7 @@ describe("перенос компактного прогресса между у
     // Темп принадлежит курсу и переносится вместе с ним, иначе второе устройство считало бы дни иначе.
     expect(await tablet.db.courses.get("leeke")).toMatchObject({
       newItemsPerDay: 7,
-      schedule: { startDate: "2026-09-14", weekdays: [1, 3] },
+      schedule: { startDate: "2026-09-14", weekdays: [1, 3], lessonHour: 12 },
     });
     expect((await tablet.db.lessons.get("lesson-1-1"))?.targetDate).toBe("2026-10-01");
     const [planPhone, planTablet] = await Promise.all([plan(phone), plan(tablet)]);

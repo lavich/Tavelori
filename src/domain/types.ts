@@ -223,6 +223,8 @@ export interface Session {
 export interface Schedule {
   startDate: string | null;
   weekdays: number[];
+  /** Час занятия 0–23 в зоне пользователя: после него подготовка к уроку окончена. */
+  lessonHour: number;
 }
 /** `errorReports` — отправка отчётов о сбоях во внешний сервис; включена по умолчанию, в компактный снимок синхронизации не входит. */
 export interface Settings {
@@ -232,7 +234,8 @@ export interface Settings {
   errorReports: boolean;
   autoSpeak: boolean;
 }
-export const defaultSchedule: Schedule = { startDate: null, weekdays: [] };
+export const DEFAULT_LESSON_HOUR = 12;
+export const defaultSchedule: Schedule = { startDate: null, weekdays: [], lessonHour: DEFAULT_LESSON_HOUR };
 export const defaultSettings: Settings = {
   id: "settings",
   timezone: "Asia/Nicosia",
@@ -252,6 +255,18 @@ export const fillSettings = (settings: Partial<Settings> | undefined): Settings 
   ...defaultSettings,
   ...settings,
 });
+/**
+ * Расписание из базы, копии или снимка: час занятия появился позже остальных полей, поэтому
+ * отсутствующее, дробное и выходящее за 0–23 значение читается как полдень.
+ */
+export const fillSchedule = (schedule: Partial<Schedule> | undefined): Schedule => {
+  const hour = schedule?.lessonHour;
+  return {
+    ...defaultSchedule,
+    ...schedule,
+    lessonHour: Number.isInteger(hour) && hour! >= 0 && hour! <= 23 ? hour! : DEFAULT_LESSON_HOUR,
+  };
+};
 /**
  * Полный снимок данных: используется только в тестах как источник для планировщика.
  * Экраны приложения читают ограниченные выборки, а не снимок. Словарные связи `links` и смешанные `items`
