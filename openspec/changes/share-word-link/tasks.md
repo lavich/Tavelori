@@ -24,9 +24,9 @@
 
 ## 5. Параметр запуска Telegram
 
-- [ ] 5.1 В `src/platform/launch.ts` добавить в `LaunchContext` поле `launchId` (`hash` из `tgWebAppData`, иначе `auth_date` вместе со `start_param`, вне Telegram — `null`) и сохранять его вместе с контекстом. Проверка — `tests/platform.test.ts`: разбор `hash`, запасной вариант без `hash`, восстановление из `sessionStorage` сохраняет `launchId`.
+- [ ] 5.1 В `src/platform/launch.ts` добавить в `LaunchContext` поле `launchId` (`hash` из `tgWebAppData`; без `hash` и вне Telegram — `null`) и сохранять его вместе с контекстом. Проверка — `tests/platform.test.ts`: разбор `hash`, `null` без `hash`, восстановление из `sessionStorage` сохраняет `launchId`.
 - [ ] 5.2 Добавить `startRoute(launch)`: `w_<id>` → `/share/word/<id>`, прочее → `null`. Проверка — тест: `w_w34-03`, `promo`, `w_`, `w_a/b`, id длиннее 60 символов, запуск без Telegram.
-- [ ] 5.3 В `App` переходить по `startRoute` с `replace`, только если `launchId` не равен `lexi:start-consumed` в `sessionStorage`, и записывать туда `launchId`; при недоступном `sessionStorage` переходить один раз за время жизни страницы. Проверка — тест: первый монтаж переходит; повторный монтаж с тем же `launchId` — нет; монтаж с новым `launchId` и другим `start_param` при старой метке — переходит; новый `launchId` с тем же `start_param` — переходит.
+- [ ] 5.3 В `App` переходить по `startRoute` с `replace`. При `launchId` — только если он не равен `lexi:start-consumed` в `sessionStorage`, после перехода записывать туда `launchId`. Без `launchId` или при недоступном `sessionStorage` — один раз за время жизни страницы по флагу в памяти, метку не читать и не писать. Проверка — тест: первый монтаж переходит; повторный монтаж с тем же `launchId` — нет; монтаж с новым `launchId` и другим `start_param` при старой метке — переходит; новый `launchId` с тем же `start_param` — переходит; без `launchId` повторный монтаж в той же странице не переходит, а после сброса модуля (перезагрузки) переходит, и метка в `sessionStorage` не появляется.
 
 ## 6. Кнопка «Поделиться»
 
