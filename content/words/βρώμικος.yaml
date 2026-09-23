@@ -1,0 +1,15 @@
+id: w41-04
+greek: Βρώμικος
+russian: грязный
+ipa: "/ˈvromikos/"
+verified: true
+source: "Список слов к уроку 4.1; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: βρώμικος.svg
+reading:
+  - text: "Β"
+    ipa: "v"
+    explanation: "β читается как в"
+examples:
+  - greek: "Τα πιάτα είναι βρώμικα."
+    russian: "Тарелки грязные."
+    target: "βρώμικα"

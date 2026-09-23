@@ -1,0 +1,11 @@
+id: w41-10
+greek: Άνετος
+russian: удобный
+ipa: "/ˈanetos/"
+verified: true
+source: "Список слов к уроку 4.1; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: άνετος.svg
+examples:
+  - greek: "Ο καναπές είναι πολύ άνετος."
+    russian: "Диван очень удобный."
+    target: "άνετος"
