@@ -23,6 +23,7 @@ const LessonScreen = named("LessonScreen", () => import("../features/lessons/Les
 const WordsScreen = named("WordsScreen", () => import("../features/words/WordsScreen"));
 const WordScreen = named("WordScreen", () => import("../features/words/WordScreen"));
 const SharedWordScreen = named("SharedWordScreen", () => import("../features/words/SharedWordScreen"));
+const WordExerciseScreen = named("WordExerciseScreen", () => import("../features/words/WordExerciseScreen"));
 const WordEditorScreen = named("WordEditorScreen", () => import("../features/words/WordEditorScreen"));
 const SessionScreen = named("SessionScreen", () => import("../features/learning/SessionScreen"));
 const ResultScreen = named("ResultScreen", () => import("../features/learning/ResultScreen"));
@@ -34,7 +35,7 @@ const BackupScreen = named("BackupScreen", () => import("../features/backup/Back
 
 export function App() {
   const { pathname } = useLocation();
-  const immersive = pathname.startsWith("/session");
+  const immersive = pathname.startsWith("/session") || /^\/words\/[^/]+\/exercise\//.test(pathname);
   const { settings } = useSettings();
   useEnvironment();
   useStartRoute();
@@ -67,6 +68,7 @@ export function App() {
           <Route path="/words" element={<WordsScreen />} />
           <Route path="/words/:id" element={<WordScreen />} />
           <Route path="/words/:id/edit" element={<WordEditorScreen />} />
+          <Route path="/words/:id/exercise/:type" element={<WordExerciseScreen />} />
           <Route path="/share/word/:id" element={<SharedWordScreen />} />
           <Route path="/session" element={<SessionScreen />} />
           <Route path="/session/result/:id" element={<ResultScreen />} />

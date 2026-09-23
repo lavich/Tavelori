@@ -33,6 +33,8 @@ interface Props {
   onAnswer: (answer: Answer) => Promise<boolean>;
   onNext: () => void;
   onSkip?: () => void;
+  /** Подпись кнопки после ответа: в занятии — «Далее», в упражнении по выбору — «Ещё раз». */
+  nextLabel?: string;
 }
 
 /** Раскрытый ответ подводим к верху области прокрутки: иначе он остаётся под закреплённой кнопкой. */
@@ -225,6 +227,7 @@ function Choice({
   item,
   onAnswer,
   onNext,
+  nextLabel = "Далее",
   prompt,
   head,
   options,
@@ -295,7 +298,7 @@ function Choice({
       <div className={s.dock}>
         {answered ? (
           <Button size="xl" onClick={onNext}>
-            Далее
+            {nextLabel}
           </Button>
         ) : (
           <Button variant="outline" size="xl" disabled={saving} onClick={() => choose(null)}>
@@ -500,7 +503,13 @@ export function Comprehension(props: Props & { autoSpeak?: boolean }) {
  * Ступень перед свободным написанием: слово собирается из перемешанных слогов. Только для слов.
  * Строка со слогами остаётся в плашке над раскрытием: деления на слоги в карточке нет, а собирали именно его.
  */
-export function Assembly({ item, onAnswer, onNext, autoSpeak = false }: Props & { autoSpeak?: boolean }) {
+export function Assembly({
+  item,
+  onAnswer,
+  onNext,
+  nextLabel = "Далее",
+  autoSpeak = false,
+}: Props & { autoSpeak?: boolean }) {
   const [placed, setPlaced] = useState<number[]>([]);
   const [result, setResult] = useState<{
     status: "correct" | "almost" | "wrong";
@@ -606,7 +615,7 @@ export function Assembly({ item, onAnswer, onNext, autoSpeak = false }: Props & 
         )}
         {result ? (
           <Button size="xl" onClick={onNext}>
-            Далее
+            {nextLabel}
           </Button>
         ) : (
           <Button size="xl" disabled={!complete || saving} onClick={() => check()}>
@@ -713,7 +722,13 @@ function AnswerMask({ mask, value }: { mask: WritingMask | null; value: string }
  * Написание слова по переводу или фразы целиком по её переводу. У фразы проверка без послаблений артиклю.
  * После ответа задание уходит с экрана: перевод и картинка входят в раскрытие, отдельно они задвоились бы.
  */
-export function Spelling({ item, onAnswer, onNext, autoSpeak = false }: Props & { autoSpeak?: boolean }) {
+export function Spelling({
+  item,
+  onAnswer,
+  onNext,
+  nextLabel = "Далее",
+  autoSpeak = false,
+}: Props & { autoSpeak?: boolean }) {
   const [value, setValue] = useState("");
   const [result, setResult] = useState<{
     status: "correct" | "almost" | "wrong";
@@ -829,7 +844,7 @@ export function Spelling({ item, onAnswer, onNext, autoSpeak = false }: Props & 
           </form>
         ) : (
           <Button size="xl" onClick={onNext}>
-            Далее
+            {nextLabel}
           </Button>
         )}
       </div>

@@ -11,6 +11,9 @@ import { shortTitle } from "../../shared/format";
 import { useShippedWord, useWord, useWordLesson, useWordLessons } from "../../shared/store";
 import { shareWord } from "../../platform/share";
 import { ExampleBox, ReadingNotes, WordSummary } from "./WordCardView";
+import { WORD_EXERCISES } from "../../domain/learning";
+import type { Word } from "../../domain/types";
+import { EXERCISE_LABELS, exercisePath, useWordExercises } from "./word-exercises";
 import { startSession } from "../learning/session-actions";
 import ui from "../../shared/ui.module.css";
 
@@ -89,6 +92,49 @@ export function WordScreen() {
         Потренировать слово
       </Button>
       {problem && <p className={ui.error}>{problem}</p>}
+      {!word.deletedAt && <ExerciseChoice word={word} />}
     </Screen>
+  );
+}
+
+function ExerciseChoice({ word }: { word: Word }) {
+  const options = useWordExercises(word);
+  const navigate = useNavigate();
+  return (
+    <section aria-labelledby="word-exercises" style={{ marginTop: 24 }}>
+      <h2 id="word-exercises" style={{ fontSize: 17, margin: 0 }}>
+        Упражнения
+      </h2>
+      <p className={ui.note} style={{ margin: "2px 0 10px" }}>
+        Без учёта прогресса
+      </p>
+      <div className="flex flex-col gap-2" data-testid="word-exercises">
+        {WORD_EXERCISES.map((type) => {
+          const status = options?.[type];
+          return (
+            <div key={type} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p style={{ margin: 0 }}>{EXERCISE_LABELS[type]}</p>
+                {status && !status.available && (
+                  <p className={ui.note} style={{ margin: 0 }}>
+                    {status.reason}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="md"
+                className="w-auto shrink-0"
+                disabled={!status?.available}
+                aria-label={`${EXERCISE_LABELS[type]}: пройти`}
+                onClick={() => void navigate(exercisePath(word.id, type))}
+              >
+                Пройти
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

@@ -165,7 +165,6 @@ export function previewPackage(
 }
 /** Только для тестов: забыть прочитанные пакеты. */
 export const resetPreviews = () => previews.clear();
-/** Медиа пакета по идентификатору: для показа без записи в базу. */
 export const previewMedia = (pack: ContentPackage): Map<string, PackageMedia> =>
   new Map(pack.media.map((item) => [item.id, item]));
 
