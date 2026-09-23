@@ -18,6 +18,10 @@ export interface TelegramEmulation {
   fullscreen?: boolean;
   safeTop?: number;
   contentTop?: number;
+  /** Параметр `startapp` ссылки на бота. */
+  startParam?: string;
+  /** Идентификатор сессии запуска: Telegram передаёт его не при каждом способе открытия. */
+  queryId?: string;
 }
 /** Клиент без Bot API 8.0 отвергает подписку на события активности. */
 const LIFECYCLE_EVENTS = ["activated", "deactivated"];
@@ -62,6 +66,7 @@ export const bridgeScript = (options: TelegramEmulation) => {
   safeAreaInset:{top:${options.safeTop ?? 0},bottom:0,left:0,right:0},contentSafeAreaInset:{top:${options.contentTop ?? 0},bottom:0,left:0,right:0},
   isVersionAtLeast(v){return parseFloat(this.version)>=parseFloat(v)},
   ready(){calls.push('ready')},expand(){this.isExpanded=true;calls.push('expand')},close(){calls.push('close')},
+  openTelegramLink(url){calls.push('link:'+url)},
   onEvent:on,offEvent:off,
   BackButton:button('back'),
   MainButton:Object.assign(button('main'),{text:'',isActive:true,isProgressVisible:false,setText(t){this.text=t},enable(){},disable(){},showProgress(){},hideProgress(){},setParams(p){calls.push('main.setParams:'+JSON.stringify(p))}}),
@@ -100,6 +105,8 @@ export const launchHash = (options: TelegramEmulation = {}) => {
     user: JSON.stringify({ id: options.userId ?? 1001, first_name: "Тест" }),
     auth_date: "1",
     hash: "e2e",
+    ...(options.startParam ? { start_param: options.startParam } : {}),
+    ...(options.queryId ? { query_id: options.queryId } : {}),
   }).toString();
   return `#tgWebAppData=${encodeURIComponent(data)}&tgWebAppVersion=${options.version ?? "8.0"}&tgWebAppPlatform=${options.platform ?? "ios"}`;
 };

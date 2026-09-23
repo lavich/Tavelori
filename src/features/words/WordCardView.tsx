@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { Example, Word } from "../../domain/types";
 import { coreWord, stressNote, stressPosition } from "../../domain/phonetics";
 import { playWord, speakPhrase, useAudioKind, useGreekVoice } from "../../shared/audio";
-import { useAssetUrl } from "../../shared/store";
+import { useAssetSource, useAssetUrl } from "../../shared/store";
 import ui from "../../shared/ui.module.css";
 import wordCss from "../../shared/word.module.css";
 import { cx } from "../../shared/cx";
@@ -19,6 +19,7 @@ export function WordArt({ word, hidden }: { word: Word; hidden?: boolean }) {
 
 export function SpeakButton({ word, label = "Послушать слово" }: { word: Word; label?: string }) {
   const kind = useAudioKind(word);
+  const source = useAssetSource();
   const [failed, setFailed] = useState<"none" | "error" | null>(null);
   // Кнопка стоит в строке справа от слова: подпись держим под кнопкой узкой колонкой,
   // иначе в flex-строке она сжимает слово и IPA до нулевой ширины.
@@ -30,7 +31,7 @@ export function SpeakButton({ word, label = "Послушать слово" }: {
         disabled={kind === "none"}
         aria-label={kind === "none" ? "Озвучка недоступна" : label}
         onClick={() =>
-          playWord(word).then((result) => setFailed(result === "none" || result === "error" ? result : null))
+          playWord(word, source).then((result) => setFailed(result === "none" || result === "error" ? result : null))
         }
       >
         <Volume2 aria-hidden />
@@ -44,6 +45,29 @@ export function SpeakButton({ word, label = "Послушать слово" }: {
         </span>
       )}
     </div>
+  );
+}
+
+/** Верх карточки слова: иллюстрация, написание с IPA, озвучка и перевод — общий для экрана слова и просмотра по ссылке. */
+export function WordSummary({ word }: { word: Word }) {
+  return (
+    <>
+      <WordArt word={word} />
+      <div className={cx(ui.row, ui.between)} style={{ margin: "16px 0 2px", gap: 12 }}>
+        <div className={ui.grow} style={{ minWidth: 0 }}>
+          <p className={wordCss.greek} style={{ margin: 0 }}>
+            {word.greek}
+          </p>
+          {word.ipa && (
+            <p className={wordCss.ipa} style={{ margin: 0 }}>
+              {word.ipa}
+            </p>
+          )}
+        </div>
+        <SpeakButton word={word} />
+      </div>
+      <p style={{ fontSize: 19, margin: "8px 0 14px" }}>{word.russian}</p>
+    </>
   );
 }
 

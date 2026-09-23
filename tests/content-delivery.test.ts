@@ -3,16 +3,24 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { LexiDatabase } from "../src/storage/db";
 import {
   applyPackage,
+  catalogPhase,
+  contentUrl,
   coursePhase,
   downloadLessonMedia,
   ensureAsset,
   installCourse,
   installLesson,
+  lessonOfWord,
   lessonReadiness,
   mergeWord,
+  previewPackage,
   refreshCatalog,
+  resetCatalogPhase,
+  resetPreviews,
   setCourseSubscription,
+  subscribeCatalog,
   syncCourses,
+  wordFromPackage,
 } from "../src/content/client";
 import { ContentError, type ContentPackage } from "../src/content/schema";
 import { revisionOf } from "../content/build";
@@ -672,5 +680,136 @@ describe("установка и обновление смешанного пак
       missing: [],
     });
     other.close();
+  });
+});
+
+describe("адрес контента", () => {
+  it("база с косой чертой и без неё даёт один адрес без двойной черты", () => {
+    expect(contentUrl("content/catalog.json", "/")).toBe("/content/catalog.json");
+    expect(contentUrl("content/catalog.json", "/lexi")).toBe("/lexi/content/catalog.json");
+    expect(contentUrl("content/catalog.json", "/lexi/")).toBe("/lexi/content/catalog.json");
+  });
+});
+
+describe("готовность каталога", () => {
+  beforeEach(() => resetCatalogPhase());
+  const failing = () => {
+    const broken = memoryFetcher();
+    broken.json = async () => {
+      throw new ContentError("Нет сети", "network");
+    };
+    return broken;
+  };
+  it("до первой загрузки — загрузка, после успеха — готов", async () => {
+    expect(catalogPhase()).toBe("loading");
+    await refreshCatalog(db, memoryFetcher());
+    expect(catalogPhase()).toBe("ready");
+  });
+  it("ошибка до первого успеха — сбой, повтор снова ждёт и завершается готовностью", async () => {
+    await expect(refreshCatalog(db, failing())).rejects.toThrow();
+    expect(catalogPhase()).toBe("error");
+    const retry = refreshCatalog(db, memoryFetcher());
+    expect(catalogPhase()).toBe("loading");
+    await retry;
+    expect(catalogPhase()).toBe("ready");
+  });
+  it("повторное обновление после готовности не возвращает загрузку, его сбой не сбрасывает готовность", async () => {
+    await refreshCatalog(db, memoryFetcher());
+    const seen: string[] = [];
+    const off = subscribeCatalog(() => seen.push(catalogPhase()));
+    const again = refreshCatalog(db, memoryFetcher());
+    expect(catalogPhase()).toBe("ready");
+    await again;
+    await expect(refreshCatalog(db, failing())).rejects.toThrow();
+    expect(catalogPhase()).toBe("ready");
+    off();
+    expect(seen).toEqual([]);
+  });
+});
+
+describe("урок слова по каталогу", () => {
+  const lesson = (id: string, wordIds?: string[]) => ({ ...content.catalog.lessons[0], id, wordIds });
+  const withLessons = (lessons: ReturnType<typeof lesson>[]) =>
+    memoryFetcher(content, { "content/catalog.json": { ...content.catalog, lessons } });
+  it("слово одного урока находится по индексу", async () => {
+    await refreshCatalog(db, memoryFetcher());
+    expect((await lessonOfWord("w34-03", db))?.id).toBe("lesson-3-4");
+  });
+  it("из нескольких уроков берётся первый в порядке каталога, а не по идентификатору", async () => {
+    await refreshCatalog(db, withLessons([lesson("lesson-2-1", ["w1", "w2"]), lesson("lesson-10-1", ["w2"])]));
+    expect((await db.catalog.toArray()).map((entry) => entry.id)).toEqual(["lesson-10-1", "lesson-2-1"]);
+    expect((await lessonOfWord("w2", db))?.id).toBe("lesson-2-1");
+  });
+  it("записи без положения идут в конец, затем по идентификатору", async () => {
+    await db.catalog.bulkAdd([lesson("b", ["w"]), lesson("a", ["w"]), { ...lesson("z", ["w"]), position: 0 }]);
+    expect((await lessonOfWord("w", db))?.id).toBe("z");
+    await db.catalog.delete("z");
+    expect((await lessonOfWord("w", db))?.id).toBe("a");
+  });
+  it("отсутствующее слово и каталог без индекса дают null", async () => {
+    await refreshCatalog(db, memoryFetcher());
+    expect(await lessonOfWord("w99-99", db)).toBeNull();
+    await refreshCatalog(db, withLessons([lesson("lesson-3-4")]));
+    expect(await lessonOfWord("w34-03", db)).toBeNull();
+  });
+});
+
+describe("просмотр пакета без установки", () => {
+  beforeEach(() => resetPreviews());
+  const tables = ["lessons", "words", "lessonItems", "packages", "courses", "assets", "media", "cardStates"] as const;
+  const snapshot = async () =>
+    Object.fromEntries(await Promise.all(tables.map(async (t) => [t, await db[t].toArray()])));
+  it("читает и проверяет пакет, ничего не записывая в базу; повтор берёт пакет из памяти", async () => {
+    const fetcher = memoryFetcher();
+    await refreshCatalog(db, fetcher);
+    const before = await snapshot();
+    const { pack, entry: found } = await previewPackage("lesson-3-4", db, fetcher);
+    expect(pack.id).toBe("lesson-3-4");
+    expect(found.version).toBe(entry("lesson-3-4").version);
+    expect(pack.words.some((word) => word.id === "w34-03")).toBe(true);
+    await previewPackage("lesson-3-4", db, fetcher);
+    expect(fetcher.requests.filter((url) => url.includes("packages/"))).toHaveLength(1);
+    expect(await snapshot()).toEqual(before);
+  });
+  it("сбой сети — ошибка загрузки, повтор после неё снова идёт в сеть", async () => {
+    const fetcher = memoryFetcher();
+    await refreshCatalog(db, fetcher);
+    const offline = {
+      ...fetcher,
+      json: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    };
+    await expect(previewPackage("lesson-3-4", db, offline)).rejects.toMatchObject({ kind: "network" });
+    await expect(previewPackage("lesson-3-4", db, fetcher)).resolves.toBeTruthy();
+  });
+  it("пакет другого урока или другой версии отклоняется", async () => {
+    const fetcher = memoryFetcher();
+    await refreshCatalog(db, fetcher);
+    const url = entry("lesson-3-4").url;
+    const other = packageOf("lesson-1-1");
+    await expect(previewPackage("lesson-3-4", db, memoryFetcher(content, { [url]: other }))).rejects.toThrow(
+      "Пакет не соответствует записи каталога.",
+    );
+    await expect(
+      previewPackage("lesson-3-4", db, memoryFetcher(content, { [url]: { ...packageOf("lesson-3-4"), version: "x" } })),
+    ).rejects.toThrow("Пакет не соответствует записи каталога.");
+  });
+});
+
+describe("поставляемое слово как запись", () => {
+  it("берёт поставляемые поля, ревизию и даты без локальных полей", () => {
+    const card = packageOf("lesson-3-4").words.find((word) => word.id === "w34-03")!;
+    const word = wordFromPackage(card, "2026-01-01T00:00:00.000Z");
+    expect(word).toMatchObject({
+      id: "w34-03",
+      greek: card.greek,
+      russian: card.russian,
+      revision: card.revision,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    expect(word).not.toHaveProperty("deletedAt");
+    expect(word).not.toHaveProperty("edited");
   });
 });

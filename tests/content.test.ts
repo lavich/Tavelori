@@ -233,7 +233,11 @@ describe("каталог и пакеты", () => {
     const text = fileOf("content/catalog.json").body as string;
     expect(text).not.toContain("σπίτι");
     expect(text).not.toContain("<svg");
-    expect(text.length).toBeLessThan(catalog.lessons.length * 400); // метаданные урока — сотни символов, а не его содержимое
+    // Метаданные урока — сотни символов, а не его содержимое; индекс слов — только идентификаторы, по ~10 символов на слово.
+    const meta = JSON.stringify({ ...catalog, lessons: catalog.lessons.map(({ wordIds: _w, ...rest }) => rest) });
+    expect(meta.length).toBeLessThan(catalog.lessons.length * 400);
+    const ids = catalog.lessons.flatMap((l) => l.wordIds ?? []);
+    expect(text.length - meta.length).toBeLessThan(ids.length * 16);
     for (const entry of catalog.lessons) {
       expect(entry.url).toBe(`content/packages/${entry.id}@${entry.version}.json`);
       expect(entry.bytes).toBe(Buffer.byteLength(fileOf(entry.url).body as string));
@@ -343,6 +347,17 @@ describe("каталог и пакеты", () => {
     expect(() => parseCatalog({ schemaVersion: 1, generatedAt: "x", lessons: [] })).toThrow(
       /версии схемы 1 не поддерживается/,
     );
+  });
+});
+
+describe("индекс слов в каталоге", () => {
+  it("запись урока перечисляет слова пакета в порядке состава, версия схемы прежняя", () => {
+    expect(content.catalog.schemaVersion).toBe(3);
+    for (const entry of content.catalog.lessons)
+      expect(entry.wordIds).toEqual(packageOf(entry.id).words.map((word) => word.id));
+    const raw = JSON.parse(fileOf("content/catalog.json").body as string);
+    expect(raw.schemaVersion).toBe(3);
+    expect(raw.lessons[0].wordIds).toEqual(content.catalog.lessons[0].wordIds);
   });
 });
 

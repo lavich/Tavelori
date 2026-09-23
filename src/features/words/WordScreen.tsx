@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Info, Pencil } from "lucide-react";
+import { Info, Pencil, Share2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -8,17 +8,19 @@ import { Screen } from "../../app/Screen";
 import { useNow } from "../../shared/clock";
 import { wordRef } from "../../domain/refs";
 import { shortTitle } from "../../shared/format";
-import { useWord, useWordLessons } from "../../shared/store";
-import { ExampleBox, ReadingNotes, SpeakButton, WordArt } from "./WordCardView";
+import { useShippedWord, useWord, useWordLesson, useWordLessons } from "../../shared/store";
+import { shareWord } from "../../platform/share";
+import { ExampleBox, ReadingNotes, WordSummary } from "./WordCardView";
 import { startSession } from "../learning/session-actions";
 import ui from "../../shared/ui.module.css";
-import wordCss from "../../shared/word.module.css";
-import { cx } from "../../shared/cx";
 
 export function WordScreen() {
   const { id } = useParams();
   const word = useWord(id);
   const lessons = useWordLessons(word?.id);
+  // Делиться можно только словом курса: ссылка открывает его версию из каталога, а не локальную запись.
+  const shipped = useWordLesson(word?.id);
+  const original = useShippedWord(word?.id);
   const now = useNow();
   const navigate = useNavigate();
   const [problem, setProblem] = useState("");
@@ -37,32 +39,31 @@ export function WordScreen() {
     <Screen
       back={lessons[0] ? lessons[0].title : "Слово"}
       right={
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          className="size-11"
-          aria-label="Редактировать слово"
-          render={<Link to={`/words/${word.id}/edit`} />}
-        >
-          <Pencil />
-        </Button>
+        <div className="flex items-center">
+          {shipped && !word.deletedAt && (
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              className="size-11"
+              aria-label="Поделиться словом"
+              onClick={() => void shareWord(original ?? word)}
+            >
+              <Share2 />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            className="size-11"
+            aria-label="Редактировать слово"
+            render={<Link to={`/words/${word.id}/edit`} />}
+          >
+            <Pencil />
+          </Button>
+        </div>
       }
     >
-      <WordArt word={word} />
-      <div className={cx(ui.row, ui.between)} style={{ margin: "16px 0 2px", gap: 12 }}>
-        <div className={ui.grow} style={{ minWidth: 0 }}>
-          <p className={wordCss.greek} style={{ margin: 0 }}>
-            {word.greek}
-          </p>
-          {word.ipa && (
-            <p className={wordCss.ipa} style={{ margin: 0 }}>
-              {word.ipa}
-            </p>
-          )}
-        </div>
-        <SpeakButton word={word} />
-      </div>
-      <p style={{ fontSize: 19, margin: "8px 0 14px" }}>{word.russian}</p>
+      <WordSummary word={word} />
       {!word.verified && <p className={ui.note}>Фонетика не проверена — её можно уточнить в редакторе.</p>}
       <ReadingNotes word={word} />
       {word.examples.length ? (

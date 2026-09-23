@@ -199,3 +199,41 @@ describe("озвучка системным голосом", () => {
     expect(state.cancels).toBe(1);
   });
 });
+
+describe("звук из источника просмотра", () => {
+  it("играет файл по адресу пакета без обращения к базе и без запасного голоса", async () => {
+    const played: string[] = [];
+    (globalThis as { Audio?: unknown }).Audio = class {
+      src: string;
+      constructor(src: string) {
+        this.src = src;
+      }
+      addEventListener() {}
+      pause() {}
+      play() {
+        played.push(this.src);
+        return Promise.resolve();
+      }
+    };
+    const { synth, state } = fakeSynth();
+    vi.resetModules();
+    const ensureAsset = vi.fn(async () => null);
+    vi.doMock("../src/content/client", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../src/content/client")>()),
+      ensureAsset,
+    }));
+    (globalThis as { speechSynthesis?: unknown }).speechSynthesis = synth;
+    (globalThis as { SpeechSynthesisUtterance?: unknown }).SpeechSynthesisUtterance = FakeUtterance;
+    const { playWord } = await import("../src/shared/audio");
+    const { packageAssetSource } = await import("../src/shared/store");
+    const media = { id: "snd-w1", kind: "audio", url: "content/media/snd-w1@abc.mp3" };
+    const pack = { media: [media] } as unknown as Parameters<typeof packageAssetSource>[0];
+    const result = await playWord(word({ audioAssetId: "snd-w1" }), packageAssetSource(pack));
+    expect(result).toBe("file");
+    expect(played).toEqual(["/content/media/snd-w1@abc.mp3"]);
+    expect(ensureAsset).not.toHaveBeenCalled();
+    expect(state.spoken).toHaveLength(0);
+    vi.doUnmock("../src/content/client");
+    delete (globalThis as { Audio?: unknown }).Audio;
+  });
+});

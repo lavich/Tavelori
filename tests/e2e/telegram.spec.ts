@@ -536,3 +536,71 @@ test.describe("аудио, копии и облако", () => {
     await expect(page.getByRole("button", { name: "Назад" })).toBeVisible(); // BackButton требует 6.1 — внутренняя остаётся
   });
 });
+
+test.describe("ссылка на слово через бота", () => {
+  const DEV_DB = "lexi-tg-TaveloriDevBot-1001";
+  const launch = async (
+    page: import("@playwright/test").Page,
+    options: import("./telegram").TelegramEmulation,
+    path = "/",
+  ) => {
+    const { launchHash } = await import("./telegram");
+    await page.goto(`${path}?bot=TaveloriDevBot${launchHash(options)}`);
+  };
+  const dismissWelcome = async (page: import("@playwright/test").Page) => {
+    const welcome = page.getByRole("button", { name: /Понятно|Начать с чистого профиля/ });
+    if (
+      await welcome.waitFor({ state: "visible", timeout: 5000 }).then(
+        () => true,
+        () => false,
+      )
+    ) {
+      await welcome.click();
+      await page.getByRole("alertdialog").waitFor({ state: "hidden" });
+    }
+  };
+  const databases = (page: import("@playwright/test").Page) =>
+    page.evaluate(async () => (await indexedDB.databases()).map((info) => info.name ?? ""));
+
+  test("dev-запуск открывает слово, после перезагрузки «Поделиться» ведёт на dev-бота, профиль прежний", async ({
+    page,
+  }) => {
+    const { bridgeScript } = await import("./telegram");
+    await page.addInitScript(bridgeScript({ noCloud: true }));
+    await launch(page, { startParam: "w_w34-03", queryId: "Q1" });
+    await dismissWelcome(page);
+    await expect(page).toHaveURL(/\/share\/word\/w34-03$/);
+    await expect(page.getByText("η κατσαρόλα", { exact: true }).first()).toBeVisible();
+    // Урок ставится только из раздела «Уроки»; после этого у слова курса появляется кнопка.
+    await page.goto("/lessons/lesson-3-4");
+    await page.getByRole("heading", { name: /^Слова · \d+$/ }).waitFor({ timeout: 20000 });
+    await page.goto("/words/w34-03");
+    await page.reload();
+    await page.getByRole("button", { name: "Поделиться словом" }).click();
+    const link = (await tg(page).calls()).find((call) => call.startsWith("link:"))!;
+    const target = new URL(link.slice(5));
+    expect(target.searchParams.get("url")).toBe("https://t.me/TaveloriDevBot?startapp=w_w34-03");
+    expect(target.searchParams.get("text")).toBe("η κατσαρόλα — кастрюля");
+    const names = await databases(page);
+    expect(names).toContain(DEV_DB);
+    expect(names).not.toContain(TG_DB);
+  });
+
+  test("с query_id перезагрузка остаётся на экране, новый запуск в той же вкладке открывает новое слово", async ({
+    page,
+  }) => {
+    const { bridgeScript } = await import("./telegram");
+    await page.addInitScript(bridgeScript({ noCloud: true }));
+    await launch(page, { startParam: "w_w34-03", queryId: "Q1" });
+    await dismissWelcome(page);
+    await expect(page.getByText("η κατσαρόλα", { exact: true }).first()).toBeVisible();
+    await page.getByRole("navigation").getByRole("link", { name: "Уроки" }).click();
+    await expect(page).toHaveURL(/\/lessons$/);
+    await page.reload();
+    await expect(page.getByRole("link", { name: /1\.2/ })).toBeVisible();
+    await expect(page).toHaveURL(/\/lessons$/);
+    await launch(page, { startParam: "w_w12-01", queryId: "Q2" }, "/more");
+    await expect(page).toHaveURL(/\/share\/word\/w12-01$/);
+    await expect(page.getByText("το φως", { exact: true }).first()).toBeVisible();
+  });
+});

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { wordKey } from "../src/domain/import.ts";
@@ -465,6 +465,7 @@ export function buildContent(root = defaultRoot()): BuiltContent {
       language: pack.language,
       title,
       wordCount: packWords.length,
+      wordIds: packWords.map((word) => word.id),
       phraseCount: packPhrases.length,
       cardCount: items.length,
       version,
@@ -502,7 +503,8 @@ export const wordsOf = (content: BuiltContent, lessonId: string) => {
   const pack = content.packages.find((p) => p.id === lessonId);
   return pack ? pack.links.map((link) => pack.words.find((word) => word.id === link.wordId)!) : [];
 };
-export const defaultRoot = () => fileURLToPath(new URL(".", import.meta.url));
+// Путь строится без `new URL`: в тестах с jsdom глобальный URL разрешает относительный адрес от http, а не от файла.
+export const defaultRoot = () => dirname(fileURLToPath(import.meta.url));
 
 /** Папка очищается целиком: она не хранится в репозитории и собирается перед каждой сборкой. */
 export function writeContent(publicDir = "public", root = defaultRoot()) {

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ContentError } from "../src/content/schema.ts";
 
@@ -14,7 +15,7 @@ export interface Palette {
   colors: Record<string, string>;
 }
 export const PALETTE: Palette = JSON.parse(
-  readFileSync(fileURLToPath(new URL("./art/palette.json", import.meta.url)), "utf8"),
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "art", "palette.json"), "utf8"),
 );
 export const paletteColors = (palette = PALETTE) =>
   new Set([...Object.values(palette.backgrounds), ...Object.values(palette.colors)]);

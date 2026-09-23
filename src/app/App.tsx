@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Nav } from "./Nav";
-import { useGoBack } from "./navigation";
+import { useGoBack, useStartRoute } from "./navigation";
 import { SyncConflictDialog, TelegramWelcome } from "./TelegramNotices";
 import { updateReady } from "../main";
 import { useBackHandler, useEnvironment } from "../platform/platform";
@@ -22,6 +22,7 @@ const LessonsScreen = named("LessonsScreen", () => import("../features/lessons/L
 const LessonScreen = named("LessonScreen", () => import("../features/lessons/LessonScreen"));
 const WordsScreen = named("WordsScreen", () => import("../features/words/WordsScreen"));
 const WordScreen = named("WordScreen", () => import("../features/words/WordScreen"));
+const SharedWordScreen = named("SharedWordScreen", () => import("../features/words/SharedWordScreen"));
 const WordEditorScreen = named("WordEditorScreen", () => import("../features/words/WordEditorScreen"));
 const SessionScreen = named("SessionScreen", () => import("../features/learning/SessionScreen"));
 const ResultScreen = named("ResultScreen", () => import("../features/learning/ResultScreen"));
@@ -36,6 +37,7 @@ export function App() {
   const immersive = pathname.startsWith("/session");
   const { settings } = useSettings();
   useEnvironment();
+  useStartRoute();
   // Резервный возврат Telegram: на «Сегодня» кнопка скрыта, на остальных экранах без своего обработчика ведёт назад или на главный.
   const goBack = useGoBack();
   useBackHandler(pathname === "/" ? null : goBack, 0);
@@ -65,6 +67,7 @@ export function App() {
           <Route path="/words" element={<WordsScreen />} />
           <Route path="/words/:id" element={<WordScreen />} />
           <Route path="/words/:id/edit" element={<WordEditorScreen />} />
+          <Route path="/share/word/:id" element={<SharedWordScreen />} />
           <Route path="/session" element={<SessionScreen />} />
           <Route path="/session/result/:id" element={<ResultScreen />} />
           <Route path="/more" element={<MoreScreen />} />
