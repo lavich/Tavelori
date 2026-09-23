@@ -11,12 +11,13 @@ import { useNow } from "../shared/clock";
 import { useSettings } from "../shared/store";
 import { settleLessons } from "../storage/ops";
 import { useSettleWatch } from "./settle-watch";
+import { loadScreen } from "./stale-build";
 // «Сегодня» открывается первым и в браузере, и в Mini App, поэтому грузится сразу: иначе первый кадр пустой.
 import { TodayScreen } from "../features/today/TodayScreen";
 import ui from "../shared/ui.module.css";
 
 const named = <K extends string>(key: K, load: () => Promise<Record<K, React.ComponentType>>) =>
-  lazy(() => load().then((module) => ({ default: module[key] })));
+  lazy(() => loadScreen(load).then((module) => ({ default: module[key] })));
 const LessonsScreen = named("LessonsScreen", () => import("../features/lessons/LessonsScreen"));
 const LessonScreen = named("LessonScreen", () => import("../features/lessons/LessonScreen"));
 const WordsScreen = named("WordsScreen", () => import("../features/words/WordsScreen"));
