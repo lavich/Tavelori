@@ -203,22 +203,20 @@
   position: relative;
   display: grid;
 }
-/* Поле и маска в одной клетке сетки, а не друг поверх друга: у длинного ответа маска выше поля и задаёт высоту сама. */
-.field > * {
-  grid-area: 1 / 1;
-}
 .masked {
   color: transparent;
   caret-color: transparent;
 }
 .mask {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   align-content: center;
   justify-content: center;
   gap: 4px 10px;
-  padding: 4px 14px;
+  padding: 0 14px;
   color: var(--muted-foreground);
   pointer-events: none;
 }
