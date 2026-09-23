@@ -1,0 +1,15 @@
+id: w41-13
+greek: Κλειστός
+russian: закрытый
+ipa: "/kliˈstos/"
+verified: true
+source: "Список слов к уроку 4.1; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: κλειστός.svg
+reading:
+  - text: "ει"
+    ipa: "i"
+    explanation: "ει читается как и"
+examples:
+  - greek: "Το μαγαζί είναι κλειστό την Κυριακή."
+    russian: "Магазин закрыт в воскресенье."
+    target: "κλειστό"

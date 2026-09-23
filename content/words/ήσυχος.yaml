@@ -1,0 +1,15 @@
+id: w41-15
+greek: ήσυχος
+russian: тихий
+ipa: "/ˈisixos/"
+verified: true
+source: "Список слов к уроку 4.1; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: ήσυχος.svg
+reading:
+  - text: "ήσυ"
+    ipa: "ˈisi"
+    explanation: "η и υ оба читаются как и"
+examples:
+  - greek: "Το χωριό είναι ήσυχο."
+    russian: "Деревня тихая."
+    target: "ήσυχο"

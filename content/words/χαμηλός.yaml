@@ -1,0 +1,15 @@
+id: w41-08
+greek: χαμηλός
+russian: низкий (потолок, стол)
+ipa: "/xamiˈlos/"
+verified: true
+source: "Список слов к уроку 4.1; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: χαμηλός.svg
+reading:
+  - text: "χα"
+    ipa: "xa"
+    explanation: "χ перед α — твёрдый х, как в «хата»"
+examples:
+  - greek: "Το ταβάνι είναι χαμηλό."
+    russian: "Потолок низкий."
+    target: "χαμηλό"
