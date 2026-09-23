@@ -1,0 +1,18 @@
+id: w41-11
+greek: Ασφαλής
+russian: безопасный
+ipa: "/asfaˈlis/"
+verified: true
+source: "Список слов к уроку 4.1; фонетика, примеры и иллюстрации подготовлены Lexi."
+image: ασφαλής.svg
+reading:
+  - text: "φ"
+    ipa: "f"
+    explanation: "φ читается как ф"
+  - text: "ής"
+    ipa: "is"
+    explanation: "η читается как и, ударение на последнем слоге"
+examples:
+  - greek: "Ο δρόμος για το σχολείο είναι ασφαλής."
+    russian: "Дорога в школу безопасная."
+    target: "ασφαλής"
