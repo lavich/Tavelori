@@ -48,6 +48,12 @@ describe("шаблоны инструкции", () => {
         translation: "Образец простой.",
       });
       expect(pack.words[0]).toMatchObject({ id: "w-example", greek: "το δείγμα", examples: [{ target: "δείγμα" }] });
+      expect(pack.words[0].examples[0].glosses).toEqual([
+        { start: 0, length: 2, russian: "артикль ср. р." },
+        { start: 3, length: 6, russian: "образец", wordId: "w-example" },
+        { start: 10, length: 5, russian: "есть" },
+        { start: 16, length: 4, russian: "простой" },
+      ]);
       // Пакет проходит и проверку установки, а не только сборку.
       const file = built.files.find(
         (item) => item.path === built.catalog.lessons.find((entry) => entry.id === "lesson-example")!.url,

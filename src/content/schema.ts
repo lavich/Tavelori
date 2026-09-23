@@ -1,4 +1,12 @@
-import type { CardKind, Example, Provenance, ProvenanceOperation, Segment, SourceRecord } from "../domain/types.ts";
+import type {
+  CardKind,
+  Example,
+  Gloss,
+  Provenance,
+  ProvenanceOperation,
+  Segment,
+  SourceRecord,
+} from "../domain/types.ts";
 import { CARD_KINDS } from "../domain/types.ts";
 
 /**
@@ -213,6 +221,29 @@ export function parseCatalog(input: unknown): Catalog {
   return { schemaVersion, generatedAt: str(raw.generatedAt, "каталог.generatedAt"), courses, lessons };
 }
 
+/** Отрезки идут по порядку, не пересекаются и лежат внутри предложения: иначе нажатие показало бы чужой текст. */
+function parseGlosses(input: unknown, greek: string, path: string): Gloss[] {
+  let end = 0;
+  return list(input, path).map((entry, i): Gloss => {
+    const at = `${path}[${i}]`;
+    const raw = obj(entry, at);
+    const gloss: Gloss = {
+      start: num(raw.start, `${at}.start`),
+      length: num(raw.length, `${at}.length`),
+      russian: str(raw.russian, `${at}.russian`),
+    };
+    if (!Number.isInteger(gloss.start) || !Number.isInteger(gloss.length) || gloss.length < 1)
+      throw new ContentError(`${at}: границы отрезка должны быть целыми, а длина — не меньше 1`);
+    if (gloss.start < end) throw new ContentError(`${at}: отрезки пересекаются или идут не по порядку`);
+    if (gloss.start + gloss.length > greek.length) throw new ContentError(`${at}: отрезок выходит за предложение`);
+    if (!gloss.russian.trim()) throw new ContentError(`${at}: у отрезка нет перевода`);
+    const wordId = opt(raw.wordId, (v) => str(v, `${at}.wordId`));
+    if (wordId) gloss.wordId = wordId;
+    end = gloss.start + gloss.length;
+    return gloss;
+  });
+}
+
 function parseWord(input: unknown, path: string): PackageWord {
   const raw = obj(input, path);
   const segments = list(raw.segments ?? [], `${path}.segments`).map((entry, i): Segment => {
@@ -226,12 +257,15 @@ function parseWord(input: unknown, path: string): PackageWord {
   });
   const examples = list(raw.examples ?? [], `${path}.examples`).map((entry, i): Example => {
     const ex = obj(entry, `${path}.examples[${i}]`);
-    return {
+    const example: Example = {
       greek: str(ex.greek, `${path}.examples[${i}].greek`),
       russian: str(ex.russian, `${path}.examples[${i}].russian`),
       target: str(ex.target, `${path}.examples[${i}].target`),
       source: opt(ex.source, (v) => str(v, `${path}.examples[${i}].source`)),
     };
+    const glosses = opt(ex.glosses, (v) => parseGlosses(v, example.greek, `${path}.examples[${i}].glosses`));
+    if (glosses) example.glosses = glosses;
+    return example;
   });
   const word: PackageWord = {
     id: str(raw.id, `${path}.id`),

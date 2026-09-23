@@ -20,7 +20,7 @@ import {
   type PackagePhrase,
   type PackageWord,
 } from "../src/content/schema.ts";
-import { CARD_KINDS, type CardKind, type Example, type Segment } from "../src/domain/types.ts";
+import { CARD_KINDS, type CardKind, type Example, type Gloss, type Segment } from "../src/domain/types.ts";
 import { checkArt, LEGACY_FILE, readLegacy, type ArtReport } from "./art.ts";
 
 /**
@@ -58,7 +58,13 @@ export interface WordSource {
   image?: string;
   audio?: string;
   reading?: { text: string; ipa: string; explanation: string }[];
-  examples?: { greek: string; russian: string; target: string; source?: string }[];
+  examples?: {
+    greek: string;
+    russian: string;
+    target: string;
+    source?: string;
+    words?: { text: string; russian: string; word?: string }[];
+  }[];
 }
 export interface PhraseSource {
   id?: string;
@@ -187,6 +193,36 @@ export interface BuiltContent {
   art: ArtReport;
 }
 
+/**
+ * Автор перечисляет размечаемые отрезки в порядке предложения; каждый ищется после предыдущего, поэтому
+ * повтор слова находит следующее вхождение, а пересечение или обратный порядок дают «не найден».
+ */
+function glossesOf(words: unknown, greek: string, where: string): Gloss[] {
+  if (!Array.isArray(words)) fail(`${where}: ожидался список отрезков`);
+  let end = 0;
+  return (words as unknown[]).map((entry, index): Gloss => {
+    const path = `${where}[${index}]`;
+    if (typeof entry !== "object" || entry === null) fail(`${path}: ожидался отрезок {text, russian}`);
+    const src = entry as { text?: unknown; russian?: unknown; word?: unknown };
+    const part = text(src.text, `${path}.text`)!;
+    const russian = text(src.russian, `${path}.russian`)!;
+    if (!part.trim()) fail(`${path}: пустой отрезок`);
+    if (!russian.trim()) fail(`${path}: у отрезка «${part}» нет перевода`);
+    const start = greek.indexOf(part, end);
+    if (start < 0)
+      fail(
+        greek.includes(part)
+          ? `${path}: отрезок «${part}» пересекается с предыдущим или стоит не по порядку предложения`
+          : `${path}: отрезок «${part}» не найден в предложении «${greek}»`,
+      );
+    end = start + part.length;
+    const gloss: Gloss = { start, length: part.length, russian };
+    const wordId = text(src.word, `${path}.word`, false);
+    if (wordId) gloss.wordId = wordId;
+    return gloss;
+  });
+}
+
 function describe(id: string, src: Sourced<WordSource>): PackageWord {
   const where = `words/${src.file}`;
   checkId(id, where);
@@ -215,6 +251,7 @@ function describe(id: string, src: Sourced<WordSource>): PackageWord {
     if (!built.greek.includes(built.target)) fail(`${path}: форма «${built.target}» не встречается в предложении`);
     const exampleSource = text(example.source, `${path}.source`, false) ?? source;
     if (exampleSource) built.source = exampleSource;
+    if (example.words !== undefined) built.glosses = glossesOf(example.words, built.greek, `${path}.words`);
     return built;
   });
   const draft: Omit<PackageWord, "revision"> = {
@@ -315,6 +352,16 @@ export function buildContent(root = defaultRoot()): BuiltContent {
     byKey.set(key, id);
     words.set(id, word);
   }
+  // Ссылка отрезка ведёт на слово любого урока каталога: пример урока 4.2 может опираться на слово урока 1.1.
+  for (const [id, src] of sources.words)
+    words.get(id)!.examples.forEach((example, index) =>
+      example.glosses?.forEach((gloss, at) => {
+        if (gloss.wordId && !words.has(gloss.wordId))
+          fail(
+            `words/${src.file}.examples[${index}].words[${at}]: отрезок «${example.greek.slice(gloss.start, gloss.start + gloss.length)}» ссылается на слово ${gloss.wordId}, которого нет в каталоге`,
+          );
+      }),
+    );
   const phrases = new Map<string, PackagePhrase>();
   const phraseByKey = new Map<string, string>();
   for (const [id, src] of sources.phrases) {

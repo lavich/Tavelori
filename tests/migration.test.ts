@@ -464,6 +464,21 @@ describe("резервная копия", () => {
     fresh.close();
     await fresh.delete();
   });
+  it("разметка слов примера входит в полную копию и восстанавливается", async () => {
+    await installLessons(db, ["lesson-1-2"]);
+    const house = (await db.words.get("w12-16"))!;
+    const glosses = [{ start: 3, length: 5, russian: "дом", wordId: "w12-16" }];
+    await db.words.put({ ...house, examples: [{ ...house.examples[0], glosses }] });
+    const copy = asLexi(JSON.parse(await (await exportFull(db)).text()));
+    const fresh = new LexiDatabase("lexi-restore-glosses");
+    await fresh.delete();
+    await fresh.open();
+    await restoreBackup(copy, fresh);
+    expect((await fresh.words.get("w12-16"))!.examples[0].glosses).toEqual(glosses);
+    expect((await fresh.words.get("w12-18"))!.examples.every((example) => example.glosses === undefined)).toBe(true);
+    fresh.close();
+    await fresh.delete();
+  });
   it("старая копия с wordIds преобразуется в связи без скачивания пакетов", async () => {
     const legacy = {
       formatName: "dexie",

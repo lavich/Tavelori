@@ -5,11 +5,22 @@ import type { PackageItem, PackageMedia, PackageWord, PackagePhrase } from "../c
  * `recall` и `cloze` приложение больше не предлагает; в перечислении они нужны, чтобы читалась старая история.
  */
 export type ExerciseType = "recall" | "recognition" | "assembly" | "spelling" | "listening" | "comprehension" | "cloze";
+/**
+ * Размеченный отрезок примера: `start` и `length` — в NFC-строке предложения, `russian` — перевод в этом контексте.
+ * `wordId` — ссылка на карточку курса; у служебных слов её нет.
+ */
+export interface Gloss {
+  start: number;
+  length: number;
+  russian: string;
+  wordId?: string;
+}
 export interface Example {
   greek: string;
   russian: string;
   target: string;
   source?: string;
+  glosses?: Gloss[];
 }
 export interface Segment {
   text: string;

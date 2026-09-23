@@ -66,7 +66,7 @@ export function WordScreen() {
       {!word.verified && <p className={ui.note}>Фонетика не проверена — её можно уточнить в редакторе.</p>}
       <ReadingNotes word={word} />
       {word.examples.length ? (
-        word.examples.map((example, index) => <ExampleBox key={index} example={example} />)
+        word.examples.map((example, index) => <ExampleBox key={index} example={example} linkFrom={word.id} />)
       ) : (
         <Alert className="mb-3">
           <Info />
