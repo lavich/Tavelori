@@ -208,6 +208,28 @@ describe("раскрытие материала после письменног�
     expect(answers).toBe(1);
   });
 
+  it("размеченное слово примера в раскрытии показывает перевод без перехода и без нового ответа", async () => {
+    const host = await showSpelling(
+      wordItem({
+        examples: [
+          {
+            greek: "Το σπίτι είναι μεγάλο.",
+            russian: "Дом большой.",
+            target: "σπίτι",
+            glosses: [{ start: 15, length: 6, russian: "большой", wordId: "w2" }],
+          },
+        ],
+      }),
+    );
+    await type(host, "το σπίτι");
+    await press(button(reveal(host) as HTMLElement, "μεγάλο"));
+    const line = reveal(host)!.querySelector('[data-testid="example-gloss"]')!;
+    expect(line.textContent).toBe("μεγάλο — большой");
+    expect(line.querySelector("a")).toBeNull();
+    expect(answers).toBe(1);
+    expect(feedback(host)!.textContent).toContain("Правильно!");
+  });
+
   it("после «Почти» разбор остаётся, раскрытие такое же", async () => {
     const host = await showSpelling(wordItem());
     await type(host, "το σπιτί");

@@ -18,6 +18,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Screen } from "../../app/Screen";
 import type { Example, Word } from "../../domain/types";
+import { editExample } from "../../domain/examples";
 import { checkMedia } from "../../shared/media";
 import { useWord } from "../../shared/store";
 import { deleteWord, putAsset, saveWord } from "../../storage/ops";
@@ -48,7 +49,7 @@ export function WordEditorScreen() {
     setSaved(false);
   };
   const patchExample = (index: number, next: Partial<Example>) =>
-    patch({ examples: draft.examples.map((example, i) => (i === index ? { ...example, ...next } : example)) });
+    patch({ examples: draft.examples.map((example, i) => (i === index ? editExample(example, next) : example)) });
 
   const upload = async (file: File | undefined, kind: "image" | "audio") => {
     if (!file) return;

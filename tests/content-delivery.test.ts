@@ -316,6 +316,20 @@ describe("обновление пакета", () => {
     expect((await db.cardStates.get(wordKeyOf("w12-16")))!.version).toBe(3);
     expect((await db.packages.get("lesson-1-2"))!.version).toBe(next.version);
   });
+  it("разметка слов примера приходит с новой версией пакета и сохраняется в слове", async () => {
+    await installLessons(db, ["lesson-1-2"]);
+    const glosses = [
+      { start: 3, length: 5, russian: "дом", wordId: "w12-16" },
+      { start: 9, length: 3, russian: "наш" },
+    ];
+    const next = bump(packageOf("lesson-1-2"), (words) => {
+      const house = words.find((w) => w.id === "w12-16")!;
+      house.examples = [{ ...house.examples[0], glosses }];
+    });
+    const result = await installLesson("lesson-1-2", db, await upgrade("lesson-1-2", next));
+    expect(result).toMatchObject({ status: "updated", changed: 1, conflicts: [] });
+    expect((await db.words.get("w12-16"))!.examples[0].glosses).toEqual(glosses);
+  });
   it("локальная правка сохраняется, изменившееся в пакете поле сообщается как конфликт, остальные поля обновляются", async () => {
     await installLessons(db, ["lesson-1-2"]);
     const local = (await db.words.get("w12-16"))!;
