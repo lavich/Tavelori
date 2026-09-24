@@ -544,3 +544,89 @@ describe("иллюстрации подчиняются стандарту", () 
     expect(house).toContain("image: το-σπίτι.svg");
   });
 });
+
+/** Разметка слов примера (add-example-word-glosses): отрезки находятся сборкой, ссылки проверяются по каталогу. */
+describe("разметка слов примера", () => {
+  const house = readFileSync("content/words/το-σπίτι.yaml", "utf8");
+  const withWords = (words: string) => (root: string) =>
+    writeFileSync(join(root, "words", "το-σπίτι.yaml"), `${house.trimEnd()}\n    words:\n${words}`);
+  const pilot = [
+    '      - { text: "Το", russian: "артикль ср. р." }',
+    '      - { text: "σπίτι", russian: "дом", word: w12-16 }',
+    '      - { text: "μας", russian: "наш" }',
+    '      - { text: "είναι", russian: "есть" }',
+    '      - { text: "μεγάλο", russian: "большой", word: w13-20 }',
+  ].join("\n");
+  const houseOf = (built: ReturnType<typeof buildContent>) => built.words.find((word) => word.id === "w12-16")!;
+
+  it("отрезки получают смещения в предложении, ссылки и перевод", () => {
+    const example = houseOf(brokenCopy(withWords(pilot))).examples[0];
+    expect(example.glosses).toEqual([
+      { start: 0, length: 2, russian: "артикль ср. р." },
+      { start: 3, length: 5, russian: "дом", wordId: "w12-16" },
+      { start: 9, length: 3, russian: "наш" },
+      { start: 13, length: 5, russian: "есть" },
+      { start: 19, length: 6, russian: "большой", wordId: "w13-20" },
+    ]);
+    expect(example.glosses!.map((g) => example.greek.slice(g.start, g.start + g.length))).toEqual([
+      "Το",
+      "σπίτι",
+      "μας",
+      "είναι",
+      "μεγάλο",
+    ]);
+  });
+  it("повтор слова размечает следующее вхождение", () => {
+    const built = brokenCopy((root) =>
+      writeFileSync(
+        join(root, "words", "το-σπίτι.yaml"),
+        house.replace("Το σπίτι μας είναι μεγάλο.", "Το σπίτι και το σπίτι.") +
+          '    words:\n      - { text: "σπίτι", russian: "дом" }\n      - { text: "σπίτι", russian: "дом" }\n',
+      ),
+    );
+    expect(houseOf(built).examples[0].glosses!.map((g) => g.start)).toEqual([3, 16]);
+  });
+  it("сборка отклоняет отсутствующий отрезок, обратный порядок, пустой перевод и неизвестную ссылку", () => {
+    expect(() => brokenCopy(withWords('      - { text: "σπίτια", russian: "дома" }'))).toThrow(
+      /words\/το-σπίτι.yaml.examples\[0\].words\[0\]: отрезок «σπίτια» не найден/,
+    );
+    expect(() =>
+      brokenCopy(withWords('      - { text: "μας", russian: "наш" }\n      - { text: "σπίτι", russian: "дом" }')),
+    ).toThrow(/words\[1\]: отрезок «σπίτι» пересекается с предыдущим или стоит не по порядку/);
+    expect(() => brokenCopy(withWords('      - { text: "μας", russian: " " }'))).toThrow(
+      /words\[0\]: у отрезка «μας» нет перевода/,
+    );
+    expect(() => brokenCopy(withWords('      - { text: "μας", russian: "наш", word: w99-99 }'))).toThrow(
+      /words\[0\]: отрезок «μας» ссылается на слово w99-99, которого нет в каталоге/,
+    );
+  });
+  it("ссылка на слово другого урока принимается", () => {
+    // «το σπίτι» есть в уроке 1.2, а «μεγάλος» в него не входит: ссылка проходит между уроками.
+    const lesson = brokenCopy(withWords(pilot)).packages.find((p) => p.id === "lesson-1-2")!;
+    expect(lesson.words.some((w) => w.id === "w13-20")).toBe(false);
+    expect(lesson.words.find((w) => w.id === "w12-16")!.examples[0].glosses![4].wordId).toBe("w13-20");
+  });
+  it("разметка меняет ревизию слова, а пример без разметки её не трогает", () => {
+    const plain = houseOf(content);
+    const { revision: _r, ...fields } = plain;
+    expect(revisionOf(fields)).toBe(plain.revision);
+    expect(houseOf(brokenCopy(withWords(pilot))).revision).not.toBe(plain.revision);
+  });
+  it("пакет с разметкой читается, а отрезок вне предложения отклоняется", () => {
+    const built = brokenCopy(withWords(pilot));
+    const pack = built.packages.find((p) => p.words.some((w) => w.id === "w12-16"))!;
+    expect(
+      parsePackage(JSON.parse(JSON.stringify(pack))).words.find((w) => w.id === "w12-16")!.examples[0].glosses,
+    ).toHaveLength(5);
+    const broken = JSON.parse(JSON.stringify(pack));
+    broken.words.find((w: { id: string }) => w.id === "w12-16").examples[0].glosses[4].length = 40;
+    expect(() => parsePackage(broken)).toThrow(ContentError);
+    expect(() => parsePackage(broken)).toThrow(/отрезок выходит за предложение/);
+    broken.words.find((w: { id: string }) => w.id === "w12-16").examples[0].glosses[4] = {
+      start: 1,
+      length: 2,
+      russian: "x",
+    };
+    expect(() => parsePackage(broken)).toThrow(/отрезки пересекаются или идут не по порядку/);
+  });
+});

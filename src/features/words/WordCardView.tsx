@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Example, Word } from "../../domain/types";
 import { coreWord, stressNote, stressPosition } from "../../domain/phonetics";
 import { playWord, speakPhrase, useAudioKind, useGreekVoice } from "../../shared/audio";
-import { useAssetSource, useAssetUrl } from "../../shared/store";
+import { useAssetSource, useAssetUrl, useWord } from "../../shared/store";
 import ui from "../../shared/ui.module.css";
 import wordCss from "../../shared/word.module.css";
 import { cx } from "../../shared/cx";
@@ -146,9 +147,57 @@ export function ReadingNotes({ word }: { word: Word }) {
   );
 }
 
-export function ExampleBox({ example, title = "В контексте" }: { example: Example; title?: string }) {
+/**
+ * Пример слова. Размеченные при подготовке отрезки нажимаются и показывают перевод строкой под предложением.
+ * `linkFrom` — карточка, в которой показан пример: с ним строка предлагает открыть связанную карточку
+ * (кроме неё самой); без него, внутри тренировки, строка показывает только перевод и никуда не уводит.
+ */
+export function ExampleBox({
+  example,
+  title = "В контексте",
+  linkFrom,
+}: {
+  example: Example;
+  title?: string;
+  linkFrom?: string;
+}) {
   const at = example.target ? example.greek.indexOf(example.target) : -1;
   const voice = useGreekVoice();
+  const [open, setOpen] = useState<number | null>(null);
+  const glosses = example.glosses ?? [];
+  const active = open === null ? undefined : glosses[open];
+  const linkId = linkFrom !== undefined && active?.wordId !== linkFrom ? active?.wordId : undefined;
+  const linked = useWord(linkId);
+  /** Кусок предложения с выделением слова-цели там, где он с ним пересекается. */
+  const piece = (from: number, to: number) => {
+    const lo = Math.max(from, at),
+      hi = Math.min(to, at + example.target.length);
+    if (at < 0 || lo >= hi) return example.greek.slice(from, to);
+    return (
+      <>
+        {example.greek.slice(from, lo)}
+        <span className={wordCss.target}>{example.greek.slice(lo, hi)}</span>
+        {example.greek.slice(hi, to)}
+      </>
+    );
+  };
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  glosses.forEach((gloss, index) => {
+    if (gloss.start > cursor) parts.push(<Fragment key={`t${index}`}>{piece(cursor, gloss.start)}</Fragment>);
+    parts.push(
+      <button
+        key={`g${index}`}
+        className={cx(wordCss.gloss, open === index && wordCss.glossOpen)}
+        aria-expanded={open === index}
+        onClick={() => setOpen(open === index ? null : index)}
+      >
+        {piece(gloss.start, gloss.start + gloss.length)}
+      </button>,
+    );
+    cursor = gloss.start + gloss.length;
+  });
+  parts.push(<Fragment key="end">{piece(cursor, example.greek.length)}</Fragment>);
   return (
     <Card className="mb-3 bg-soft ring-0">
       <CardContent>
@@ -157,17 +206,22 @@ export function ExampleBox({ example, title = "В контексте" }: { examp
             <p className={ui.note} style={{ margin: "0 0 6px" }}>
               {title}
             </p>
-            <p style={{ fontSize: 20, margin: "0 0 4px" }}>
-              {at < 0 ? (
-                example.greek
-              ) : (
-                <>
-                  {example.greek.slice(0, at)}
-                  <span className={wordCss.target}>{example.target}</span>
-                  {example.greek.slice(at + example.target.length)}
-                </>
-              )}
-            </p>
+            <p style={{ fontSize: 20, margin: "0 0 4px" }}>{parts}</p>
+            {glosses.length > 0 && (
+              <p className={ui.small} style={{ margin: "0 0 4px" }} aria-live="polite" data-testid="example-gloss">
+                {active && (
+                  <>
+                    <b>{example.greek.slice(active.start, active.start + active.length)}</b> — {active.russian}
+                    {linked && !linked.deletedAt && (
+                      <>
+                        {" "}
+                        <Link to={`/words/${linked.id}`}>Открыть карточку</Link>
+                      </>
+                    )}
+                  </>
+                )}
+              </p>
+            )}
             <p className={ui.note} style={{ margin: 0 }}>
               {example.russian}
             </p>

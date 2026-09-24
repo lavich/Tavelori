@@ -67,3 +67,18 @@
   color: var(--primary);
   font-weight: 700;
 }
+/* Размеченное слово примера: тоньше, чем сочетание в разборе чтения, чтобы предложение читалось сплошным текстом. */
+.gloss {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted var(--muted-foreground);
+  text-underline-offset: 5px;
+}
+.glossOpen {
+  text-decoration-color: var(--primary);
+  text-decoration-style: solid;
+}
