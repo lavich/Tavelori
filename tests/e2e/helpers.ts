@@ -146,10 +146,11 @@ export const ready = (page: Page) => page.waitForSelector("text=Немного �
  * Поставка не несёт дат занятий, поэтому сценарию, которому нужны проведённый и ближайший урок,
  * приходится задать расписание курса — ровно так, как это делает пользователь. Первое занятие
  * три дня назад: урок 1.1 закрепляется проведённым при перезагрузке, 1.2 становится ближайшим.
+ * `startInDays` сдвигает первое занятие: скриншотам README нужно расписание без прошедших уроков.
  */
-export async function useSchedule(page: Page, courseId = "leeke", databaseName = "lexi") {
+export async function useSchedule(page: Page, courseId = "leeke", databaseName = "lexi", startInDays = -3) {
   const today = new Date().toISOString().slice(0, 10);
-  const startDate = addDays(today, -3);
+  const startDate = addDays(today, startInDays);
   const weekdays = [isoWeekday(startDate), isoWeekday(addDays(today, 1))];
   await page.evaluate(
     async ([courseId, databaseName, startDate, weekdays]) => {

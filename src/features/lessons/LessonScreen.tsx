@@ -400,7 +400,7 @@ export function LessonScreen() {
           <ItemGroup className="gap-2.5">
             {rowsOf(group.kind).map(([item, card]) =>
               card.kind === "word" ? (
-                <Item key={item.unitKey} variant="row" className="relative">
+                <Item key={item.unitKey} variant="row" className="relative isolate">
                   <ItemContent>
                     <ItemTitle className="text-base">
                       <Link

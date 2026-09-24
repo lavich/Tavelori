@@ -18,7 +18,8 @@
     "lint:fix": "oxlint --type-aware --fix",
     "spec": "openspec validate --all --strict",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "screenshots": "playwright test -c playwright.screenshots.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

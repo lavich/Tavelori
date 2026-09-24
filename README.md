@@ -4,7 +4,16 @@
 упражнения на узнавание, сборку, аудирование, понимание на слух и написание, интервальные повторения FSRS.
 Всё работает локально, без регистрации и сервера.
 
-Приложение: **https://tavelori.app/** — публикуется автоматически из `main` через GitHub Pages (custom domain репозитория `lavich/Tavelori`).
+**Открыть:** [в Telegram — @TaveloriBot](https://t.me/TaveloriBot?startapp) · [в браузере — tavelori.app](https://tavelori.app/)
+
+В Telegram прогресс повторений синхронизируется между устройствами через облако Telegram;
+в браузере данные остаются только на этом устройстве, перенос — полной копией.
+
+| Сегодня                                     | Уроки                                     | Карточка слова                                   | Упражнение                                        |
+| ------------------------------------------- | ----------------------------------------- | ------------------------------------------------ | ------------------------------------------------- |
+| ![Экран «Сегодня»](docs/screenshots/today.png) | ![Экран «Уроки»](docs/screenshots/lessons.png) | ![Карточка слова](docs/screenshots/word.png) | ![Сборка слова из слогов](docs/screenshots/exercise.png) |
+
+Веб-версия публикуется автоматически из `main` через GitHub Pages (custom domain репозитория `lavich/Tavelori`).
 
 ## Запуск
 
@@ -15,6 +24,7 @@ npm run build      # production build
 npm run preview    # запуск собранного приложения
 npm test           # unit и integration тесты (Vitest)
 npm run test:e2e   # браузерные проверки по production build (Playwright, Chromium)
+npm run screenshots # переснять скриншоты README в docs/screenshots (Playwright, вне CI)
 ```
 
 Ветка `main` защищена: изменения попадают в неё только через pull request после зелёного job `checks`
