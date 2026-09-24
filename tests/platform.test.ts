@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseLaunch, launchContext, resetLaunchContext } from "../src/platform/launch";
+import { parseLaunch, launchContext, resetLaunchContext, startRoute } from "../src/platform/launch";
 import { telegramAdapter, webAdapter } from "../src/platform/adapter";
 import { loadTelegramBridge, resetBridge } from "../src/platform/bridge";
 import { applyEnvironment, platform, setPlatform } from "../src/platform/platform";
@@ -363,5 +363,73 @@ describe("крошки жизненного цикла для отчётов о 
     for (const secret of ["initData", "42", "Анна", "anna", "hash", "user"]) expect(text).not.toContain(secret);
     adapter.dispose();
     resetReporting();
+  });
+});
+
+describe("контекст запуска между переходами и перезагрузками", () => {
+  const tgHash = (user = { id: 7, first_name: "A" }, extra = "") =>
+    `#tgWebAppPlatform=ios&tgWebAppData=${encodeURIComponent(`${initData(user)}${extra}`)}`;
+  /** Страница с новым адресом: перезагрузка сбрасывает запомненный контекст, sessionStorage вкладки остаётся. */
+  const open = (hash: string, search = "") => {
+    window.history.replaceState(null, "", `/${search}${hash}`);
+    resetLaunchContext();
+    return launchContext();
+  };
+  afterEach(() => {
+    sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
+    resetLaunchContext();
+  });
+
+  it("перезагрузка Telegram без hash и ?bot= сохраняет вид, пользователя, launchId и профиль, запись не заменяется веб-контекстом", () => {
+    const first = open(tgHash(undefined, "&query_id=AAH1"));
+    const stored = sessionStorage.getItem("lexi:launch");
+    const again = open("");
+    expect(again).toMatchObject({ kind: "telegram", user: { id: 7 }, launchId: "AAH1", bot: "TaveloriBot" });
+    expect(profileFor(again).databaseName).toBe(profileFor(first).databaseName);
+    expect(sessionStorage.getItem("lexi:launch")).toBe(stored);
+  });
+  it("Telegram с ?bot=TaveloriDevBot после перезагрузки без параметра сохраняет dev-бота и базу профиля", () => {
+    open(tgHash(), "?bot=TaveloriDevBot");
+    const again = open("");
+    expect(again.bot).toBe("TaveloriDevBot");
+    expect(profileFor(again).databaseName).toBe("lexi-tg-TaveloriDevBot-7");
+  });
+  it("веб с ?bot= сохраняет бота, когда адрес потерял параметр", () => {
+    expect(open("", "?bot=TaveloriDevBot")).toMatchObject({ kind: "web", bot: "TaveloriDevBot" });
+    expect(open("")).toMatchObject({ kind: "web", bot: "TaveloriDevBot" });
+    expect(JSON.parse(sessionStorage.getItem("lexi:launch")!)).toEqual({ kind: "web", bot: "TaveloriDevBot" });
+  });
+  it("явный ?bot= в новом адресе заменяет сохранённый", () => {
+    open(tgHash(), "?bot=TaveloriDevBot");
+    expect(open("", "?bot=OtherTestBot").bot).toBe("OtherTestBot");
+    expect(open("").bot).toBe("OtherTestBot");
+  });
+  it("новый Telegram-запуск заменяет прежнюю Telegram-запись", () => {
+    open(tgHash({ id: 7, first_name: "A" }, "&query_id=one"));
+    const next = open(tgHash({ id: 8, first_name: "B" }, "&query_id=two"));
+    expect(next).toMatchObject({ user: { id: 8 }, launchId: "two" });
+    expect(open("")).toMatchObject({ user: { id: 8 }, launchId: "two" });
+  });
+  it("launchId — query_id; без него null даже при подписи hash, вне Telegram null", () => {
+    expect(parseLaunch(location(tgHash(undefined, "&query_id=AAH1"))).launchId).toBe("AAH1");
+    expect(parseLaunch(location(tgHash())).launchId).toBeNull();
+    expect(parseLaunch(location("")).launchId).toBeNull();
+  });
+});
+
+describe("путь по параметру запуска", () => {
+  const tg = (startParam: string | null) => ({
+    ...parseLaunch(location(`#tgWebAppPlatform=ios&tgWebAppData=${encodeURIComponent(initData(null))}`)),
+    startParam,
+  });
+  it("w_<id> ведёт к слову, остальное — никуда", () => {
+    expect(startRoute(tg("w_w34-03"))).toBe("/share/word/w34-03");
+    expect(startRoute(tg("promo"))).toBeNull();
+    expect(startRoute(tg("w_"))).toBeNull();
+    expect(startRoute(tg("w_a/b"))).toBeNull();
+    expect(startRoute(tg(`w_${"a".repeat(61)}`))).toBeNull();
+    expect(startRoute(tg(`w_${"a".repeat(60)}`))).toBe(`/share/word/${"a".repeat(60)}`);
+    expect(startRoute({ ...parseLaunch(location("")), startParam: "w_w34-03" })).toBeNull();
   });
 });

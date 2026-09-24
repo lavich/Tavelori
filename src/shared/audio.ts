@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ensureAsset } from "../content/client";
 import type { Word } from "../domain/types";
+import { dbAssetSource, releaseAssetUrl, type AssetSource } from "./store";
 
 export type AudioKind = "file" | "voice" | "none";
 /** Итог воспроизведения: `error` — файл или голос есть, но проигрывание отклонено; это не ошибка знания слова. */
@@ -159,15 +160,14 @@ export function stopAudio(): boolean {
  * Отказ воспроизведения не подавляется: экран получает `error` и предлагает повтор или продолжение без аудирования.
  * Файл, который не проигрался, не подменяется голосом молча — иначе пользователь услышит другое произношение.
  */
-export async function playWord(word: Word): Promise<PlayResult> {
+export async function playWord(word: Word, source: AssetSource = dbAssetSource): Promise<PlayResult> {
   const stopped = stopAudio();
   if (word.audioAssetId) {
-    const asset = await ensureAsset(word.audioAssetId).catch(() => null);
-    if (asset) {
-      const url = URL.createObjectURL(asset.blob);
+    const url = await source.url(word.audioAssetId).catch(() => null);
+    if (url) {
       const audio = new Audio(url);
       current = audio;
-      const release = () => URL.revokeObjectURL(url);
+      const release = () => releaseAssetUrl(url);
       audio.addEventListener("ended", release, { once: true });
       try {
         await audio.play();

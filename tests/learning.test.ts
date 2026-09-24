@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { createEmptyCard, Rating, State } from "ts-fsrs";
 import {
   availableTypes,
+  buildWordExercise,
   easierExercise,
+  FEW_OPTIONS,
+  NO_SOUND,
+  ONE_SYLLABLE,
+  wordExerciseOptions,
   hasEasierStep,
   localDay,
   daysBetween,
@@ -438,5 +443,53 @@ describe("понимание на слух", () => {
     const exercise = phraseExercise(pool[0], pool, skills, () => 0.5, true)!;
     expect(exercise.type).toBe("comprehension");
     expect(exercise.options).toContain("Фраза a.");
+  });
+});
+
+describe("выбор упражнения пользователем", () => {
+  const family = { ...words[0], id: "family", greek: "η οικογένεια", russian: "семья" };
+  const light = { ...words[0], id: "light", greek: "το φως", russian: "свет" };
+  const all = { available: true };
+  it("у нового слова доступны все пять видов — условия навыков не действуют", () => {
+    expect(wordExerciseOptions(family, words, true)).toEqual({
+      recognition: all,
+      assembly: all,
+      spelling: all,
+      listening: all,
+      comprehension: all,
+    });
+  });
+  it("звук даёт файл слова и без голоса", () => {
+    expect(wordExerciseOptions({ ...family, audioAssetId: "snd-family" }, words, false).listening).toEqual(all);
+  });
+  it("причины недоступности: нет звука, один слог, мало вариантов", () => {
+    const silent = wordExerciseOptions(family, words, false);
+    expect(silent.listening).toEqual({ available: false, reason: NO_SOUND });
+    expect(silent.comprehension).toEqual({ available: false, reason: NO_SOUND });
+    expect(silent.recognition).toEqual(all);
+    expect(wordExerciseOptions(light, words, true).assembly).toEqual({ available: false, reason: ONE_SYLLABLE });
+    const few = wordExerciseOptions(family, words.slice(0, 2), true);
+    expect(few.recognition).toEqual({ available: false, reason: FEW_OPTIONS });
+    expect(few.listening).toEqual({ available: false, reason: FEW_OPTIONS });
+    expect(few.comprehension).toEqual({ available: false, reason: FEW_OPTIONS });
+    expect(few.spelling).toEqual(all);
+    expect(few.assembly).toEqual(all);
+  });
+  it("строит выбранный вид без учёта навыков", () => {
+    expect(buildWordExercise(family, "spelling", words, () => 0.3, false)).toEqual({ type: "spelling", options: [] });
+    expect(buildWordExercise(family, "comprehension", words, () => 0.3, true)?.type).toBe("comprehension");
+    const assembly = buildWordExercise(family, "assembly", words, () => 0.3)!;
+    expect(assembly.type).toBe("assembly");
+    expect([...assembly.options].sort()).toEqual(["γέ", "η", "κο", "νεια", "οι"]);
+    const recognition = buildWordExercise(family, "recognition", words, () => 0.3)!;
+    expect(recognition.options).toHaveLength(4);
+    expect(recognition.options).toContain("семья");
+    const listening = buildWordExercise(family, "listening", words, () => 0.3, true)!;
+    expect(listening.options).toContain("η οικογένεια");
+  });
+  it("недоступный вид не строится", () => {
+    expect(buildWordExercise(light, "assembly", words)).toBeNull();
+    expect(buildWordExercise(family, "listening", words, Math.random, false)).toBeNull();
+    expect(buildWordExercise(family, "recognition", [], Math.random, true)).toBeNull();
   });
 });

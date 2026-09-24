@@ -34,6 +34,8 @@ export interface CatalogEntry {
   language: string;
   title: string;
   wordCount: number;
+  /** Слова урока в порядке состава; каталог прежней сборки их не перечисляет. */
+  wordIds?: string[];
   phraseCount: number;
   cardCount: number;
   version: string;
@@ -184,7 +186,7 @@ export function parseCatalog(input: unknown): Catalog {
     // Счётчик снятого вида из прежних каталогов не читается: в число карточек он входит через `cardCount`.
     const wordCount = num(item.wordCount, `${path}.wordCount`);
     const phraseCount = num(item.phraseCount ?? 0, `${path}.phraseCount`);
-    return {
+    const lesson: CatalogEntry = {
       ...head,
       wordCount,
       phraseCount,
@@ -194,6 +196,11 @@ export function parseCatalog(input: unknown): Catalog {
       bytes: num(item.bytes, `${path}.bytes`),
       media: { count: num(media.count, `${path}.media.count`), bytes: num(media.bytes, `${path}.media.bytes`) },
     };
+    const wordIds = opt(item.wordIds, (value) =>
+      list(value, `${path}.wordIds`).map((id, i) => str(id, `${path}.wordIds[${i}]`)),
+    );
+    if (wordIds) lesson.wordIds = wordIds;
+    return lesson;
   });
   unique(
     lessons.map((l) => l.id),

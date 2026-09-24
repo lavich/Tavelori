@@ -69,6 +69,9 @@ export interface LegacySkill {
   skills: BaseSkillRow["skills"];
 }
 
+/** Запись каталога в базе: `position` — её индекс в файле каталога, ключ `id` этот порядок теряет. */
+export type StoredCatalogEntry = CatalogEntry & { position?: number };
+
 export class LexiDatabase extends Dexie {
   words!: Table<StoredWord, string>;
   phrases!: Table<Phrase, string>;
@@ -78,7 +81,7 @@ export class LexiDatabase extends Dexie {
   assets!: Table<Asset, string>;
   media!: Table<MediaRef, string>;
   packages!: Table<InstalledPackage, string>;
-  catalog!: Table<CatalogEntry, string>;
+  catalog!: Table<StoredCatalogEntry, string>;
   cardStates!: Table<LearningState, string>;
   events!: Table<ReviewEvent, string>;
   sessions!: Table<Session, string>;

@@ -70,6 +70,8 @@ export interface TelegramWebApp {
   ready(): void;
   expand(): void;
   close(): void;
+  /** Bot API 6.1: открыть ссылку t.me внутри Telegram, в том числе выбор чата `t.me/share/url`. */
+  openTelegramLink?(url: string): void;
   onEvent(event: string, handler: (...args: unknown[]) => void): void;
   offEvent(event: string, handler: (...args: unknown[]) => void): void;
   BackButton?: TelegramButton;

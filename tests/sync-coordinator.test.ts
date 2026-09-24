@@ -503,7 +503,15 @@ describe("надёжность публикации и лимиты", () => {
     });
     expect((await sync.exchange()).phase).toBe("disabled");
     expect(
-      profileFor({ kind: "web", bot: "TaveloriBot", platform: null, version: null, user: null, startParam: null }),
+      profileFor({
+        kind: "web",
+        bot: "TaveloriBot",
+        platform: null,
+        version: null,
+        user: null,
+        startParam: null,
+        launchId: null,
+      }),
     ).toMatchObject({ databaseName: "lexi", syncable: false });
   });
 });
@@ -518,6 +526,7 @@ describe("изоляция профилей", () => {
       version: "8.0",
       user: user(1),
       startParam: null,
+      launchId: null,
     });
     const other = profileFor({
       kind: "telegram",
@@ -526,6 +535,7 @@ describe("изоляция профилей", () => {
       version: "8.0",
       user: user(2),
       startParam: null,
+      launchId: null,
     });
     const dev = profileFor({
       kind: "telegram",
@@ -534,6 +544,7 @@ describe("изоляция профилей", () => {
       version: "8.0",
       user: user(1),
       startParam: null,
+      launchId: null,
     });
     const anonymous = profileFor({
       kind: "telegram",
@@ -542,6 +553,7 @@ describe("изоляция профилей", () => {
       version: "8.0",
       user: null,
       startParam: null,
+      launchId: null,
     });
     expect(
       new Set([main.databaseName, other.databaseName, dev.databaseName, anonymous.databaseName, "lexi"]).size,

@@ -1,7 +1,19 @@
 import Dexie from "dexie";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { coursePhase, ensureAsset, installPhase, lessonReadiness, subscribeInstall } from "../content/client";
+import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  catalogPhase,
+  contentUrl,
+  coursePhase,
+  ensureAsset,
+  firstLessonOf,
+  installPhase,
+  lessonReadiness,
+  previewMedia,
+  subscribeCatalog,
+  subscribeInstall,
+} from "../content/client";
+import type { ContentPackage } from "../content/schema";
 import { makePlan } from "../domain/learning";
 import { progress } from "../domain/stats";
 import { defaultSettings, type Session } from "../domain/types";
@@ -58,6 +70,17 @@ export const useCatalog = () =>
   useLiveQuery(async () => ({ entries: await db.catalog.toArray(), packages: await db.packages.toArray() }), []);
 export const useInstallPhase = (lessonId: string | undefined) =>
   useSyncExternalStore(subscribeInstall, () => installPhase(lessonId ?? ""));
+export const useCatalogPhase = () => useSyncExternalStore(subscribeCatalog, catalogPhase);
+/** Урок каталога, из которого слово: `undefined` — ещё читается, `null` — слова в каталоге нет. */
+export const useWordLesson = (id: string | undefined) =>
+  useLiveQuery(async () => (id ? firstLessonOf(await db.catalog.toArray(), id) : null), [id]);
+/** Слово в версии курса из установленных пакетов: делятся им, а не локальной правкой. */
+export const useShippedWord = (id: string | undefined) =>
+  useLiveQuery(
+    async () =>
+      id ? (await db.packages.toArray()).flatMap((pack) => pack.words).find((word) => word.id === id) : undefined,
+    [id],
+  );
 export const useCourses = () => useLiveQuery(() => db.courses.toArray(), []);
 export const useCoursePhase = (courseId: string | undefined) =>
   useSyncExternalStore(subscribeInstall, () => coursePhase(courseId ?? ""));
@@ -67,29 +90,64 @@ export const useReadiness = (lessonId: string | undefined) =>
 export const usePhraseCount = () =>
   useLiveQuery(async () => (await db.phrases.count()) - (await db.phrases.where("deletedAt").above("").count()), []);
 
+/**
+ * Откуда карточка берёт файлы медиа. По умолчанию — из базы: файл докачивается и сохраняется, как при установке.
+ * Просмотр без установки подставляет свой источник с прямыми адресами пакета и в базу не пишет.
+ */
+export interface AssetSource {
+  url(assetId: string): Promise<string | null>;
+}
+export const dbAssetSource: AssetSource = {
+  url: async (assetId) => {
+    const asset = await ensureAsset(assetId);
+    return asset ? URL.createObjectURL(asset.blob) : null;
+  },
+};
+/** Адрес из `URL.createObjectURL` принадлежит тому, кто его получил: прямой адрес освобождать не нужно. */
+export const releaseAssetUrl = (url: string) => {
+  if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+};
+/** Источник просмотра: прямые адреса медиа пакета, без проверки и без записи в `db.assets`. */
+export function packageAssetSource(pack: ContentPackage): AssetSource {
+  const media = previewMedia(pack);
+  return {
+    url: async (assetId) => {
+      const item = media.get(assetId);
+      return item ? contentUrl(item.url) : null;
+    },
+  };
+}
+export const AssetSourceContext = createContext<AssetSource>(dbAssetSource);
+export const useAssetSource = () => useContext(AssetSourceContext);
+
 export function useAssetUrl(id: string | undefined): string | null {
+  const source = useAssetSource();
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    let revoke: string | null = null,
+    let owned: string | null = null,
       alive = true;
     if (!id) {
       setUrl(null);
       return;
     }
-    ensureAsset(id)
-      .then((asset) => {
-        if (!alive || !asset) return setUrl(null);
-        revoke = URL.createObjectURL(asset.blob);
-        setUrl(revoke);
+    source
+      .url(id)
+      .then((next) => {
+        if (!alive) {
+          if (next) releaseAssetUrl(next);
+          return;
+        }
+        owned = next;
+        setUrl(next);
       })
       .catch(() => {
         if (alive) setUrl(null);
       });
     return () => {
       alive = false;
-      if (revoke) URL.revokeObjectURL(revoke);
+      if (owned) releaseAssetUrl(owned);
     };
-  }, [id]);
+  }, [id, source]);
   return url;
 }
 

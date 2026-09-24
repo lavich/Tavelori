@@ -1,4 +1,4 @@
-import { db, indexWord, type LexiDatabase } from "../storage/db";
+import { db, indexWord, type LexiDatabase, type StoredCatalogEntry } from "../storage/db";
 import { reportError } from "../reporting/reporting";
 import { adoptStash } from "../sync/snapshot";
 import {
@@ -9,6 +9,7 @@ import {
   SHIPPED_FIELDS,
   type Catalog,
   type ContentPackage,
+  type PackageMedia,
   type PackagePhrase,
   type PackageWord,
   type ShippedField,
@@ -39,12 +40,15 @@ const networkError = (what: string) =>
     "network",
   );
 
+/** Адрес файла контента относительно базы приложения: единый путь для загрузки пакетов и показа медиа. */
+export const contentUrl = (url: string, base: string = import.meta.env.BASE_URL) =>
+  `${base.endsWith("/") ? base : `${base}/`}${url}`;
+
 export function httpFetcher(base: string = import.meta.env.BASE_URL): ContentFetcher {
-  const resolve = (url: string) => `${base.endsWith("/") ? base : `${base}/`}${url}`;
   const load = async (url: string, what: string, init?: RequestInit) => {
     let response: Response;
     try {
-      response = await fetch(resolve(url), init);
+      response = await fetch(contentUrl(url, base), init);
     } catch {
       throw networkError(what);
     }
@@ -72,16 +76,97 @@ export const useFetcher = (next: ContentFetcher) => {
   fetcher = next;
 };
 
+export type CatalogPhase = "loading" | "ready" | "error";
+let catalogState: CatalogPhase = "loading";
+const catalogListeners = new Set<() => void>();
+/**
+ * Готовность каталога для экранов, которым важно отличить «ещё не загрузился» от «слова нет».
+ * `loading` бывает только до первого успеха: фоновые обновления и их сбои показанное не прячут.
+ */
+export const catalogPhase = () => catalogState;
+export const subscribeCatalog = (listener: () => void) => {
+  catalogListeners.add(listener);
+  return () => {
+    catalogListeners.delete(listener);
+  };
+};
+const setCatalogPhase = (next: CatalogPhase) => {
+  if (catalogState === next || (catalogState === "ready" && next !== "ready")) return;
+  catalogState = next;
+  catalogListeners.forEach((fn) => fn());
+};
+/** Только для тестов: вернуть каталог в состояние до первой загрузки. */
+export const resetCatalogPhase = () => {
+  catalogState = "loading";
+};
+
 export async function refreshCatalog(database: LexiDatabase = db, source: ContentFetcher = fetcher): Promise<Catalog> {
-  const catalog = parseCatalog(await source.json("content/catalog.json"));
-  await database.transaction("rw", database.catalog, database.courses, database.lessons, database.meta, async () => {
-    await database.catalog.clear();
-    await database.catalog.bulkAdd(catalog.lessons);
-    await adoptCourses(catalog, database);
-    await database.meta.put({ key: "catalogUpdatedAt", value: new Date().toISOString() });
-  });
-  return catalog;
+  setCatalogPhase("loading"); // повтор после сбоя снова ждёт; после первого успеха фаза не меняется
+  try {
+    const catalog = parseCatalog(await source.json("content/catalog.json"));
+    await database.transaction("rw", database.catalog, database.courses, database.lessons, database.meta, async () => {
+      await database.catalog.clear();
+      await database.catalog.bulkAdd(catalog.lessons.map((entry, position) => ({ ...entry, position })));
+      await adoptCourses(catalog, database);
+      await database.meta.put({ key: "catalogUpdatedAt", value: new Date().toISOString() });
+    });
+    setCatalogPhase("ready");
+    return catalog;
+  } catch (error) {
+    setCatalogPhase("error");
+    throw error;
+  }
 }
+
+/** Первый в порядке каталога урок, в состав которого входит слово: одно слово бывает в нескольких уроках. */
+export function firstLessonOf(entries: StoredCatalogEntry[], wordId: string): StoredCatalogEntry | null {
+  const order = (entry: StoredCatalogEntry) => entry.position ?? Number.MAX_SAFE_INTEGER;
+  const sorted = [...entries].sort((a, b) => order(a) - order(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return sorted.find((entry) => entry.wordIds?.includes(wordId)) ?? null;
+}
+export async function lessonOfWord(wordId: string, database: LexiDatabase = db): Promise<StoredCatalogEntry | null> {
+  return firstLessonOf(await database.catalog.toArray(), wordId);
+}
+
+export interface PackagePreview {
+  entry: StoredCatalogEntry;
+  pack: ContentPackage;
+}
+const previews = new Map<string, Promise<PackagePreview>>();
+/**
+ * Пакет урока для просмотра без установки: читается и проверяется так же, как при установке,
+ * но ничего не пишет в базу. Удачный результат живёт в памяти вкладки, неудачный — нет, чтобы повтор сработал.
+ */
+export function previewPackage(
+  lessonId: string,
+  database: LexiDatabase = db,
+  source: ContentFetcher = fetcher,
+): Promise<PackagePreview> {
+  const task = (async () => {
+    const entry = await database.catalog.get(lessonId);
+    if (!entry) throw new ContentError("Этого урока нет в каталоге.");
+    const key = `${lessonId}@${entry.version}`;
+    const cached = previews.get(key);
+    if (cached) return cached;
+    const loading = (async () => {
+      const pack = parsePackage(await source.json(entry.url));
+      if (pack.id !== lessonId || pack.version !== entry.version)
+        throw new ContentError("Пакет не соответствует записи каталога.");
+      return { entry, pack };
+    })();
+    previews.set(key, loading);
+    loading.catch(() => previews.delete(key));
+    return loading;
+  })();
+  // Просмотр ничего не пишет, поэтому любой сбой, кроме отклонённого пакета, — это сбой загрузки.
+  return task.catch((error: unknown) => {
+    throw error instanceof ContentError ? error : networkError("пакет урока");
+  });
+}
+/** Только для тестов: забыть прочитанные пакеты. */
+export const resetPreviews = () => previews.clear();
+export const previewMedia = (pack: ContentPackage): Map<string, PackageMedia> =>
+  new Map(pack.media.map((item) => [item.id, item]));
 
 /**
  * Каталог — единственное место, где известен курс урока, установленного прежней версией.
@@ -289,6 +374,14 @@ const shipped = (word: PackageWord) =>
   Object.fromEntries(
     SHIPPED_FIELDS.filter((field) => word[field] !== undefined).map((field) => [field, word[field]]),
   ) as Pick<Word, ShippedField>;
+/** Поставляемое слово в виде локальной записи: так его ставит установка и показывает просмотр без установки. */
+export const wordFromPackage = (card: PackageWord, at: string): Word => ({
+  ...shipped(card),
+  id: card.id,
+  createdAt: at,
+  updatedAt: at,
+  revision: card.revision,
+});
 
 /**
  * Слияние обновления: нетронутая запись берёт новые значения целиком; отредактированная — по полям,
@@ -450,7 +543,7 @@ export async function applyPackage(pack: ContentPackage, database: LexiDatabase 
         "word",
         (card) => card.greek,
         database.words as never,
-        (card, at) => ({ ...shipped(card), id: card.id, createdAt: at, updatedAt: at, revision: card.revision }),
+        wordFromPackage,
         indexWord,
         now,
         result,

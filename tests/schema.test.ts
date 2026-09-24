@@ -175,3 +175,22 @@ describe("совместимость со схемой 2", () => {
     }
   });
 });
+
+describe("индекс слов в записи каталога", () => {
+  const raw = () => JSON.parse(content.files.find((file) => file.path === "content/catalog.json")!.body as string);
+  it("список слов читается", () => {
+    const catalog = parseCatalog(raw());
+    expect(catalog.lessons[0].wordIds).toEqual(content.catalog.lessons[0].wordIds);
+  });
+  it("каталог без списка слов принимается", () => {
+    const old = raw();
+    old.lessons = old.lessons.map(({ wordIds: _w, ...entry }: Record<string, unknown>) => entry);
+    const catalog = parseCatalog(old);
+    expect(catalog.lessons[0]).not.toHaveProperty("wordIds");
+  });
+  it("нестроковый идентификатор отклоняется с путём поля", () => {
+    const broken = raw();
+    broken.lessons[1].wordIds = ["w11-01", 7];
+    expect(() => parseCatalog(broken)).toThrow("каталог.lessons[1].wordIds[1]: ожидалась строка");
+  });
+});
