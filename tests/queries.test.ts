@@ -5,6 +5,7 @@ import {
   dexieSource,
   importPreview,
   lessonDetail,
+  lessonMates,
   lessonsOfCard,
   lessonViews,
   searchWordIds,
@@ -21,7 +22,7 @@ import { lessonProgress, progress, wordMaturity } from "../src/domain/stats";
 import { progressFill } from "../src/features/lessons/LessonRow";
 import { State } from "ts-fsrs";
 import { parseImport } from "../src/domain/import";
-import { defaultSettings, type Snapshot, type Word } from "../src/domain/types";
+import { defaultSettings, type LessonItem, type Snapshot, type Word } from "../src/domain/types";
 import { itemOfLink, unitKey, wordKeyOf, wordState } from "./helpers/cards";
 import { recordFor, scenarios } from "./plan-golden.test";
 import { content, installLessons, wordCountOf } from "./helpers/content";
@@ -396,5 +397,57 @@ describe("смешанный урок в выборках", () => {
     expect(fromDb.plan.unavailable).toEqual([]); // с голосом и пятью фразами фраза без перевода проверяема аудированием
     expect((await makePlan(dexieSource(db), now)).unavailable).toEqual([{ kind: "phrase", id: "p-silent" }]);
     expect(fromDb.session.some((item) => item.key.startsWith('["phrase"'))).toBe(true);
+  });
+});
+
+describe("соседи по уроку", () => {
+  const big = Array.from({ length: 40 }, (_, i) => word(i));
+  const extra = [word(100), word(101)];
+  const target = big[4];
+  const at = (lessonId: string, ref: LessonItem["ref"], position: number): LessonItem => ({
+    lessonId,
+    unitKey: unitKey(ref),
+    ref,
+    position,
+  });
+  const items: LessonItem[] = [
+    // Связь восьмого слова снята: позиция остаётся пустой, и окно за счёт следующих позиций не расширяется.
+    ...big.flatMap((w, i) => (i === 8 ? [] : [at("big", { kind: "word", id: w.id }, i)])),
+    at("second", { kind: "word", id: extra[0].id }, 0),
+    at("second", { kind: "word", id: target.id }, 1),
+    at("second", { kind: "word", id: extra[1].id }, 2),
+    at("second", { kind: "phrase", id: "p1" }, 3),
+  ];
+  const words = [...big.map((w, i) => (i === 6 ? { ...w, deletedAt: iso } : w)), ...extra];
+  const expected = [0, 1, 2, 3, 5, 7, 9, 10].map((i) => big[i].id).concat(extra.map((w) => w.id));
+  const ids = (list: Word[] | undefined) => new Set((list ?? []).map((w) => w.id));
+
+  it("окно в шесть позиций во всех уроках слова, без удалённых слов и фраз", async () => {
+    await db.words.bulkAdd(words.map(indexWord));
+    await db.lessonItems.bulkAdd(items);
+    const mates = await lessonMates([target.id, big[39].id, "missing"], db);
+    expect(ids(mates.get(target.id))).toEqual(new Set(expected));
+    expect(ids(mates.get(big[39].id))).toEqual(new Set([33, 34, 35, 36, 37, 38].map((i) => big[i].id)));
+    expect(mates.get("missing")).toEqual([]);
+  });
+  it("снимок даёт тех же соседей, что и база", async () => {
+    await db.words.bulkAdd(words.map(indexWord));
+    await db.lessonItems.bulkAdd(items);
+    const snapshot: Snapshot = {
+      words,
+      lessons: [],
+      links: [],
+      items,
+      states: [],
+      events: [],
+      sessions: [],
+      settings: defaultSettings,
+    };
+    const all = words.map((w) => w.id);
+    const [fromDb, fromMemory] = await Promise.all([
+      dexieSource(db).lessonMatesOf(all),
+      fromSnapshot(snapshot).lessonMatesOf(all),
+    ]);
+    for (const id of all) expect(ids(fromDb.get(id))).toEqual(ids(fromMemory.get(id)));
   });
 });

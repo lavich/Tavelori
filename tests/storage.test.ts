@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createEmptyCard, Rating, State } from "ts-fsrs";
-import { LexiDatabase } from "../src/storage/db";
+import { indexWord, LexiDatabase } from "../src/storage/db";
 import { dexieSource, lessonItems, loadLessons } from "../src/storage/queries";
 import { wordRef } from "./helpers/cards";
 import {
@@ -17,7 +17,7 @@ import {
   updateLesson,
 } from "../src/storage/ops";
 import { makePlan, makeSession } from "../src/domain/learning";
-import { type Settings } from "../src/domain/types";
+import { type Settings, type Word } from "../src/domain/types";
 import { parseImport } from "../src/domain/import";
 import { installLessons, wordsOf } from "./helpers/content";
 import { installMixed, mixedPackage } from "./helpers/mixed";
@@ -657,5 +657,110 @@ describe("запись ответа на смешанном уроке", () => {
     expect(await db.cardStates.count()).toBe(0);
     await expect(markIntroduced(session.id, K("phrase", "нет"), 1, db)).rejects.toThrow(/недоступна/);
     expect(item("p-grafo").isNew).toBe(true);
+  });
+});
+
+describe("близкие слова в вариантах записи", () => {
+  const iso = now.toISOString();
+  let n = 0;
+  const w = (greek: string, russian: string): Word => ({
+    id: `c${String(n++).padStart(3, "0")}`,
+    greek,
+    russian,
+    ipa: "",
+    segments: [],
+    examples: [],
+    verified: false,
+    createdAt: iso,
+    updatedAt: iso,
+  });
+  const cat = w("η γάτα", "кошка");
+  const mates = [w("ο σκύλος", "собака"), w("το ψάρι", "рыба"), w("το πουλί", "птица")];
+  const fillers = Array.from({ length: 10 }, (_, i) => w(`το λέξη${i}`, `слово ${i}`));
+  const russian = (list: Word[]) => new Set(list.map((x) => x.russian));
+  const count = (options: string[], set: Set<string>) => options.filter((value) => set.has(value)).length;
+  /** Слово с тремя соседями по уроку и десять слов словаря вне урока. */
+  const seed = async (extra: Word[] = []) => {
+    await db.words.bulkAdd([cat, ...mates, ...fillers, ...extra].map(indexWord));
+    await db.lessonItems.bulkAdd(
+      [cat, ...mates].map((x, position) => ({
+        lessonId: "animals",
+        unitKey: unitKey(wordRef(x.id)),
+        ref: wordRef(x.id),
+        position,
+      })),
+    );
+  };
+  const failAssembly = async (refs: Word[]) => {
+    const session = await makeSession({
+      source: source(),
+      now,
+      refs: refs.map((x) => wordRef(x.id)),
+      mode: "practice",
+    });
+    const item = { ...session.items.find((entry) => entry.ref.id === cat.id)!, type: "assembly" as const };
+    const stored = { ...session, items: session.items.map((entry) => (entry.id === item.id ? item : entry)) };
+    await db.sessions.add(stored);
+    return { stored, item };
+  };
+  const retryOf = async (stored: Awaited<ReturnType<typeof failAssembly>>["stored"], item: { id: string }) =>
+    (await db.sessions.get(stored.id))!.items.find((entry) => entry.retryOf === item.id)!;
+  const fail = (session: Awaited<ReturnType<typeof failAssembly>>["stored"], item: (typeof session.items)[number]) =>
+    submitAnswer({
+      session,
+      item,
+      correct: false,
+      answer: "",
+      responseTimeMs: 1200,
+      activeTimeMs: 5000,
+      timezone: "Asia/Nicosia",
+      database: db,
+    });
+
+  it("дополнительная попытка после ошибки в сборке берёт два варианта из урока", async () => {
+    await seed();
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await db.sessions.clear();
+      await db.events.clear();
+      await db.cardStates.clear();
+      const { stored, item } = await failAssembly([cat]);
+      await fail(stored, item);
+      const retry = await retryOf(stored, item);
+      expect(retry.type).toBe("recognition");
+      expect(count(retry.options, russian(mates))).toBe(2);
+    }
+  });
+  it("слово занятия, удалённое после сборки, не попадает в варианты попытки", async () => {
+    const dog = w("ο λύκος", "волк");
+    await seed([dog]);
+    await db.lessonItems.clear(); // единственный близкий кандидат — слово занятия
+    const { stored, item } = await failAssembly([cat, dog]);
+    await db.words.update(dog.id, { deletedAt: iso });
+    await fail(stored, item);
+    const retry = await retryOf(stored, item);
+    expect(retry.options).toHaveLength(4);
+    expect(retry.options).not.toContain("волк");
+  });
+  it("живое слово занятия идёт в варианты попытки первым", async () => {
+    const dog = w("ο λύκος", "волк");
+    await seed([dog]);
+    await db.lessonItems.clear();
+    const { stored, item } = await failAssembly([cat, dog]);
+    await fail(stored, item);
+    expect((await retryOf(stored, item)).options).toContain("волк");
+  });
+  it("замена вспоминания в старой сессии подбирает варианты среди соседей по уроку", async () => {
+    await seed();
+    const session = await makeSession({ source: source(), now, refs: [wordRef(cat.id)], mode: "practice" });
+    const legacy = {
+      ...session,
+      objectiveVersion: undefined,
+      items: session.items.map((entry) => ({ ...entry, type: "recall" as const, options: [] })),
+    };
+    await db.sessions.add(legacy);
+    await prepareObjectiveSession(session.id, db);
+    const [item] = (await db.sessions.get(session.id))!.items;
+    expect(item.type).toBe("recognition");
+    expect(count(item.options, russian(mates))).toBe(2);
   });
 });

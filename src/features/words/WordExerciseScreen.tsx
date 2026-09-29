@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buildWordExercise, OPTION_POOL, wordExerciseOptions } from "../../domain/learning";
+import { buildWordExercise, wordExerciseOptions } from "../../domain/learning";
 import { unitKey, wordRef } from "../../domain/refs";
 import type { SessionItem } from "../../domain/types";
 import { hapticsEnabled } from "../../platform/haptics";
@@ -12,9 +12,8 @@ import { useBackHandler, useHaptics, usePlatform } from "../../platform/platform
 import { stopAudio, useGreekVoice } from "../../shared/audio";
 import { useSettings } from "../../shared/store";
 import { db } from "../../storage/db";
-import { optionPool } from "../../storage/queries";
 import { Assembly, Comprehension, Listening, Recognition, Spelling, type Answer } from "../learning/exercises";
-import { EXERCISE_LABELS, isWordExercise } from "./word-exercises";
+import { EXERCISE_LABELS, isWordExercise, wordSources } from "./word-exercises";
 import ui from "../../shared/ui.module.css";
 import s from "../learning/session.module.css";
 
@@ -45,11 +44,11 @@ export function WordExerciseScreen() {
   useEffect(() => {
     if (!live || !isWordExercise(type)) return;
     let alive = true;
-    void optionPool(OPTION_POOL).then((pool) => {
+    void wordSources(live.id).then((sources) => {
       if (!alive) return;
-      const exercise = buildWordExercise(live, type, pool, Math.random, voice);
+      const exercise = buildWordExercise(live, type, sources, Math.random, voice);
       if (!exercise) {
-        const status = wordExerciseOptions(live, pool, voice)[type];
+        const status = wordExerciseOptions(live, sources, voice)[type];
         setReason(status.available ? "" : status.reason);
         return setItem(null);
       }

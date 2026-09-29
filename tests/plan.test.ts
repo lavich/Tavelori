@@ -549,10 +549,10 @@ describe("дневной бюджет и состав занятия", () => {
     expect(session.items.every((item) => item.mode === "practice")).toBe(true);
   });
   it("варианты ответа уникальны, а при нехватке слов упражнение заменяется на сборку", async () => {
-    const options = optionsFor(pool[0], pool, "recognition", () => 0.5);
+    const options = optionsFor(pool[0], { close: [], pool }, "recognition", () => 0.5);
     expect(new Set(options).size).toBe(4);
     expect(options).toContain(pool[0].russian);
-    expect(optionsFor(pool[0], pool.slice(0, 3), "recognition", () => 0.5)).toEqual([]);
+    expect(optionsFor(pool[0], { close: [], pool: pool.slice(0, 3) }, "recognition", () => 0.5)).toEqual([]);
     const small = base({ words: pool.slice(0, 2), states: [learned(ids[0], "2026-09-14T08:00:00Z")] });
     expect((await sessionOf({ data: small, now, random: () => 0.5 })).items[0].type).not.toBe("recognition");
   });
