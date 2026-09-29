@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "fake-indexeddb/auto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -8,7 +8,9 @@ import { WordScreen } from "../src/features/words/WordScreen";
 import { SharedWordScreen } from "../src/features/words/SharedWordScreen";
 import { refreshCatalog, resetCatalogPhase, resetPreviews, useFetcher } from "../src/content/client";
 import { NO_SOUND } from "../src/domain/learning";
-import { db } from "../src/storage/db";
+import type { Word } from "../src/domain/types";
+import { db, indexWord } from "../src/storage/db";
+import { useWordExercises } from "../src/features/words/word-exercises";
 import { installLessons, memoryFetcher } from "./helpers/content";
 
 /** Здесь нет ни синтезатора, ни файлов звука: аудированию и пониманию на слух не на чем звучать. */
@@ -75,5 +77,55 @@ describe("блок «Упражнения» на экране слова", () =>
     await until(() => text().includes("Слово из урока"), "карточка по ссылке");
     expect(host.querySelector("[data-testid=word-exercises]")).toBeNull();
     expect(text()).not.toContain("Упражнения");
+  });
+});
+
+describe("доступность упражнений по соседям слова", () => {
+  const iso = "2026-09-15T09:00:00.000Z";
+  const w = (id: string, greek: string, russian: string): Word => ({
+    id,
+    greek,
+    russian,
+    ipa: "",
+    segments: [],
+    examples: [],
+    verified: false,
+    createdAt: iso,
+    updatedAt: iso,
+  });
+  // Словарь больше пула: пул берётся порциями. У всех слов вне урока один перевод, поэтому им вариантов не хватает.
+  const fillers = Array.from({ length: 50 }, (_, i) => w(`a${String(i).padStart(2, "0")}`, `το λέξη${i}`, "одно"));
+  const lesson = [
+    w("z0", "η γάτα", "кошка"),
+    w("z1", "ο σκύλος", "собака"),
+    w("z2", "το ψάρι", "рыба"),
+    w("z3", "το πουλί", "птица"),
+  ];
+  function Probe({ word }: { word: Word }) {
+    const options = useWordExercises(word);
+    return <output>{options ? `${word.id}:${options.recognition.available ? "да" : "нет"}` : "…"}</output>;
+  }
+  afterEach(() => vi.restoreAllMocks());
+
+  it("при переходе на другое слово доступность считается по его соседям, а не по соседям прошлого", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // пул — только первые слова по id, соседи урока в него не попадают
+    await db.words.bulkAdd([...fillers, ...lesson].map(indexWord));
+    await db.lessonItems.bulkAdd(
+      lesson.map((x, position) => ({
+        lessonId: "animals",
+        unitKey: JSON.stringify(["word", x.id]),
+        ref: { kind: "word" as const, id: x.id },
+        position,
+      })),
+    );
+    root = createRoot(host);
+    const show = (word: Word) => act(async () => root!.render(<Probe word={word} />));
+    await show(lesson[0]);
+    await until(() => text() === "z0:да", "узнавание слова урока");
+    await show(fillers[0]);
+    await until(() => text() !== "z0:да" && text() !== "…", "пересчёт для нового слова");
+    expect(text()).toBe("a00:нет");
+    await show(lesson[0]);
+    await until(() => text() === "z0:да", "возврат к слову урока");
   });
 });

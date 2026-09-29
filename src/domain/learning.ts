@@ -196,10 +196,14 @@ export interface SessionSource extends PlanSource {
   /** Компактная сводка навыков карточки: синхронизированная база плюс локальные ответы после неё. */
   skillsOf(card: SessionCard): Promise<SkillSummary>;
   optionPool(want: number): Promise<Word[]>;
+  /** Живые соседи слов по урокам в окне `LESSON_MATES_RADIUS` позиций, без самих слов. */
+  lessonMatesOf(wordIds: string[]): Promise<Map<string, Word[]>>;
   /** Ограниченный пул фраз для вариантов ответа; читается, только если в сессии есть фразы. */
   phrasePool(want: number): Promise<Phrase[]>;
 }
 export const OPTION_POOL = 48;
+/** Соседи по уроку — не дальше шести позиций в каждую сторону: близкие слова ограничены и в большом уроке. */
+export const LESSON_MATES_RADIUS = 6;
 const SCAN = 200;
 
 export interface PlanOptions {
@@ -523,18 +527,74 @@ export function shuffleTiles(parts: string[], random: () => number): string[] {
   }
   return [...parts.slice(1), parts[0]];
 }
-export function optionsFor(word: Word, pool: Word[], type: ExerciseType, random: () => number): string[] {
+/**
+ * Кандидаты в неверные варианты слова: близкие (соседи по уроку и слова занятия) и остальной пул словаря.
+ * Пул может случайно содержать близкие слова: они отсеиваются по id, чтобы не обойти потолок.
+ */
+export interface WordSources {
+  close: Word[];
+  pool: Word[];
+}
+/** Больше двух близких вариантов из трёх — и ответ находится по памяти о прошлых карточках занятия. */
+export const CLOSE_OPTIONS = 2;
+const normAnswer = (value: string) => value.normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase("el");
+const hasArticle = (word: Word) => !!splitWriting(word.greek).article;
+/**
+ * Три различных неверных ответа или `[]`, если их меньше трёх. Форма (есть ли артикль) важнее потолка
+ * близких слов, потолок важнее источника: близкие той же формы до потолка → словарь той же формы →
+ * близкие той же формы сверх потолка → то же для другой формы. Внутри группы порядок случайный.
+ */
+export function distractorsFor(word: Word, sources: WordSources, type: ExerciseType, random: () => number): string[] {
   const key = (w: Word) => (type === "recognition" ? w.russian : w.greek);
-  return optionsAmong(
-    word.id,
-    key(word),
-    pool.map((w) => [w.id, key(w)]),
-    random,
-  );
+  const own = normAnswer(key(word));
+  const form = hasArticle(word);
+  const closeIds = new Set(sources.close.map((w) => w.id));
+  // Ранг: 0 — близкие той же формы, 1 — словарь той же формы, 2 и 3 — то же другой формы.
+  // Совпадающий ответ входит во все свои группы и берётся той, до которой очередь дошла раньше:
+  // близкий той же формы сверх потолка уступает словарю той же формы, а близкий другой формы — ему же.
+  const groups = new Map<string, (string | undefined)[]>();
+  const consider = (w: Word, close: boolean) => {
+    const value = key(w);
+    const norm = value && normAnswer(value);
+    if (w.id === word.id || !norm || norm === own) return;
+    const rank = (hasArticle(w) === form ? 0 : 2) + (close ? 0 : 1);
+    const slots = groups.get(norm) ?? [];
+    slots[rank] ??= value;
+    groups.set(norm, slots);
+  };
+  for (const w of sources.close) consider(w, true);
+  for (const w of sources.pool) if (!closeIds.has(w.id)) consider(w, false);
+  if (groups.size < 3) return [];
+  const ranked: [string, string][][] = [[], [], [], []];
+  for (const [norm, slots] of groups)
+    slots.forEach((value, rank) => value !== undefined && ranked[rank].push([norm, value]));
+  const [closeSame, poolSame, closeOther, poolOther] = ranked.map((group) => shuffle(group, random));
+  const picked = new Map<string, string>();
+  let near = 0;
+  const take = (from: [string, string][], close: boolean, capped: boolean) => {
+    while (picked.size < 3 && from.length && !(capped && near >= CLOSE_OPTIONS)) {
+      const [norm, value] = from.shift()!;
+      if (picked.has(norm)) continue;
+      picked.set(norm, value);
+      if (close) near++;
+    }
+  };
+  take(closeSame, true, true);
+  take(poolSame, false, false);
+  take(closeSame, true, false);
+  take(closeOther, true, true);
+  take(poolOther, false, false);
+  take(closeOther, true, false);
+  return [...picked.values()];
+}
+/** Четыре варианта слова в случайном порядке: свой ответ и три неверных; `[]` — неверных меньше трёх. */
+export function optionsFor(word: Word, sources: WordSources, type: ExerciseType, random: () => number): string[] {
+  const wrong = distractorsFor(word, sources, type, random);
+  return wrong.length ? shuffle([type === "recognition" ? word.russian : word.greek, ...wrong], random) : [];
 }
 /** Четыре различных варианта: свой ответ и три чужих; совпадающие нормализованные ответы не считаются разными. */
 function optionsAmong(ownId: string, own: string, pool: [string, string][], random: () => number): string[] {
-  const norm = (value: string) => value.normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase("el");
+  const norm = normAnswer;
   const unique = [
     ...new Map(
       pool
@@ -611,11 +671,14 @@ export async function makeSession({
     chosen = shuffle([...taken, ...preview], random).slice(0, size);
   }
   const wanted = chosen.map((entry) => entry.ref);
-  const [cards, states, pool] = await Promise.all([
+  const wordIds = wanted.filter((ref) => ref.kind === "word").map((ref) => ref.id);
+  const [cards, states, pool, mates] = await Promise.all([
     source.cardsOf(wanted),
     source.statesOf(wanted),
     source.optionPool(OPTION_POOL),
+    source.lessonMatesOf(wordIds),
   ]);
+  const sessionWords = [...cards.values()].flatMap((card) => (card.kind === "word" ? [card.word] : []));
   // Пул фраз читается только когда в занятии есть фразы: словарная сессия не трогает таблицу фраз.
   const phrases = [...cards.values()].some((card) => card.kind === "phrase")
     ? await source.phrasePool(OPTION_POOL)
@@ -627,7 +690,8 @@ export async function makeSession({
     const card = cards.get(key);
     if (!card) continue;
     const skills = entry.isNew ? emptySkills() : await source.skillsOf(card);
-    const exercise = exerciseFor(card, { words: pool, phrases }, skills, random, hasVoice);
+    const words = card.kind === "word" ? closeSources(card.word.id, mates, sessionWords, pool) : NO_WORDS;
+    const exercise = exerciseFor(card, { words, phrases }, skills, random, hasVoice);
     if (!exercise) continue; // объективного упражнения нет: карточка остаётся для просмотра
     const origin = entry.isNew ? plan.origins.get(key) : undefined;
     items.push({
@@ -655,10 +719,22 @@ export async function makeSession({
   };
 }
 
-/** Пулы вариантов ответа. */
+/** Пулы вариантов ответа: для слова — его близкие слова и пул словаря, для фразы — пул фраз. */
 export interface OptionPools {
-  words: Word[];
+  words: WordSources;
   phrases: Phrase[];
+}
+export const NO_WORDS: WordSources = { close: [], pool: [] };
+/** Близкие слова карточки: соседи по урокам и остальные слова занятия. Порядок по id: Dexie и снимок отдают соседей по-разному. */
+export function closeSources(
+  wordId: string,
+  mates: Map<string, Word[]>,
+  sessionWords: Word[],
+  pool: Word[],
+): WordSources {
+  const close = new Map<string, Word>();
+  for (const word of [...(mates.get(wordId) ?? []), ...sessionWords]) if (word.id !== wordId) close.set(word.id, word);
+  return { close: [...close.values()].sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)), pool };
 }
 export type ExercisePools = OptionPools;
 /**
@@ -729,11 +805,11 @@ export const ONE_SYLLABLE = "В слове один слог — собират�
  * Данные слова для упражнений: варианты узнавания и аудирования, число слогов, есть ли звук.
  * Варианты подбираются в этом порядке: от него зависит поток `random` и воспроизводимость занятия.
  */
-function wordFacts(word: Word, pool: Word[], random: () => number, hasVoice: boolean) {
+function wordFacts(word: Word, sources: WordSources, random: () => number, hasVoice: boolean) {
   return {
     syllables: splitWriting(word.greek).syllables.length,
-    recognition: optionsFor(word, pool, "recognition", random),
-    listening: optionsFor(word, pool, "listening", random),
+    recognition: optionsFor(word, sources, "recognition", random),
+    listening: optionsFor(word, sources, "listening", random),
     sounds: !!word.audioAssetId || hasVoice,
   };
 }
@@ -760,20 +836,20 @@ function availabilityOf(facts: WordFacts): Record<WordExerciseType, ExerciseAvai
 /** Какие упражнения слово может получить по выбору пользователя: только данные слова и устройства, без навыков. */
 export function wordExerciseOptions(
   word: Word,
-  pool: Word[],
+  sources: WordSources,
   hasVoice: boolean,
 ): Record<WordExerciseType, ExerciseAvailability> {
-  return availabilityOf(wordFacts(word, pool, Math.random, hasVoice));
+  return availabilityOf(wordFacts(word, sources, Math.random, hasVoice));
 }
 /** Упражнение выбранного вида без учёта навыков; `null` — вид слову недоступен. */
 export function buildWordExercise(
   word: Word,
   type: WordExerciseType,
-  pool: Word[],
+  sources: WordSources,
   random: () => number = Math.random,
   hasVoice = false,
 ): Pick<SessionItem, "type" | "options"> | null {
-  const facts = wordFacts(word, pool, random, hasVoice);
+  const facts = wordFacts(word, sources, random, hasVoice);
   if (!availabilityOf(facts)[type].available) return null;
   if (type === "assembly") return assemblyExercise(word, random);
   return {
@@ -785,12 +861,12 @@ export function buildWordExercise(
 /** Варианты проверяем по уникальным ответам, а не только по размеру словаря. */
 export function objectiveExercise(
   word: Word,
-  pool: Word[],
+  sources: WordSources,
   skills: SkillSummary = emptySkills(),
   random: () => number = Math.random,
   hasVoice = false,
 ): Pick<SessionItem, "type" | "options"> {
-  const facts = wordFacts(word, pool, random, hasVoice);
+  const facts = wordFacts(word, sources, random, hasVoice);
   const type = chooseTypeFor(skills, contextOf(facts));
   if (type === "assembly") {
     const exercise = assemblyExercise(word, random);

@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import { State } from "ts-fsrs";
 import { db, isStandardWord, searchTokens, type LexiDatabase, type StoredWord } from "./db";
-import { addDays, localDay, type CardFacts, type SessionSource } from "../domain/learning";
+import { addDays, LESSON_MATES_RADIUS, localDay, type CardFacts, type SessionSource } from "../domain/learning";
 import { isShippedCard, unitKey, wordKeyOf, wordRef } from "../domain/refs";
 import {
   byTime,
@@ -211,6 +211,7 @@ export function dexieSource(database: LexiDatabase = db): SessionSource & StatsS
       return summarizeEvents(key, await eventsAfter(database, key, base.asOf), row?.skills ?? emptySkills());
     },
     optionPool: (want) => optionPool(want, database),
+    lessonMatesOf: (wordIds) => lessonMates(wordIds, database),
     phrasePool: (want) => phrasePool(want, database),
     daysBetween: async (from, to) => {
       const base = await database.baseSummary.get("base");
@@ -281,6 +282,41 @@ export async function optionPool(want: number, database: LexiDatabase = db): Pro
       if (!word.deletedAt) seen.set(word.id, word);
   }
   return [...seen.values()];
+}
+/**
+ * Соседи слов по урокам: слова не дальше `LESSON_MATES_RADIUS` позиций в каждом уроке слова. Позиции идут
+ * с пропусками, а фразы занимают их наравне со словами, поэтому соседей бывает и меньше: окно ограничивает
+ * чтение, а не обещает число слов. Читаются только ссылки окна и слова по id — не весь урок.
+ */
+export async function lessonMates(wordIds: string[], database: LexiDatabase = db): Promise<Map<string, Word[]>> {
+  const links = wordIds.length
+    ? await database.lessonItems.where("unitKey").anyOf(wordIds.map(wordKeyOf)).toArray()
+    : [];
+  const windows = await Promise.all(
+    links.map((link) =>
+      database.lessonItems
+        .where("[lessonId+position]")
+        .between(
+          [link.lessonId, link.position - LESSON_MATES_RADIUS],
+          [link.lessonId, link.position + LESSON_MATES_RADIUS],
+          true,
+          true,
+        )
+        .toArray(),
+    ),
+  );
+  const mateIds = new Map<string, Set<string>>();
+  links.forEach((link, i) => {
+    const ids = mateIds.get(link.ref.id) ?? new Set<string>();
+    for (const item of windows[i]) if (item.ref.kind === "word" && item.ref.id !== link.ref.id) ids.add(item.ref.id);
+    mateIds.set(link.ref.id, ids);
+  });
+  const all = [...new Set([...mateIds.values()].flatMap((ids) => [...ids]))];
+  const live = new Map<string, Word>();
+  for (const word of await database.words.bulkGet(all)) if (word && !word.deletedAt) live.set(word.id, word);
+  return new Map(
+    wordIds.map((id) => [id, [...(mateIds.get(id) ?? [])].flatMap((mate) => live.get(mate) ?? [])] as const),
+  );
 }
 /** Пул фраз для вариантов: те же правила, что у слов, — целиком для маленькой таблицы, порциями для большой. */
 export async function phrasePool(want: number, database: LexiDatabase = db): Promise<Phrase[]> {

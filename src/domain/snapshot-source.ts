@@ -1,4 +1,4 @@
-import { localDay, type CardFacts, type SessionSource } from "./learning";
+import { LESSON_MATES_RADIUS, localDay, type CardFacts, type SessionSource } from "./learning";
 import { itemOfLink, unitKey, wordRef } from "./refs";
 import { byTime, emptyStats, foldStats, summarizeEvents } from "./skills";
 import { scheduleCourses } from "./schedule";
@@ -123,6 +123,23 @@ export function fromSnapshot(data: Snapshot): SessionSource & StatsSource {
         data.events,
       ),
     optionPool: async () => liveWordIds.map((id) => words.get(id)!),
+    lessonMatesOf: async (wordIds) =>
+      new Map(
+        wordIds.map((id) => {
+          const mates = new Set<string>();
+          for (const link of items)
+            if (link.ref.kind === "word" && link.ref.id === id)
+              for (const item of items)
+                if (
+                  item.lessonId === link.lessonId &&
+                  item.ref.kind === "word" &&
+                  item.ref.id !== id &&
+                  Math.abs(item.position - link.position) <= LESSON_MATES_RADIUS
+                )
+                  mates.add(item.ref.id);
+          return [id, [...mates].flatMap((mate) => (isLive(wordRef(mate)) ? [words.get(mate)!] : []))] as const;
+        }),
+      ),
     phrasePool: async () => livePhrases,
     daysBetween: async (from, to) =>
       byTime(data.events.filter((event) => event.localDate >= from && event.localDate <= to)).reduce(

@@ -1,13 +1,15 @@
 import Dexie from "dexie";
 import { db, ensureLocalCourse, indexWord, type LexiDatabase } from "./db";
-import { optionPool, phrasePool } from "./queries";
+import { lessonMates, optionPool, phrasePool } from "./queries";
 import {
+  closeSources,
   easierExercise,
   exerciseFor,
   gradeFor,
   hasEasierStep,
   localDay,
   nextState,
+  NO_WORDS,
   OPTION_POOL,
   spaceSingleIntroduction,
 } from "../domain/learning";
@@ -82,7 +84,7 @@ export async function recordAnswer({
   // «Почти» приходит только из проверок с вводом текста; у заданий с выбором исход задаёт сам `correct`.
   const rating = gradeFor(status ?? (correct ? "correct" : "wrong"), item.type, responseTimeMs);
   // Ступень проще считается до транзакции: иначе запись пришлось бы расширить на таблицы слов и фраз.
-  const easier = correct ? null : await easierRetry(item, database);
+  const easier = correct ? null : await easierRetry(item, session, database);
   const eventId = `e-${item.id}`;
   const result = await database.transaction(
     "rw",
@@ -155,14 +157,36 @@ export async function recordAnswer({
  */
 async function easierRetry(
   item: SessionItem,
+  session: Session,
   database: LexiDatabase,
 ): Promise<Pick<SessionItem, "type" | "options"> | null> {
   if (!hasEasierStep(item.type)) return null;
-  const pools = {
-    words: item.card.kind === "word" ? await optionPool(OPTION_POOL, database) : [],
-    phrases: item.card.kind === "phrase" ? await phrasePool(OPTION_POOL, database) : [],
-  };
-  return easierExercise(item.card, item.type, pools);
+  const card = item.card;
+  const pools =
+    card.kind === "word"
+      ? {
+          words: await wordSourcesOf(card.word.id, session, database),
+          phrases: [],
+        }
+      : { words: NO_WORDS, phrases: await phrasePool(OPTION_POOL, database) };
+  return easierExercise(card, item.type, pools);
+}
+/**
+ * Живые слова занятия: в элементах лежат снимки на момент сборки, поэтому слова перечитываются по id,
+ * а удалённые с тех пор отбрасываются.
+ */
+async function liveSessionWords(session: Session, database: LexiDatabase): Promise<Word[]> {
+  const ids = [...new Set(session.items.flatMap((item) => (item.card.kind === "word" ? [item.card.word.id] : [])))];
+  return (await database.words.bulkGet(ids)).flatMap((word) => (word && !word.deletedAt ? [word] : []));
+}
+/** Источники вариантов слова в занятии: соседи по урокам, живые слова занятия и пул словаря. */
+async function wordSourcesOf(wordId: string, session: Session, database: LexiDatabase) {
+  const [mates, sessionWords, pool] = await Promise.all([
+    lessonMates([wordId], database),
+    liveSessionWords(session, database),
+    optionPool(OPTION_POOL, database),
+  ]);
+  return closeSources(wordId, mates, sessionWords, pool);
 }
 
 /**
@@ -400,18 +424,27 @@ export async function saveCourseTempo(
 
 /** Старые неотвеченные recall заменяются один раз, история остаётся неизменной. */
 export async function prepareObjectiveSession(id: string, database: LexiDatabase = db): Promise<void> {
+  // Соседи по урокам читаются до транзакции: так её область не расширяется на связи уроков.
+  const before = await database.sessions.get(id);
+  if (!before || before.objectiveVersion === 1) return;
+  const wordIds = before.items.flatMap((item) => (item.card.kind === "word" ? [item.card.word.id] : []));
+  const [mates, sessionWords] = await Promise.all([lessonMates(wordIds, database), liveSessionWords(before, database)]);
   await database.transaction("rw", database.sessions, database.words, database.phrases, async () => {
     const session = await database.sessions.get(id);
     if (!session || session.objectiveVersion === 1) return;
-    const pools = {
-      words: await optionPool(OPTION_POOL, database),
-      phrases: session.items.some((item) => item.card.kind === "phrase") ? await phrasePool(OPTION_POOL, database) : [],
-    };
+    const pool = await optionPool(OPTION_POOL, database);
+    const phrases = session.items.some((item) => item.card.kind === "phrase")
+      ? await phrasePool(OPTION_POOL, database)
+      : [];
+    const poolsOf = (item: SessionItem) => ({
+      words: item.card.kind === "word" ? closeSources(item.card.word.id, mates, sessionWords, pool) : NO_WORDS,
+      phrases,
+    });
     const items = session.items.map((item) =>
       item.type === "recall" && !item.eventId
         ? {
             ...item,
-            ...(exerciseFor(item.card, pools, emptySkills(), Math.random, false) ?? {
+            ...(exerciseFor(item.card, poolsOf(item), emptySkills(), Math.random, false) ?? {
               type: "spelling" as const,
               options: [],
             }),
