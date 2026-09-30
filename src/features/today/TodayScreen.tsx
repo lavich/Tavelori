@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ItemGroup } from "@/components/ui/item";
 import { Screen } from "../../app/Screen";
 import { localDay } from "../../domain/learning";
+import { unitKey } from "../../domain/refs";
 import { byTargetDate, preparedByCourse } from "../../domain/schedule";
 import { useAction } from "../../shared/action";
 import { useNow } from "../../shared/clock";
@@ -45,6 +46,9 @@ export function TodayScreen() {
   // Очередь пуста: план дня выполнен или карточки ещё не подошли. Вместо «Начать занятие» — тренировка урока.
   const idle = !!plan && !unfinished && !plan.newRefs.length && !plan.reviews.length && !plan.preview.length;
   const drill = lesson ?? last ?? lessons[0];
+  // Сколько из сегодняшних новых — к ближайшему занятию: заголовок и панель говорят об одном числе.
+  const forLesson =
+    (next && plan?.newRefs.filter((ref) => plan.origins.get(unitKey(ref))?.lessonId === next.lessonId).length) || 0;
 
   const multi = (plan?.courses ?? []).filter((item) => item.newRefs.length);
   const split =
@@ -151,13 +155,20 @@ export function TodayScreen() {
                   </CardDescription>
                   <CardTitle className="text-2xl font-bold [overflow-wrap:anywhere]">{lesson.title}</CardTitle>
                   <CardDescription className="text-foreground/75">
-                    {withCount(next.newLeft, CARDS)} ·{" "}
-                    {next.daysLeft === 0 ? "сегодня день занятия" : `${withCount(next.daysLeft, DAYS)} на подготовку`}
+                    {forLesson && forLesson < next.newLeft
+                      ? `Сегодня ${forLesson} из ${withCount(next.newLeft, CARDS)}`
+                      : forLesson
+                        ? `Сегодня все ${withCount(next.newLeft, CARDS)}`
+                        : withCount(next.newLeft, CARDS)}{" "}
+                    · {next.daysLeft === 0 ? "сегодня день занятия" : `${withCount(next.daysLeft, DAYS)} на подготовку`}
                   </CardDescription>
                 </div>
                 <ChevronRight className="shrink-0 text-accent-foreground" />
               </div>
-              {!!lesson.cardCount && lesson.progress && <LessonProgressBar progress={lesson.progress} />}
+              {/* Полоса появляется, когда в уроке есть что-то освоенное: пустая дорожка с «36 новых» лишь повторяла число выше. */}
+              {!!lesson.cardCount && lesson.progress && lesson.progress.solid + lesson.progress.review > 0 && (
+                <LessonProgressBar progress={lesson.progress} onSoft />
+              )}
             </CardHeader>
           </Card>
         </Link>

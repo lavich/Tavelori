@@ -71,7 +71,8 @@ export function LessonRow({ lesson, next }: { lesson: LessonView; next?: boolean
 }
 
 /** Полоса освоенности и её подпись: общая для строки урока и панели ближайшего занятия на «Сегодня». */
-export function LessonProgressBar({ progress }: { progress: LessonProgress }) {
+/** `onSoft` — полоса на синей подложке: подпись чернилами, серый на синем не держит контраст 4.5:1. */
+export function LessonProgressBar({ progress, onSoft = false }: { progress: LessonProgress; onSoft?: boolean }) {
   const text = progressText(progress);
   const fill = progressFill(progress);
   return (
@@ -99,7 +100,11 @@ export function LessonProgressBar({ progress }: { progress: LessonProgress }) {
             ),
         )}
       </div>
-      <div aria-hidden="true" className="text-xs text-muted-foreground" data-testid="lesson-progress">
+      <div
+        aria-hidden="true"
+        className={`text-xs ${onSoft ? "text-foreground/75" : "text-muted-foreground"}`}
+        data-testid="lesson-progress"
+      >
         {text}
       </div>
     </>
