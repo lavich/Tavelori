@@ -112,8 +112,8 @@ export function TodayScreen() {
       <Screen>
         <h1 data-testid="today-title">{headline()}</h1>
         <div aria-busy="true" aria-label="План дня загружается" className="grid gap-3">
-          <Skeleton className="h-[150px] rounded-[var(--radius-card)] motion-reduce:animate-none" />
           <Skeleton className="h-[54px] rounded-[14px] motion-reduce:animate-none" />
+          <Skeleton className="h-[150px] rounded-[var(--radius-card)] motion-reduce:animate-none" />
         </div>
       </Screen>
     );
@@ -147,6 +147,31 @@ export function TodayScreen() {
           )}
         </p>
       )}
+
+      {/* Главное действие — сразу под объёмом дня: его место не зависит от панели и заметок ниже. */}
+      <div className="mb-4 grid">
+        {idle && drill ? (
+          <>
+            <p className={`${ui.note} mb-2.5`} data-testid="day-done">
+              {verdict} Тренировка урока не сдвигает интервалы повторений.
+            </p>
+            <Button size="xl" onClick={practice} disabled={busy}>
+              <Dumbbell data-icon="inline-start" />
+              Потренировать {lessonIn(drill.title, "урок")}
+            </Button>
+          </>
+        ) : (
+          <Button size="xl" onClick={begin} disabled={busy || !ready}>
+            {unfinished ? "Продолжить тренировку" : "Начать тренировку"}
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        )}
+        {problem && (
+          <p className={ui.error} role="alert">
+            {problem}
+          </p>
+        )}
+      </div>
 
       {next && lesson ? (
         <Link to={`/lessons/${lesson.id}`} className="mb-3 block rounded-[var(--radius-card)] no-underline">
@@ -198,27 +223,6 @@ export function TodayScreen() {
         </Link>
       )}
 
-      {idle && drill ? (
-        <>
-          <p className={`${ui.note} mb-2.5`} data-testid="day-done">
-            {verdict} Тренировка урока не сдвигает интервалы повторений.
-          </p>
-          <Button size="xl" onClick={practice} disabled={busy}>
-            <Dumbbell data-icon="inline-start" />
-            Потренировать {lessonIn(drill.title, "урок")}
-          </Button>
-        </>
-      ) : (
-        <Button size="xl" onClick={begin} disabled={busy || !ready}>
-          {unfinished ? "Продолжить тренировку" : "Начать тренировку"}
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      )}
-      {problem && (
-        <p className={ui.error} role="alert">
-          {problem}
-        </p>
-      )}
       {plan && <DayNotes plan={plan} now={now} />}
 
       {!!around.length && <h2>Уроки рядом</h2>}

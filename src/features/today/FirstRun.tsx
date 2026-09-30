@@ -67,7 +67,7 @@ export function FirstRun({ courses, entries }: { courses: Course[]; entries: Sto
           </Button>
         </div>
       ) : (
-        <p className={ui.hint}>Уроки загрузятся на устройство; расписание занятий можно задать потом.</p>
+        <p className={`${ui.note} mt-2.5`}>Уроки загрузятся на устройство; расписание занятий можно задать потом.</p>
       )}
       <Link to="/lessons" className={cn(buttonVariants({ variant: "soft", size: "md" }), "mt-4")}>
         <BookOpen data-icon="inline-start" />
