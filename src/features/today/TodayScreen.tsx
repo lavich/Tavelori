@@ -138,7 +138,7 @@ export function TodayScreen() {
                       ? "Занятие сегодня"
                       : `К ${dativeWeekday(next.targetDate)}, ${dayMonth(next.targetDate)}`}
                   </CardDescription>
-                  <CardTitle className="text-2xl font-bold">{lesson.title}</CardTitle>
+                  <CardTitle className="text-2xl font-bold [overflow-wrap:anywhere]">{lesson.title}</CardTitle>
                   <CardDescription className="text-foreground/75">
                     {withCount(next.newLeft, CARDS)} ·{" "}
                     {next.daysLeft === 0 ? "сегодня день занятия" : `${withCount(next.daysLeft, DAYS)} на подготовку`}

@@ -129,6 +129,14 @@
   #root {
     height: 100%;
   }
+  /*
+   * Фокус с клавиатуры не должен прятаться под липкой шапкой и нижней навигацией (WCAG 2.4.11):
+   * прокрутка к элементу оставляет место под обе полосы. Навигация — 60px ссылок и граница 1px.
+   */
+  html {
+    scroll-padding-top: calc(72px + var(--inset-top));
+    scroll-padding-bottom: calc(61px + 12px + var(--inset-bottom));
+  }
   body {
     margin: 0;
     background: var(--background);

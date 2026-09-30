@@ -48,3 +48,29 @@ test("нехватка предела: решение под кнопкой за
   await expect(shortfall).toHaveCount(0);
   await expect(page.getByTestId("today-title")).not.toHaveText("1 новая карточка");
 });
+
+test("фокус с клавиатуры не прячется под нижней навигацией", async ({ page }) => {
+  await page.goto("/");
+  await ready(page);
+  await installLessons(page, ["lesson-1-1"]);
+  // Длинный список «Уроков»: строки каталога уходят ниже навигации, и Tab доходит до них.
+  await page.getByRole("navigation").getByRole("link", { name: "Уроки" }).click();
+  await page.getByRole("heading", { name: "Уроки", level: 1 }).waitFor();
+  const navTop = await page.getByRole("navigation").evaluate((nav) => nav.getBoundingClientRect().top);
+  const focusedBottom = () =>
+    page.evaluate(() => {
+      const active = document.activeElement;
+      return active && !active.closest("nav") && active !== document.body
+        ? active.getBoundingClientRect().bottom
+        : null;
+    });
+  let checked = 0;
+  for (let step = 0; step < 40; step++) {
+    await page.keyboard.press("Tab");
+    if ((await focusedBottom()) === null) continue;
+    checked++;
+    // Докрутка к фокусу идёт на следующем кадре после перехода.
+    await expect.poll(async () => (await focusedBottom()) ?? 0).toBeLessThanOrEqual(navTop);
+  }
+  expect(checked).toBeGreaterThan(10);
+});
