@@ -42,7 +42,7 @@ test("работает без сети после закрытия страни�
   await context.setOffline(true);
   const offlinePage = await context.newPage();
   await offlinePage.goto("/");
-  await expect(offlinePage.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+  await expect(offlinePage.getByTestId("today-title")).toBeVisible();
   await offlinePage.getByRole("navigation").getByRole("link", { name: "Слова" }).click();
   await offlinePage.getByRole("searchbox").fill("σπίτι");
   await offlinePage.getByRole("link", { name: /το σπίτι/ }).click();

@@ -51,8 +51,6 @@ export function LessonRow({ lesson, next }: { lesson: LessonView; next?: boolean
   const progress = lesson.cardCount ? lesson.progress : undefined;
   // «Карточки» — там, где объединяются виды; словарный урок по-прежнему считает слова.
   const composition = lesson.phraseCount ? withCount(lesson.cardCount, CARDS) : withCount(lesson.wordCount, WORDS);
-  const text = progress ? progressText(progress) : "";
-  const fill = progress && progressFill(progress);
   return (
     <Item variant="row" render={<Link to={`/lessons/${lesson.id}`} />}>
       <ItemMedia variant="icon">
@@ -63,40 +61,47 @@ export function LessonRow({ lesson, next }: { lesson: LessonView; next?: boolean
         <ItemDescription>
           {composition} · {note}
         </ItemDescription>
-        {progress && (
-          <>
-            <div role="img" aria-label={`Освоено ${fill!.percent}% · ${text}`} className={styles.bar}>
-              {(
-                [
-                  ["solid", fill!.solid],
-                  ["review", fill!.review],
-                  ["rest", fill!.rest],
-                ] as const
-              ).map(
-                ([key, share]) =>
-                  !!share && (
-                    <span
-                      key={key}
-                      className={styles[key]}
-                      style={{ flexGrow: share }}
-                      title={
-                        key === "rest"
-                          ? `Осталось освоить ${100 - fill!.percent}%`
-                          : withCount(progress[key], [...GROUPS.find(([name]) => name === key)![1]])
-                      }
-                    />
-                  ),
-              )}
-            </div>
-            <div aria-hidden="true" className="text-xs text-muted-foreground" data-testid="lesson-progress">
-              {text}
-            </div>
-          </>
-        )}
+        {progress && <LessonProgressBar progress={progress} />}
       </ItemContent>
       <ItemActions>
         <ChevronRight className="text-muted-foreground" />
       </ItemActions>
     </Item>
+  );
+}
+
+/** Полоса освоенности и её подпись: общая для строки урока и панели ближайшего занятия на «Сегодня». */
+export function LessonProgressBar({ progress }: { progress: LessonProgress }) {
+  const text = progressText(progress);
+  const fill = progressFill(progress);
+  return (
+    <>
+      <div role="img" aria-label={`Освоено ${fill.percent}% · ${text}`} className={styles.bar}>
+        {(
+          [
+            ["solid", fill.solid],
+            ["review", fill.review],
+            ["rest", fill.rest],
+          ] as const
+        ).map(
+          ([key, share]) =>
+            !!share && (
+              <span
+                key={key}
+                className={styles[key]}
+                style={{ flexGrow: share }}
+                title={
+                  key === "rest"
+                    ? `Осталось освоить ${100 - fill.percent}%`
+                    : withCount(progress[key], [...GROUPS.find(([name]) => name === key)![1]])
+                }
+              />
+            ),
+        )}
+      </div>
+      <div aria-hidden="true" className="text-xs text-muted-foreground" data-testid="lesson-progress">
+        {text}
+      </div>
+    </>
   );
 }

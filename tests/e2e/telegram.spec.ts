@@ -15,7 +15,7 @@ test.describe("запуск внутри Telegram", () => {
     await expect(dialog).toContainText("Номер телефона, доступ к сообщениям и отдельный аккаунт не нужны");
     await dialog.getByRole("button", { name: "Понятно" }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+    await expect(page.getByTestId("today-title")).toBeVisible();
     const calls = await tg(page).calls();
     expect(calls).toContain("ready");
     expect(calls).toContain("expand");
@@ -24,13 +24,13 @@ test.describe("запуск внутри Telegram", () => {
     await expect(page.locator("header")).toHaveCount(0); // бренд и бургер не дублируют шапку клиента
     await expect(page.getByRole("navigation").getByRole("link", { name: "Ещё" })).toBeVisible(); // «Ещё» остаётся в нижней навигации
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+    await expect(page.getByTestId("today-title")).toBeVisible();
     await expect(page.getByRole("alertdialog")).toHaveCount(0); // сообщение первого запуска не повторяется
   });
   test("обычный браузер не ждёт Telegram, не показывает вход и хранит данные в этом браузере", async ({ page }) => {
     await page.route("https://telegram.org/**", (route) => route.abort());
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+    await expect(page.getByTestId("today-title")).toBeVisible();
     expect(await page.locator("html").getAttribute("data-platform")).toBe("web");
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await page.getByRole("navigation").getByRole("link", { name: "Ещё" }).click();
@@ -45,7 +45,7 @@ test.describe("запуск внутри Telegram", () => {
     await page.goto(`/${launchHash({})}`);
     await page.getByRole("alertdialog").getByRole("button", { name: "Понятно" }).click();
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+    await expect(page.getByTestId("today-title")).toBeVisible();
     await page.getByRole("navigation").getByRole("link", { name: "Уроки" }).click();
     await expect(page.getByRole("button", { name: "Назад" })).toHaveCount(0);
     await page.getByRole("link", { name: /1\.2/ }).click();
@@ -81,7 +81,7 @@ test.describe("навигация, тема и размеры", () => {
     await page.goto("/more/stats");
     await expect(page.getByRole("heading", { name: "Статистика" })).toBeVisible();
     await bridge.back();
-    await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+    await expect(page.getByTestId("today-title")).toBeVisible();
     // Из занятия: принятый ответ сохранён, выход через BackButton, продолжение после перезагрузки.
     await onlyReviews(page);
     await seedQueue(
@@ -104,7 +104,7 @@ test.describe("навигация, тема и размеры", () => {
     await expect(page.getByTestId("prompt").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Далее", exact: true })).toHaveCount(0); // продолжаем со следующего упражнения
     await bridge.back(); // нативный «Назад» = существующий выход из занятия
-    await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+    await expect(page.getByTestId("today-title")).toBeVisible();
     await expect(page.getByRole("button", { name: /Начать занятие/ })).toBeVisible();
     const events = await page.evaluate(async () => {
       const request = indexedDB.open("lexi-tg-TaveloriBot-1001");
@@ -159,7 +159,7 @@ test.describe("навигация, тема и размеры", () => {
     expect(await page.locator("html").getAttribute("data-launch-mode")).toBe("fullscreen");
     const main = page.locator("main").first();
     await expect.poll(() => main.evaluate((node) => parseFloat(getComputedStyle(node).paddingTop))).toBe(12 + 47 + 46);
-    const heading = await page.getByRole("heading", { name: "Немного каждый день" }).boundingBox();
+    const heading = await page.getByTestId("today-title").boundingBox();
     expect(heading!.y).toBeGreaterThanOrEqual(93);
     // Пользователь свернул из полного экрана: отступ уходит вместе с кнопками клиента.
     await tg(page).setFullscreen(false, 0, 0);
@@ -181,7 +181,7 @@ test.describe("навигация, тема и размеры", () => {
     expect(bar!.y + bar!.height).toBeLessThanOrEqual(47 + 46);
     expect(bar!.x).toBeGreaterThanOrEqual(390 * 0.26 - 1);
     await tg(page).back();
-    await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+    await expect(page.getByTestId("today-title")).toBeVisible();
   });
   test("экран результата во весь экран начинается ниже системной строки и кнопок клиента", async ({ page }) => {
     await openTelegram(page, { noCloud: true, fullscreen: true, safeTop: 47, contentTop: 46 });
@@ -335,7 +335,7 @@ test.describe("навигация, тема и размеры", () => {
     await expect
       .poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor))
       .toBe("rgb(23, 33, 43)"); // тема перечитана по visibilitychange
-    await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+    await expect(page.getByTestId("today-title")).toBeVisible();
   });
   test("отказ хранилища после сна (WebKit): экран восстанавливается без перезагрузки на том же разделе, повторный сбой даёт экран с перезапуском", async ({
     page,
@@ -393,7 +393,8 @@ test.describe("аудио, копии и облако", () => {
     await page.getByRole("button", { name: "Продолжить без аудио" }).click();
     await expect(
       page
-        .getByRole("heading", { name: /Занятие завершено|Немного каждый день/ })
+        .getByRole("heading", { name: "Занятие завершено" })
+        .or(page.getByTestId("today-title"))
         .or(page.getByTestId("prompt").first()),
     ).toBeVisible();
     const events = await page.evaluate(async () => {
@@ -448,7 +449,7 @@ test.describe("аудио, копии и облако", () => {
     const clean = await browser.newContext();
     const web = await clean.newPage();
     await web.goto("/");
-    await web.waitForSelector("text=Немного каждый день");
+    await web.waitForSelector("[data-testid=today-title]");
     await web.goto("/more/backup");
     await web.locator("#backup").setInputFiles(path!);
     await expect(web.getByText(/Файл проверен: база «lexi-tg-TaveloriBot-1001»/)).toBeVisible();
@@ -509,8 +510,9 @@ test.describe("аудио, копии и облако", () => {
         { timeout: 20000 },
       )
       .toBe(2);
-    await tablet.goto("/");
-    await expect(tablet.getByRole("link", { name: /1\.1/ })).toBeVisible(); // пакет догружен из каталога
+    await tablet.goto("/lessons");
+    // Пакет догружен из каталога: строка урока, а не строка «не загружен».
+    await expect(tablet.getByRole("link", { name: /^1\.1 · (?!не загружен)/ })).toBeVisible();
     await second.close();
     // Другой аккаунт на том же устройстве: пустой профиль, чужие данные не показываются и не уходят в его облако.
     const third = await browser.newContext({ viewport: { width: 390, height: 844 } });

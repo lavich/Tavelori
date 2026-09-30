@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 
 test("оболочка открывается, разделы доступны с клавиатуры", async ({ page }) => {
   await useSchedule(page);
-  await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+  await expect(page.getByTestId("today-title")).toBeVisible();
   await expect(page.getByText("Урок 1.2")).toBeVisible();
   await page.getByRole("navigation").getByRole("link", { name: "Слова" }).click();
   await expect(page.getByRole("heading", { name: "Слова" })).toBeVisible();
@@ -153,7 +153,7 @@ test("занятие: знакомство, четыре упражнения, �
   const recorded = await page.getByText(/Всего записано/).innerText();
   expect(recorded).not.toContain("Всего записано 0");
   // Новые слова занятия были из урока 1.2: его строка прогресса больше не «30 новых».
-  await page.getByRole("navigation").getByRole("link", { name: "Сегодня" }).click();
+  await page.getByRole("navigation").getByRole("link", { name: "Уроки" }).click();
   await expect(page.getByRole("link", { name: /1\.2 ·/ })).toContainText("в повторении");
   await expect(page.getByRole("link", { name: /1\.2 ·/ })).not.toContainText("30 новых");
 });

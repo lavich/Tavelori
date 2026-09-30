@@ -141,7 +141,7 @@ export async function seedQueue(page: Page, plan: DuePlan[], databaseName = "lex
   await page.reload();
   await ready(page);
 }
-export const ready = (page: Page) => page.waitForSelector("text=Немного каждый день");
+export const ready = (page: Page) => page.waitForSelector("[data-testid=today-title]");
 /**
  * Поставка не несёт дат занятий, поэтому сценарию, которому нужны проведённый и ближайший урок,
  * приходится задать расписание курса — ровно так, как это делает пользователь. Первое занятие

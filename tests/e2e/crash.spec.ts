@@ -28,7 +28,7 @@ test("база не открывается при запуске: вместо �
   await expect(screen).toContainText("Не удалось открыть данные");
   await expect(screen.getByRole("button", { name: "Перезапустить" })).toBeVisible();
   await expect(screen.getByRole("button", { name: "Скопировать диагностику" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Немного каждый день" })).toHaveCount(0);
+  await expect(page.getByTestId("today-title")).toHaveCount(0);
 });
 
 test("падение во время занятия: экран сбоя с перезапуском, после перезапуска «Сегодня» предлагает продолжить занятие", async ({
