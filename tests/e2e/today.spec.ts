@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { installLessons, ready, setCourseLimit } from "./helpers";
+import { installLessons, ready, setCourseLimit, useSchedule } from "./helpers";
 
 test("первый запуск: «Учить курс» на «Сегодня» сразу даёт карточки на сегодня", async ({ page }) => {
   await page.goto("/");
@@ -29,4 +29,22 @@ test("пустая очередь: «На сегодня всё» и трени�
   await page.getByRole("button", { name: "Потренировать урок 1.1" }).click();
   await page.waitForURL("**/session");
   await expect(page.getByTestId("prompt").first()).toBeVisible();
+});
+
+test("нехватка предела: решение под кнопкой занятия, предел поднимается на месте", async ({ page }) => {
+  await page.goto("/");
+  await ready(page);
+  await installLessons(page, ["lesson-1-1"]);
+  await setCourseLimit(page, "leeke", 1);
+  await useSchedule(page, "leeke", "lexi", 2);
+  const shortfall = page.getByTestId("shortfall");
+  await expect(shortfall).toContainText(/Чтобы успеть к сроку, нужно \d+ карточ/);
+  await expect(shortfall).toContainText("Дневной предел курса «Греческий A2» — 1.");
+  // Кнопка занятия стоит выше справки: план сначала, объяснения потом.
+  const cta = await page.getByRole("button", { name: /Начать занятие/ }).boundingBox();
+  expect(cta!.y).toBeLessThan((await shortfall.boundingBox())!.y);
+  await expect(shortfall.getByRole("link", { name: "Перенести дату урока 1.1" })).toBeVisible();
+  await shortfall.getByRole("button", { name: /^Поднять предел до \d+$/ }).click();
+  await expect(shortfall).toHaveCount(0);
+  await expect(page.getByTestId("today-title")).not.toHaveText("1 новая карточка");
 });
