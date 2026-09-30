@@ -16,7 +16,7 @@ const stubVoice = `
 test("слово и пример употребления озвучиваются системным греческим голосом", async ({ page }) => {
   await page.addInitScript(stubVoice);
   await page.goto("/");
-  await page.waitForSelector("text=Немного каждый день");
+  await page.waitForSelector("[data-testid=today-title]");
   await installLessons(page, ["lesson-1-2"]);
   await page.getByRole("navigation").getByRole("link", { name: "Слова" }).click();
   await page.getByRole("searchbox").fill("σπίτι");
@@ -37,7 +37,7 @@ test("без греческого голоса озвучка предложен
   getVoices:()=>[],speak(){},cancel(){},addEventListener(){},removeEventListener(){},
  }});`);
   await page.goto("/");
-  await page.waitForSelector("text=Немного каждый день");
+  await page.waitForSelector("[data-testid=today-title]");
   await installLessons(page, ["lesson-1-2"]);
   await page.goto("/words");
   await page.getByRole("searchbox").fill("σπίτι");

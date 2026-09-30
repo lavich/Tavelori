@@ -377,6 +377,6 @@ test("внутри Telegram: возврат из свёрнутого клиен
   }
   await expect(page.getByTestId("feedback").or(page.locator("[data-answer]").first())).toBeVisible();
   await bridge.back();
-  await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+  await expect(page.getByTestId("today-title")).toBeVisible();
   expect((await readTable(page, "events", TG_DB)).filter((row) => row.ref.kind === "phrase")).toHaveLength(1);
 });

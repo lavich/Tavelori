@@ -1,0 +1,589 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-29T18:01:38.775Z",
+  "title": "Design System: Lexi (Tavelori)",
+  "extensions": {
+    "colorMeta": {
+      "aegean-blue": {
+        "role": "primary",
+        "displayName": "Aegean Blue",
+        "canonical": "#0d5eaf",
+        "oklch": "oklch(48.4% 0.147 254.1)",
+        "tonalRamp": [
+          "oklch(15% 0.147 254.1)",
+          "oklch(26% 0.147 254.1)",
+          "oklch(37% 0.147 254.1)",
+          "oklch(48% 0.147 254.1)",
+          "oklch(60% 0.147 254.1)",
+          "oklch(72% 0.147 254.1)",
+          "oklch(84% 0.147 254.1)",
+          "oklch(95% 0.04 254.1)"
+        ]
+      },
+      "aegean-blue-deep": {
+        "role": "primary",
+        "displayName": "Aegean Blue Deep",
+        "canonical": "#0a4c8e",
+        "oklch": "oklch(41.8% 0.125 253.9)",
+        "tonalRamp": [
+          "oklch(15% 0.125 253.9)",
+          "oklch(26% 0.125 253.9)",
+          "oklch(37% 0.125 253.9)",
+          "oklch(48% 0.125 253.9)",
+          "oklch(60% 0.125 253.9)",
+          "oklch(72% 0.125 253.9)",
+          "oklch(84% 0.125 253.9)",
+          "oklch(95% 0.04 253.9)"
+        ]
+      },
+      "aegean-mist": {
+        "role": "primary",
+        "displayName": "Aegean Mist",
+        "canonical": "#e8effd",
+        "oklch": "oklch(95.1% 0.02 264.5)",
+        "tonalRamp": [
+          "oklch(15% 0.02 264.5)",
+          "oklch(26% 0.02 264.5)",
+          "oklch(37% 0.02 264.5)",
+          "oklch(48% 0.02 264.5)",
+          "oklch(60% 0.02 264.5)",
+          "oklch(72% 0.02 264.5)",
+          "oklch(84% 0.02 264.5)",
+          "oklch(95% 0.02 264.5)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#f7f7f5",
+        "oklch": "oklch(97.6% 0.003 106.4)",
+        "tonalRamp": [
+          "oklch(15% 0.003 106.4)",
+          "oklch(26% 0.003 106.4)",
+          "oklch(37% 0.003 106.4)",
+          "oklch(48% 0.003 106.4)",
+          "oklch(60% 0.003 106.4)",
+          "oklch(72% 0.003 106.4)",
+          "oklch(84% 0.003 106.4)",
+          "oklch(95% 0.003 106.4)"
+        ]
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Sheet White",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100% 0 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0 89.9)",
+          "oklch(26% 0 89.9)",
+          "oklch(37% 0 89.9)",
+          "oklch(48% 0 89.9)",
+          "oklch(60% 0 89.9)",
+          "oklch(72% 0 89.9)",
+          "oklch(84% 0 89.9)",
+          "oklch(95% 0 89.9)"
+        ]
+      },
+      "stone": {
+        "role": "neutral",
+        "displayName": "Stone",
+        "canonical": "#f0f0ec",
+        "oklch": "oklch(95.4% 0.005 106.5)",
+        "tonalRamp": [
+          "oklch(15% 0.005 106.5)",
+          "oklch(26% 0.005 106.5)",
+          "oklch(37% 0.005 106.5)",
+          "oklch(48% 0.005 106.5)",
+          "oklch(60% 0.005 106.5)",
+          "oklch(72% 0.005 106.5)",
+          "oklch(84% 0.005 106.5)",
+          "oklch(95% 0.005 106.5)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#171717",
+        "oklch": "oklch(20.5% 0 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0 89.9)",
+          "oklch(26% 0 89.9)",
+          "oklch(37% 0 89.9)",
+          "oklch(48% 0 89.9)",
+          "oklch(60% 0 89.9)",
+          "oklch(72% 0 89.9)",
+          "oklch(84% 0 89.9)",
+          "oklch(95% 0 89.9)"
+        ]
+      },
+      "hint-gray": {
+        "role": "neutral",
+        "displayName": "Hint Gray",
+        "canonical": "#6b7280",
+        "oklch": "oklch(55.1% 0.023 264.4)",
+        "tonalRamp": [
+          "oklch(15% 0.023 264.4)",
+          "oklch(26% 0.023 264.4)",
+          "oklch(37% 0.023 264.4)",
+          "oklch(48% 0.023 264.4)",
+          "oklch(60% 0.023 264.4)",
+          "oklch(72% 0.023 264.4)",
+          "oklch(84% 0.023 264.4)",
+          "oklch(95% 0.023 264.4)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e9e9e4",
+        "oklch": "oklch(93.3% 0.007 106.5)",
+        "tonalRamp": [
+          "oklch(15% 0.007 106.5)",
+          "oklch(26% 0.007 106.5)",
+          "oklch(37% 0.007 106.5)",
+          "oklch(48% 0.007 106.5)",
+          "oklch(60% 0.007 106.5)",
+          "oklch(72% 0.007 106.5)",
+          "oklch(84% 0.007 106.5)",
+          "oklch(95% 0.007 106.5)"
+        ]
+      },
+      "track": {
+        "role": "neutral",
+        "displayName": "Track",
+        "canonical": "#e3e3dd",
+        "oklch": "oklch(91.4% 0.008 106.6)",
+        "tonalRamp": [
+          "oklch(15% 0.008 106.6)",
+          "oklch(26% 0.008 106.6)",
+          "oklch(37% 0.008 106.6)",
+          "oklch(48% 0.008 106.6)",
+          "oklch(60% 0.008 106.6)",
+          "oklch(72% 0.008 106.6)",
+          "oklch(84% 0.008 106.6)",
+          "oklch(95% 0.008 106.6)"
+        ]
+      },
+      "art-mist": {
+        "role": "neutral",
+        "displayName": "Art Mist",
+        "canonical": "#eef2fa",
+        "oklch": "oklch(96% 0.012 264.5)",
+        "tonalRamp": [
+          "oklch(15% 0.012 264.5)",
+          "oklch(26% 0.012 264.5)",
+          "oklch(37% 0.012 264.5)",
+          "oklch(48% 0.012 264.5)",
+          "oklch(60% 0.012 264.5)",
+          "oklch(72% 0.012 264.5)",
+          "oklch(84% 0.012 264.5)",
+          "oklch(95% 0.012 264.5)"
+        ]
+      },
+      "speak-disabled": {
+        "role": "neutral",
+        "displayName": "Speak Disabled",
+        "canonical": "#c9ced8",
+        "oklch": "oklch(85.1% 0.015 264.5)",
+        "tonalRamp": [
+          "oklch(15% 0.015 264.5)",
+          "oklch(26% 0.015 264.5)",
+          "oklch(37% 0.015 264.5)",
+          "oklch(48% 0.015 264.5)",
+          "oklch(60% 0.015 264.5)",
+          "oklch(72% 0.015 264.5)",
+          "oklch(84% 0.015 264.5)",
+          "oklch(95% 0.015 264.5)"
+        ]
+      },
+      "ok-green": {
+        "role": "status",
+        "displayName": "Ok Green",
+        "canonical": "#15803d",
+        "oklch": "oklch(52.7% 0.137 150.1)",
+        "tonalRamp": [
+          "oklch(15% 0.137 150.1)",
+          "oklch(26% 0.137 150.1)",
+          "oklch(37% 0.137 150.1)",
+          "oklch(48% 0.137 150.1)",
+          "oklch(60% 0.137 150.1)",
+          "oklch(72% 0.137 150.1)",
+          "oklch(84% 0.137 150.1)",
+          "oklch(95% 0.04 150.1)"
+        ]
+      },
+      "ok-bg": {
+        "role": "status",
+        "displayName": "Ok Wash",
+        "canonical": "#ecfdf3",
+        "oklch": "oklch(97.9% 0.022 160.2)",
+        "tonalRamp": [
+          "oklch(15% 0.022 160.2)",
+          "oklch(26% 0.022 160.2)",
+          "oklch(37% 0.022 160.2)",
+          "oklch(48% 0.022 160.2)",
+          "oklch(60% 0.022 160.2)",
+          "oklch(72% 0.022 160.2)",
+          "oklch(84% 0.022 160.2)",
+          "oklch(95% 0.022 160.2)"
+        ]
+      },
+      "ok-fg": {
+        "role": "status",
+        "displayName": "Ok Ink",
+        "canonical": "#14532d",
+        "oklch": "oklch(39.3% 0.09 152.5)",
+        "tonalRamp": [
+          "oklch(15% 0.09 152.5)",
+          "oklch(26% 0.09 152.5)",
+          "oklch(37% 0.09 152.5)",
+          "oklch(48% 0.09 152.5)",
+          "oklch(60% 0.09 152.5)",
+          "oklch(72% 0.09 152.5)",
+          "oklch(84% 0.09 152.5)",
+          "oklch(95% 0.04 152.5)"
+        ]
+      },
+      "bad-red": {
+        "role": "status",
+        "displayName": "Bad Red",
+        "canonical": "#b91c1c",
+        "oklch": "oklch(50.5% 0.19 27.5)",
+        "tonalRamp": [
+          "oklch(15% 0.19 27.5)",
+          "oklch(26% 0.19 27.5)",
+          "oklch(37% 0.19 27.5)",
+          "oklch(48% 0.19 27.5)",
+          "oklch(60% 0.19 27.5)",
+          "oklch(72% 0.19 27.5)",
+          "oklch(84% 0.19 27.5)",
+          "oklch(95% 0.04 27.5)"
+        ]
+      },
+      "bad-bg": {
+        "role": "status",
+        "displayName": "Bad Wash",
+        "canonical": "#fef2f2",
+        "oklch": "oklch(97.1% 0.013 17.4)",
+        "tonalRamp": [
+          "oklch(15% 0.013 17.4)",
+          "oklch(26% 0.013 17.4)",
+          "oklch(37% 0.013 17.4)",
+          "oklch(48% 0.013 17.4)",
+          "oklch(60% 0.013 17.4)",
+          "oklch(72% 0.013 17.4)",
+          "oklch(84% 0.013 17.4)",
+          "oklch(95% 0.013 17.4)"
+        ]
+      },
+      "bad-fg": {
+        "role": "status",
+        "displayName": "Bad Ink",
+        "canonical": "#7f1d1d",
+        "oklch": "oklch(39.6% 0.133 25.7)",
+        "tonalRamp": [
+          "oklch(15% 0.133 25.7)",
+          "oklch(26% 0.133 25.7)",
+          "oklch(37% 0.133 25.7)",
+          "oklch(48% 0.133 25.7)",
+          "oklch(60% 0.133 25.7)",
+          "oklch(72% 0.133 25.7)",
+          "oklch(84% 0.133 25.7)",
+          "oklch(95% 0.04 25.7)"
+        ]
+      },
+      "almost-bg": {
+        "role": "status",
+        "displayName": "Almost Wash",
+        "canonical": "#fffbeb",
+        "oklch": "oklch(98.7% 0.021 95.3)",
+        "tonalRamp": [
+          "oklch(15% 0.021 95.3)",
+          "oklch(26% 0.021 95.3)",
+          "oklch(37% 0.021 95.3)",
+          "oklch(48% 0.021 95.3)",
+          "oklch(60% 0.021 95.3)",
+          "oklch(72% 0.021 95.3)",
+          "oklch(84% 0.021 95.3)",
+          "oklch(95% 0.021 95.3)"
+        ]
+      },
+      "almost-fg": {
+        "role": "status",
+        "displayName": "Almost Ink",
+        "canonical": "#854d0e",
+        "oklch": "oklch(47.6% 0.103 61.9)",
+        "tonalRamp": [
+          "oklch(15% 0.103 61.9)",
+          "oklch(26% 0.103 61.9)",
+          "oklch(37% 0.103 61.9)",
+          "oklch(48% 0.103 61.9)",
+          "oklch(60% 0.103 61.9)",
+          "oklch(72% 0.103 61.9)",
+          "oklch(84% 0.103 61.9)",
+          "oklch(95% 0.04 61.9)"
+        ]
+      },
+      "same-bg": {
+        "role": "status",
+        "displayName": "Same Letter",
+        "canonical": "#dcfce7",
+        "oklch": "oklch(96.2% 0.043 156.7)",
+        "tonalRamp": [
+          "oklch(15% 0.043 156.7)",
+          "oklch(26% 0.043 156.7)",
+          "oklch(37% 0.043 156.7)",
+          "oklch(48% 0.043 156.7)",
+          "oklch(60% 0.043 156.7)",
+          "oklch(72% 0.043 156.7)",
+          "oklch(84% 0.043 156.7)",
+          "oklch(95% 0.04 156.7)"
+        ]
+      },
+      "wrong-bg": {
+        "role": "status",
+        "displayName": "Wrong Letter",
+        "canonical": "#fee2e2",
+        "oklch": "oklch(93.6% 0.031 17.7)",
+        "tonalRamp": [
+          "oklch(15% 0.031 17.7)",
+          "oklch(26% 0.031 17.7)",
+          "oklch(37% 0.031 17.7)",
+          "oklch(48% 0.031 17.7)",
+          "oklch(60% 0.031 17.7)",
+          "oklch(72% 0.031 17.7)",
+          "oklch(84% 0.031 17.7)",
+          "oklch(95% 0.031 17.7)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "brand": {
+        "displayName": "Brand",
+        "purpose": "Словесный знак «lexi» в шапке «Сегодня»."
+      },
+      "greek-display": {
+        "displayName": "Greek Display",
+        "purpose": "Греческое слово на карточке и в упражнении; 30 px в тесных местах."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Заголовок экрана (h1)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Заголовок раздела (h2)."
+      },
+      "body-large": {
+        "displayName": "Body Large",
+        "purpose": "Варианты ответа, поля, крупные кнопки, перевод."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Основной текст."
+      },
+      "note": {
+        "displayName": "Note",
+        "purpose": "Приглушённые подписи и метаданные — самая частая роль."
+      },
+      "nav-label": {
+        "displayName": "Nav Label",
+        "purpose": "Подписи нижней навигации."
+      }
+    },
+    "shadows": [
+      {
+        "name": "dock-lift",
+        "value": "0 -14px 18px -14px var(--shadow)",
+        "purpose": "Единственная тень: отделяет закреплённый док занятия от прокручиваемого тела."
+      }
+    ],
+    "motion": [
+      {
+        "name": "progress-width",
+        "value": "width 0.25s",
+        "purpose": "Плавное продвижение полосы прогресса занятия."
+      },
+      {
+        "name": "press",
+        "value": "translateY(1px)",
+        "purpose": "Нажатие кнопки."
+      },
+      {
+        "name": "caret-blink",
+        "value": "1.1s step-end infinite",
+        "purpose": "Каретка маскированного поля написания."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "min-supported",
+        "value": "360px"
+      },
+      {
+        "name": "column-max",
+        "value": "560px"
+      }
+    ],
+    "themes": {
+      "telegram": "Семантические токены берут --tg-theme-* с резервом на палитру Lexi; граница выводится из цвета текста (14 %).",
+      "telegram-dark": {
+        "background": "#17212b",
+        "card": "#232e3c",
+        "primary": "#5288c1",
+        "muted-foreground": "#a3adb8",
+        "ok-bg": "#0f2e1a",
+        "bad-bg": "#3b1111",
+        "almost-bg": "#3a2a05"
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Главное действие экрана, во всю ширину, в нижнем доке.",
+      "html": "<button class=\"ds-btn-primary\">Начать занятие <svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/></svg></button>",
+      "css": ".ds-btn-primary { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; display:inline-flex; align-items:center; justify-content:center; gap:10px; width:100%; height:54px; padding:0 20px; border:1px solid transparent; border-radius:14px; background:var(--primary, #0d5eaf); color:var(--primary-foreground, #fff); font-size:17px; font-weight:500; cursor:pointer; transition:background .15s, transform .1s; } .ds-btn-primary:hover { background:color-mix(in srgb, var(--primary, #0d5eaf) 80%, transparent); } .ds-btn-primary:active { transform:translateY(1px); } .ds-btn-primary:focus-visible { outline: 3px solid var(--primary, #0d5eaf); outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Второе действие в доке, например «Не знаю».",
+      "html": "<button class=\"ds-btn-outline\">Не знаю</button>",
+      "css": ".ds-btn-outline { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; width:100%; height:54px; padding:0 20px; border:1px solid var(--border, #e9e9e4); border-radius:14px; background:var(--background, #f7f7f5); color:var(--foreground, #171717); font-size:17px; font-weight:500; cursor:pointer; transition:background .15s; } .ds-btn-outline:hover { background:var(--muted, #f0f0ec); } .ds-btn-outline:focus-visible { outline: 3px solid var(--primary, #0d5eaf); outline-offset: 2px; }"
+    },
+    {
+      "name": "Soft Button",
+      "kind": "button",
+      "refersTo": "button-soft",
+      "description": "Заметное альтернативное действие: белый лист, синий текст.",
+      "html": "<button class=\"ds-btn-soft\">Тренировать урок</button>",
+      "css": ".ds-btn-soft { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; height:46px; padding:0 16px; border:1px solid color-mix(in srgb, var(--primary, #0d5eaf) 25%, transparent); border-radius:14px; background:var(--card, #fff); color:var(--primary, #0d5eaf); font-size:15px; font-weight:500; cursor:pointer; transition:background .15s; } .ds-btn-soft:hover { background:color-mix(in srgb, var(--primary, #0d5eaf) 5%, var(--card, #fff)); } .ds-btn-soft:focus-visible { outline: 3px solid var(--primary, #0d5eaf); outline-offset: 2px; }"
+    },
+    {
+      "name": "Answer Options",
+      "kind": "custom",
+      "refersTo": "answer-option",
+      "description": "Выбор перевода: белые плитки 56 px, после ответа — статусные пары.",
+      "html": "<div class=\"ds-options\"><button class=\"ds-option\">дом</button><button class=\"ds-option ds-option-correct\">кастрюля</button><button class=\"ds-option ds-option-wrong\">сковорода</button></div>",
+      "css": ".ds-options { display:grid; gap:10px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; } .ds-option { min-height:56px; padding:0 16px; text-align:left; font-size:17px; border:1px solid var(--border, #e9e9e4); border-radius:14px; background:var(--card, #fff); color:var(--foreground, #171717); cursor:pointer; transition:border-color .15s; } .ds-option:hover { border-color:var(--muted-foreground, #6b7280); } .ds-option:focus-visible { outline: 3px solid var(--primary, #0d5eaf); outline-offset: 2px; } .ds-option-correct { border-color:var(--ok, #15803d); background:var(--ok-bg, #ecfdf3); color:var(--ok-fg, #14532d); } .ds-option-wrong { border-color:var(--destructive, #b91c1c); background:var(--bad-bg, #fef2f2); color:var(--bad-fg, #7f1d1d); }"
+    },
+    {
+      "name": "Syllable Assembly",
+      "kind": "custom",
+      "refersTo": "syllable-tile",
+      "description": "Сборка слова из слогов: пунктирная область и плитки 48 px.",
+      "html": "<div class=\"ds-assembly\"><div class=\"ds-slots\"><button class=\"ds-tile ds-tile-placed\">η</button><button class=\"ds-tile ds-tile-placed\">κα</button></div><div class=\"ds-pool\"><button class=\"ds-tile\">ρό</button><button class=\"ds-tile\">τσα</button><button class=\"ds-tile\" disabled>η</button><button class=\"ds-tile\" disabled>κα</button><button class=\"ds-tile\">λα</button></div></div>",
+      "css": ".ds-assembly { display:grid; gap:12px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; } .ds-slots { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; min-height:56px; padding:4px 8px; border:2px dashed var(--border, #e9e9e4); border-radius:14px; } .ds-pool { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; } .ds-tile { height:48px; padding:0 16px; font-size:19px; border:1px solid var(--border, #e9e9e4); border-radius:12px; background:var(--background, #f7f7f5); color:var(--foreground, #171717); cursor:pointer; transition:background .15s; } .ds-tile:hover { background:var(--muted, #f0f0ec); } .ds-tile:focus-visible { outline: 3px solid var(--primary, #0d5eaf); outline-offset: 2px; } .ds-tile:disabled { opacity:.5; cursor:default; } .ds-tile-placed { border-color:transparent; background:var(--secondary, #f0f0ec); }"
+    },
+    {
+      "name": "Word Header",
+      "kind": "custom",
+      "refersTo": "speak-button",
+      "description": "Сигнатура карточки слова: крупное греческое слово, IPA и круглая кнопка звука.",
+      "html": "<div class=\"ds-word\"><div class=\"ds-word-text\"><div class=\"ds-greek\">η κατσαρόλα</div><div class=\"ds-ipa\">/i katsaˈrola/</div></div><button class=\"ds-speak\" aria-label=\"Озвучить\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/></svg></button></div>",
+      "css": ".ds-word { display:flex; align-items:center; gap:12px; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color:var(--foreground, #171717); } .ds-word-text { flex:1; min-width:0; } .ds-greek { font-size:40px; font-weight:700; line-height:1.1; letter-spacing:-0.01em; overflow-wrap:anywhere; } .ds-ipa { margin-top:2px; font-size:19px; color:var(--muted-foreground, #6b7280); } .ds-speak { flex:0 0 auto; width:56px; height:56px; border:0; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--primary, #0d5eaf); color:var(--primary-foreground, #fff); cursor:pointer; transition:background .15s; } .ds-speak:hover { background:var(--primary-hover, #0a4c8e); } .ds-speak:focus-visible { outline: 3px solid var(--primary, #0d5eaf); outline-offset: 2px; }"
+    },
+    {
+      "name": "Lesson Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Строка урока: белый лист 18 px с полосой освоенности.",
+      "html": "<a class=\"ds-card\" href=\"#\"><div class=\"ds-card-title\">1.1 · К среде, 30 сентября</div><div class=\"ds-card-note\">59 карточек · 12 устойчивых · 20 в повторении</div><div class=\"ds-bar\"><span style=\"flex-grow:12;background:var(--success,#10b981)\"></span><span style=\"flex-grow:20;background:var(--primary,#0d5eaf)\"></span><span style=\"flex-grow:27\"></span></div></a>",
+      "css": ".ds-card { display:block; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; padding:16px; border-radius:18px; background:var(--card, #fff); color:var(--card-foreground, #171717); box-shadow:0 0 0 1px var(--border, #e9e9e4); text-decoration:none; transition:box-shadow .15s; } .ds-card:hover { box-shadow:0 0 0 1px var(--muted-foreground, #6b7280); } .ds-card:focus-visible { outline: 3px solid var(--primary, #0d5eaf); outline-offset: 2px; } .ds-card-title { font-size:17px; } .ds-card-note { margin-top:4px; font-size:14px; color:var(--muted-foreground, #6b7280); } .ds-bar { display:flex; gap:2px; height:4px; margin-top:10px; border-radius:999px; overflow:hidden; background:var(--track, #e3e3dd); } .ds-bar > span { display:block; flex-basis:0; min-width:2px; border-radius:999px; }"
+    },
+    {
+      "name": "Soft Panel",
+      "kind": "card",
+      "refersTo": "panel-soft",
+      "description": "Выделенный блок на Aegean Mist: ближайшее занятие, ударение, пример.",
+      "html": "<div class=\"ds-panel\"><div class=\"ds-panel-eyebrow\">К среде, 30 сентября</div><div class=\"ds-panel-title\">Урок 1.1</div><div class=\"ds-panel-note\">59 карточек · 6 дней на подготовку</div></div>",
+      "css": ".ds-panel { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; padding:16px; border-radius:18px; background:var(--soft, #e8effd); color:var(--foreground, #171717); } .ds-panel-eyebrow { font-size:15px; color:var(--accent-foreground, #0a4c8e); } .ds-panel-title { margin-top:4px; font-size:30px; font-weight:700; letter-spacing:-0.02em; } .ds-panel-note { margin-top:4px; font-size:14px; color:var(--muted-foreground, #6b7280); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Поле ввода: белый лист, 12 px, 50 px высотой.",
+      "html": "<label class=\"ds-label\">Перевод<input class=\"ds-input\" type=\"text\" value=\"кастрюля\" /></label>",
+      "css": ".ds-label { display:block; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size:14px; color:var(--muted-foreground, #6b7280); } .ds-input { display:block; width:100%; margin-top:6px; min-height:50px; padding:10px 14px; font:inherit; font-size:17px; color:var(--foreground, #171717); background:var(--card, #fff); border:1px solid var(--border, #e9e9e4); border-radius:12px; } .ds-input:focus-visible { outline:none; border-color:var(--ring, #0d5eaf); box-shadow:0 0 0 3px color-mix(in srgb, var(--ring, #0d5eaf) 50%, transparent); }"
+    },
+    {
+      "name": "Bottom Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Четыре равные вкладки, активная — синяя.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-link\" aria-current=\"page\" href=\"#\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>Сегодня</a><a class=\"ds-nav-link\" href=\"#\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 7v14\"/><path d=\"M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z\"/></svg>Уроки</a></nav>",
+      "css": ".ds-nav { display:grid; grid-template-columns:repeat(2, 1fr); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background:color-mix(in srgb, var(--background, #f7f7f5) 96%, transparent); backdrop-filter:blur(8px); border-top:1px solid var(--border, #e9e9e4); } .ds-nav-link { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-height:60px; font-size:12px; color:var(--muted-foreground, #6b7280); text-decoration:none; } .ds-nav-link:hover { color:var(--foreground, #171717); } .ds-nav-link:focus-visible { outline: 3px solid var(--primary, #0d5eaf); outline-offset: 2px; } .ds-nav-link[aria-current=\"page\"] { color:var(--primary, #0d5eaf); font-weight:600; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Pocket Tutor",
+    "overview": "Lexi — спокойный репетитор в кармане: он говорит тихо, показывает одну вещь за раз и не торопит. Экран — это страница на тёплой бумаге (paper) с белыми листами (sheet) поверх. Акцентный цвет один — эгейский синий, и он отмечает только то, что ведёт дальше: главное действие, озвучку, ударную гласную, текущий раздел. Всё остальное — чернила и приглушённый серый.\n\nПлотность низкая, цели для пальца крупные. Интерфейс рассчитан на телефон шириной 360–560 px, на короткий подход в Telegram, одной рукой. Главное действие стоит у нижнего края, чтобы до него не приходилось листать. Главный герой любого учебного экрана — греческое слово: это самый крупный текст на экране, рядом с ним плоская иллюстрация по стандарту docs/art-standard.md и круглая синяя кнопка звука.\n\nСистема наследует токены shadcn (base-nova) и переопределяет их палитрой Lexi. В Telegram те же семантические токены забирают цвета из темы клиента, поэтому вид следует за Telegram, а не спорит с ним. Геймификации, конфетти, стриков и восклицательной графики в системе нет: успех выражается спокойным зелёным фоном и текстом.",
+    "keyCharacteristics": [
+      "Тёплая бумага, белые листы, один синий акцент.",
+      "Плоско: глубина задаётся тоном, тень есть только у нижнего дока.",
+      "Мягкие крупные формы: 14 px у контролов, 18 px у карточек, круг у кнопки звука.",
+      "Системный шрифт; греческое слово набрано крупно и жирно.",
+      "Статусы ответа — пары «фон + текст» и всегда со словом или значком.",
+      "Семантические токены, которые Telegram может переопределить."
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "На экране есть только один акцентный цвет — синий. Нельзя добавлять второй «брендовый» цвет для разнообразия; зелёный, красный и янтарный означают только результат ответа.",
+        "section": "colors"
+      },
+      {
+        "name": "The Telegram Yield Rule",
+        "body": "Цвет задаётся только через семантические переменные (--primary, --card, --muted-foreground…), никогда литералом в компоненте. Иначе в Telegram, где эти переменные переопределяются темой клиента, элемент выпадет из темы.",
+        "section": "colors"
+      },
+      {
+        "name": "The Never Color Alone Rule",
+        "body": "Статус никогда не передаётся одним цветом: у каждого индикатора есть текстовая подпись или значок с тем же значением.",
+        "section": "colors"
+      },
+      {
+        "name": "The Greek Leads Rule",
+        "body": "Греческое слово — самый крупный текст на учебном экране. Заголовки интерфейса не должны быть крупнее его.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Webfont Rule",
+        "body": "Только системный стек: приложение работает офлайн и открывается мгновенно в Telegram, и шрифт не должен это ломать.",
+        "section": "typography"
+      },
+      {
+        "name": "The Thumb Dock Rule",
+        "body": "Главное действие учебного экрана закреплено у нижнего края в доке и не уезжает при прокрутке. Нельзя ставить «Проверить» или «Дальше» в поток контента.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Paper Rule",
+        "body": "У карточек, кнопок и плиток нет теней. Если элементу нужно выделиться, для этого есть тон или граница.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do брать цвета только из семантических переменных, чтобы Telegram мог их переопределить (The Telegram Yield Rule).",
+      "Do закреплять главное действие учебного экрана в нижнем доке, кнопкой xl 54 px на всю ширину.",
+      "Do делать греческое слово самым крупным текстом экрана (40 px, 700) и ставить рядом кнопку звука.",
+      "Do подписывать каждый статус словом или значком, а не только цветом.",
+      "Do держать цели касания не меньше 44 px и проверять раскладку на 360 и 390 px с экранной клавиатурой.",
+      "Do выделять блок синей подложкой aegean-mist или белым листом, а не тенью."
+    ],
+    "donts": [
+      "Don't вводить второй акцентный цвет или градиенты: синий — единственный голос.",
+      "Don't добавлять тени карточкам и кнопкам; тень есть только у дока.",
+      "Don't подключать веб-шрифты: только системный стек.",
+      "Don't использовать геймификацию: стрики, конфетти, очки и восклицательные баннеры противоречат спокойному тону.",
+      "Don't красить остаток полосы освоенности: непрошедшее — это видимая дорожка, а не цвет.",
+      "Don't заливать деструктивные кнопки сплошным красным; только тон 10 % и красный текст.",
+      "Don't рисовать иллюстрации вне docs/art-standard.md: холст 320×220, палитра content/art/palette.json, без текста и растра."
+    ]
+  }
+}

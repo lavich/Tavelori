@@ -119,11 +119,11 @@ const updateWord = (page: import("@playwright/test").Page, greek: string, russia
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.waitForSelector("text=Немного каждый день");
+  await page.waitForSelector("[data-testid=today-title]");
   await installLessons(page, ["lesson-1-2"]);
   await dueWithHistory(page, "w12-16", ["recall", "recognition"]);
   await page.reload();
-  await page.waitForSelector("text=Немного каждый день");
+  await page.waitForSelector("[data-testid=today-title]");
 });
 
 test("артикль ставит пользователь, а неверный порядок даёт понятную обратную связь", async ({ page }) => {

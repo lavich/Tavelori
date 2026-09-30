@@ -113,7 +113,7 @@ export const launchHash = (options: TelegramEmulation = {}) => {
 export async function openTelegram(page: Page, options: TelegramEmulation = {}, path = "/") {
   await page.addInitScript(bridgeScript(options));
   await page.goto(`${path}${options.bot ? `?bot=${options.bot}` : ""}${launchHash(options)}`);
-  await page.waitForSelector("text=Немного каждый день");
+  await page.waitForSelector("[data-testid=today-title]");
   // Сообщение первого запуска появляется после чтения базы: ждём его и закрываем, если профиль ещё не видел.
   const welcome = page.getByRole("button", { name: /Понятно|Начать с чистого профиля/ });
   if (
@@ -205,5 +205,5 @@ export async function onlyReviews(page: Page) {
     }
   });
   await page.goto("/");
-  await page.waitForSelector("text=Немного каждый день");
+  await page.waitForSelector("[data-testid=today-title]");
 }

@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 
 test("оболочка открывается, разделы доступны с клавиатуры", async ({ page }) => {
   await useSchedule(page);
-  await expect(page.getByRole("heading", { name: "Немного каждый день" })).toBeVisible();
+  await expect(page.getByTestId("today-title")).toBeVisible();
   await expect(page.getByText("Урок 1.2")).toBeVisible();
   await page.getByRole("navigation").getByRole("link", { name: "Слова" }).click();
   await expect(page.getByRole("heading", { name: "Слова" })).toBeVisible();
@@ -153,7 +153,7 @@ test("занятие: знакомство, четыре упражнения, �
   const recorded = await page.getByText(/Всего записано/).innerText();
   expect(recorded).not.toContain("Всего записано 0");
   // Новые слова занятия были из урока 1.2: его строка прогресса больше не «30 новых».
-  await page.getByRole("navigation").getByRole("link", { name: "Сегодня" }).click();
+  await page.getByRole("navigation").getByRole("link", { name: "Уроки" }).click();
   await expect(page.getByRole("link", { name: /1\.2 ·/ })).toContainText("в повторении");
   await expect(page.getByRole("link", { name: /1\.2 ·/ })).not.toContainText("30 новых");
 });
@@ -266,10 +266,15 @@ test("расписание: даты уроков 1.3 и 1.4, ручной пе�
   await expect(lessonAt("1\\.3", addDays(start, 7))).toBeVisible();
   await expect(lessonAt("1\\.4", addDays(start, 10))).toBeVisible();
 
-  // Экран «Сегодня» показывает те же подписи: срок — у ближайшего занятия, дальним хватает даты.
+  // «Сегодня» показывает ближайшее занятие панелью со сроком; дальние уроки живут на «Уроках».
   await page.getByRole("navigation").getByRole("link", { name: "Сегодня" }).click();
-  await expect(nextAt("1\\.1", start)).toBeVisible();
-  await expect(lessonAt("1\\.3", addDays(start, 7))).toBeVisible();
+  await page.waitForURL((url) => url.pathname === "/");
+  await expect(page.getByTestId("today-title")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: new RegExp(`К ${dativeWeekday(start)}, ${dayMonth(start)}.*1\\.1`) }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /1\.3 ·/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^Все уроки · \d+$/ })).toBeVisible();
 
   await lessons();
   await page.getByRole("button", { name: "Изменить расписание" }).click();
