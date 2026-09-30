@@ -201,7 +201,7 @@ export async function skipItem(
 ): Promise<void> {
   await database.transaction("rw", database.sessions, async () => {
     const session = await database.sessions.get(sessionId);
-    if (!session) throw new Error("Занятие недоступно");
+    if (!session) throw new Error("Тренировка недоступна");
     const items = session.items.map((entry) =>
       entry.id === itemId && !entry.eventId ? { ...entry, skipped: true } : entry,
     );
@@ -469,7 +469,7 @@ export async function markIntroduced(
 ): Promise<void> {
   await database.transaction("rw", database.sessions, async () => {
     const session = await database.sessions.get(id);
-    if (!session || session.status !== "active") throw new Error("Занятие недоступно");
+    if (!session || session.status !== "active") throw new Error("Тренировка недоступна");
     if (!session.items.some((item) => item.unitKey === key && item.isNew && !item.eventId))
       throw new Error("Карточка недоступна");
     await database.sessions.put({

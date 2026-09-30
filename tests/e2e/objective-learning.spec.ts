@@ -100,7 +100,7 @@ for (const type of ["recognition", "assembly", "spelling", "listening"]) {
     expect(second.states).toEqual(first.states);
     expect(second.session.items).toHaveLength(2);
     await page.getByRole("button", { name: "Далее", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Занятие завершено" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Тренировка завершена" })).toBeVisible();
   });
 }
 

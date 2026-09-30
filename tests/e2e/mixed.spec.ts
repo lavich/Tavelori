@@ -157,7 +157,7 @@ test("занятие: знакомство с фразой, «Не знаю» с
   await page.setViewportSize({ width: 360, height: 560 }); // узкая ширина с местом под экранную клавиатуру; остальные сценарии идут на 390 из конфигурации
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20000 });
-  await page.getByRole("button", { name: "Начать занятие" }).click();
+  await page.getByRole("button", { name: "Начать тренировку" }).click();
   await page.waitForURL("**/session");
 
   // Знакомства всех новых видов идут общим проходом до проверок.
@@ -176,7 +176,7 @@ test("занятие: знакомство с фразой, «Не знаю» с
   let skipped = false,
     restarted = false;
   for (let step = 0; step < 40; step++) {
-    if (await page.getByRole("heading", { name: "Занятие завершено" }).isVisible()) break;
+    if (await page.getByRole("heading", { name: "Тренировка завершена" }).isVisible()) break;
     const prompt = await promptOf(page);
     seen.add(prompt);
     // Тип упражнения выбирает планировщик, поэтому сценарий не зависит от него: «Не знаю» есть у каждого задания.
@@ -215,7 +215,7 @@ test("занятие: знакомство с фразой, «Не знаю» с
       await context.setOffline(true);
       await page.goto("/");
       await ready(page);
-      await page.getByRole("button", { name: /Продолжить занятие/ }).click();
+      await page.getByRole("button", { name: /Продолжить тренировку/ }).click();
       await page.waitForURL("**/session");
       await expect(page.getByRole("button", { name: "Далее", exact: true })).toHaveCount(0);
       expect(INTRO).not.toContain(await page.getByTestId("prompt").first().innerText());
@@ -227,7 +227,7 @@ test("занятие: знакомство с фразой, «Не знаю» с
   }
   expect(seen.size).toBeGreaterThan(0);
   expect(skipped && restarted).toBe(true);
-  await expect(page.getByRole("heading", { name: "Занятие завершено" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Тренировка завершена" })).toBeVisible();
   await expect(page.getByTestId("composition")).toContainText("фраз");
 
   // Ответы сохранены, сроки независимы: ошибка не сдвинула остальные карточки.
@@ -256,7 +256,7 @@ test("полная копия переносит смешанный урок с 
   const page = await source.newPage();
   await page.addInitScript(NO_VOICE);
   await prepare(page, 3);
-  await page.getByRole("button", { name: "Начать занятие" }).click();
+  await page.getByRole("button", { name: "Начать тренировку" }).click();
   await page.waitForURL("**/session");
   for (let step = 0; step < 20; step++) {
     const prompt = await promptOf(page);
@@ -336,7 +336,7 @@ test("полная копия переносит смешанный урок с 
   expect((await readTable(fresh, "cardStates")).length).toBe(states);
   await fresh.goto("/");
   await ready(fresh);
-  await expect(fresh.getByRole("button", { name: /Продолжить занятие/ })).toBeVisible(); // занятие продолжается на втором профиле
+  await expect(fresh.getByRole("button", { name: /Продолжить тренировку/ })).toBeVisible(); // занятие продолжается на втором профиле
   await clean.close();
 });
 
@@ -351,7 +351,7 @@ test("внутри Telegram: возврат из свёрнутого клиен
   await onlyReviews(page);
   await setCourseLimit(page, "leeke", 2, TG_DB);
   await seedMixedLesson(page, { targetDate: today(), only: ["p-grafo", "p-vouno"], databaseName: TG_DB });
-  await page.getByRole("button", { name: /Начать занятие/ }).click();
+  await page.getByRole("button", { name: /Начать тренировку/ }).click();
   await page.waitForURL("**/session");
   // Знакомства проходим, дальше берём первое же задание: тип выбирает планировщик.
   for (let step = 0; step < 8; step++) {

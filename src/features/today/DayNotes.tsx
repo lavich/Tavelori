@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { CalendarDays, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "cn";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DailyPlan } from "../../domain/learning";
 import { CARDS, LESSONS, lessonIn, withCount } from "../../shared/format";
 import { saveCourseTempo } from "../../storage/ops";
@@ -14,14 +13,38 @@ const MAX_PER_DAY = 100;
 const GENITIVE_CARDS: [string, string, string] = ["карточки", "карточек", "карточек"];
 
 /**
- * Всё, что уточняет план дня, идёт под кнопкой занятия, а не перед ней. Нехватка предела — решение
+ * Всё, что уточняет план дня, идёт под кнопкой тренировки, а не перед ней. Нехватка предела — решение
  * с действием на месте; хвост прошлых занятий и карточки без упражнения — справка, свёрнутая в одну строку.
  */
+/** Последнее изменение предела с «Сегодня»: подтверждение с отменой переживает исчезновение строки нехватки. */
+interface Raised {
+  courseId: string;
+  courseTitle: string;
+  from: number;
+  to: number;
+}
+
 export function DayNotes({ plan, now }: { plan: DailyPlan; now: Date }) {
+  const [raised, setRaised] = useState<Raised | null>(null);
   const short = plan.courses.filter((item) => item.shortfall);
-  if (!short.length && !plan.backlog.lessons && !plan.unavailable.length) return null;
+  if (!raised && !short.length && !plan.backlog.lessons && !plan.unavailable.length) return null;
+  const undo = async () => {
+    if (!raised) return;
+    await saveCourseTempo(raised.courseId, { newItemsPerDay: raised.from }, now);
+    setRaised(null);
+  };
   return (
-    <div className="mt-4 grid gap-2.5">
+    <div className="mt-4 grid gap-1">
+      {raised && (
+        <p className={`${ui.note} flex flex-wrap items-center gap-x-3`} role="status" data-testid="limit-raised">
+          <span>
+            Дневной предел «{raised.courseTitle}»: {raised.from} → {raised.to}
+          </span>
+          <Button variant="link" className="h-11 px-0 text-sm" onClick={undo}>
+            Отменить
+          </Button>
+        </p>
+      )}
       {short.map((item) => {
         const tight = item.deadlines.reduce((max, deadline) =>
           deadline.requiredPerDay > max.requiredPerDay ? deadline : max,
@@ -36,6 +59,7 @@ export function DayNotes({ plan, now }: { plan: DailyPlan; now: Date }) {
             lessonId={tight.lessonId}
             lessonTitle={tight.title}
             now={now}
+            onRaised={setRaised}
           />
         );
       })}
@@ -59,6 +83,10 @@ export function DayNotes({ plan, now }: { plan: DailyPlan; now: Date }) {
   );
 }
 
+/**
+ * Нехватка предела — строка того же веса, что справка ниже, но чернилами: это решение, а не пояснение.
+ * Действия — тихие ссылки, чтобы не спорить с главной кнопкой тренировки.
+ */
 function Shortfall(props: {
   courseId: string;
   courseTitle: string;
@@ -67,6 +95,7 @@ function Shortfall(props: {
   lessonId: string;
   lessonTitle: string;
   now: Date;
+  onRaised: (raised: Raised) => void;
 }) {
   const [saving, setSaving] = useState(false);
   const target = Math.min(props.required, MAX_PER_DAY);
@@ -74,35 +103,31 @@ function Shortfall(props: {
     setSaving(true);
     try {
       await saveCourseTempo(props.courseId, { newItemsPerDay: target }, props.now);
+      props.onRaised({ courseId: props.courseId, courseTitle: props.courseTitle, from: props.limit, to: target });
     } finally {
       setSaving(false);
     }
   };
   return (
-    <Card size="sm" data-testid="shortfall">
-      <CardHeader>
-        <CardTitle className="text-balance">
-          Чтобы успеть к сроку, нужно {withCount(props.required, CARDS)} в день
-        </CardTitle>
-        <CardDescription>
-          Дневной предел курса «{props.courseTitle}» — {props.limit}.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-wrap gap-2">
+    <div data-testid="shortfall">
+      <p className="text-sm text-foreground">
+        Чтобы успеть к сроку, нужно {withCount(props.required, CARDS)} в день, а дневной предел курса «
+        {props.courseTitle}» — {props.limit}.
+      </p>
+      <div className="flex flex-wrap gap-x-5">
         {target > props.limit && (
-          <Button size="md" variant="soft" className="w-auto" onClick={raise} disabled={saving}>
+          <Button variant="link" className="h-11 px-0 text-sm" onClick={raise} disabled={saving}>
             {saving ? "Сохраняем…" : `Поднять предел до ${target}`}
           </Button>
         )}
         <Link
           to={`/lessons/${props.lessonId}`}
-          className={cn(buttonVariants({ variant: "quiet", size: "md" }), "w-auto")}
+          className={cn(buttonVariants({ variant: "link" }), "h-11 px-0 text-sm")}
         >
-          <CalendarDays data-icon="inline-start" />
           Перенести дату {lessonIn(props.lessonTitle, "урока")}
         </Link>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -111,12 +136,12 @@ function Note({ testId, summary, children }: { testId: string; summary: string; 
   return (
     <details className="group" data-testid={testId}>
       <summary
-        className={`${ui.note} flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden`}
+        className={`${ui.note} flex min-h-11 cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden`}
       >
         {summary}
         <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
       </summary>
-      <p className={`${ui.note} mt-1`}>{children}</p>
+      <p className={`${ui.note} mb-2`}>{children}</p>
     </details>
   );
 }

@@ -12,7 +12,7 @@ test("экраны для README", async ({ page }) => {
   await useSchedule(page, "leeke", "lexi", 6);
   // План считается после загрузки экрана: ждём карточку ближайшего занятия, а не пустое состояние.
   await page.getByText(/^(К [а-я]+, \d+ [а-я]+|Занятие сегодня)$/).waitFor();
-  await expect(page.getByRole("button", { name: "Начать занятие" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Начать тренировку" })).toBeEnabled();
   await page.waitForTimeout(300);
   await shot(page, "today");
 

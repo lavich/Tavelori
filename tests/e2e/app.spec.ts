@@ -38,7 +38,7 @@ test("хвост пройденного урока виден на «Сегод�
   expect(tail).toBeLessThan(cards["lesson-1-1"].length);
   await expect(page.getByTestId("backlog")).toContainText(String(tail));
   await expect(page.getByTestId("backlog")).toContainText("из 1 занятия");
-  await page.getByRole("button", { name: "Начать занятие" }).click();
+  await page.getByRole("button", { name: "Начать тренировку" }).click();
   await page.waitForURL("**/session");
   await expect(page.getByTestId("lesson-label")).toHaveText("К уроку 1.2");
   const counts = await page.evaluate(async () => {
@@ -88,12 +88,12 @@ test("занятие: знакомство, четыре упражнения, �
     { wordId: "w11-03", tested: ["recall", "recognition", "assembly", "assembly"], audio: false },
     { wordId: "w11-04", tested: ["recall", "recognition", "assembly", "assembly", "spelling"], audio: true },
   ]);
-  await page.getByRole("button", { name: /Начать занятие/ }).click();
+  await page.getByRole("button", { name: /Начать тренировку/ }).click();
   await page.waitForURL("**/session");
   const seen = new Set<string>();
   let completed = 0;
   for (let step = 0; step < 80; step++) {
-    if (await page.getByRole("heading", { name: "Занятие завершено" }).isVisible()) break;
+    if (await page.getByRole("heading", { name: "Тренировка завершена" }).isVisible()) break;
     const prompt = await page.getByTestId("prompt").first().innerText();
     const next = page.getByRole("button", { name: "Далее", exact: true });
     if (prompt === "Новое слово") {
@@ -117,7 +117,7 @@ test("занятие: знакомство, четыре упражнения, �
       if (++completed === 3) {
         await page.goto("/");
         await ready(page);
-        await page.getByRole("button", { name: /Продолжить занятие/ }).click();
+        await page.getByRole("button", { name: /Продолжить тренировку/ }).click();
         await page.waitForURL("**/session");
         continue;
       }
@@ -128,7 +128,7 @@ test("занятие: знакомство, четыре упражнения, �
     await expect(page.getByLabel(previous!, { exact: true })).toHaveCount(0);
   }
   expect([...seen].sort()).toEqual(["assembly", "intro", "listening", "recognition", "spelling"]);
-  await expect(page.getByRole("heading", { name: "Занятие завершено" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Тренировка завершена" })).toBeVisible();
   await expect(page.getByText(/Объективная точность/)).toBeVisible();
   await expect(page.getByText(/Активное время/)).toBeVisible();
   // Активное время копится по всем упражнениям и переживает возврат в занятие.

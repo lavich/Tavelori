@@ -146,7 +146,7 @@ export function SyncConflictDialog() {
           <AlertDialogDescription>
             Выберите версию целиком, чтобы продолжить с неё на всех устройствах. Ответы другой версии в неё не
             добавятся; она сохранится на этом устройстве, и её можно будет скачать на экране «Копия данных». До выбора
-            занятия продолжаются, синхронизация не считается успешной.
+            тренировки продолжаются, синхронизация не считается успешной.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className={ui.stack} role="list">
@@ -156,7 +156,7 @@ export function SyncConflictDialog() {
               <p className="m-0 text-sm text-muted-foreground">
                 {when(branch.createdAt)} · {withCount(branch.description.cards, CARDS)} в обучении ·{" "}
                 {withCount(branch.description.answers, ["ответ", "ответа", "ответов"])}
-                {branch.description.lastDay ? ` · последнее занятие ${branch.description.lastDay}` : ""}
+                {branch.description.lastDay ? ` · последняя тренировка ${branch.description.lastDay}` : ""}
               </p>
               <Button
                 size="md"

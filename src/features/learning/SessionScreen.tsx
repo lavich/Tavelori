@@ -60,7 +60,7 @@ export function SessionScreen() {
     if (!session || session.objectiveVersion === 1) return;
     setPreparing(true);
     prepareObjectiveSession(session.id)
-      .catch(() => setProblem("Не удалось подготовить занятие. Обновите страницу."))
+      .catch(() => setProblem("Не удалось подготовить тренировку. Обновите страницу."))
       .finally(() => setPreparing(false));
   }, [session?.id, session?.objectiveVersion]);
   const shown = useRef(Date.now());
@@ -117,7 +117,7 @@ export function SessionScreen() {
   if (!session || !item) {
     return (
       <main className={s.session}>
-        <p className={ui.muted}>Активного занятия нет.</p>
+        <p className={ui.muted}>Активной тренировки нет.</p>
         <Button size="xl" onClick={() => navigate(other ? "/session" : "/")}>
           На главную
         </Button>
@@ -241,7 +241,7 @@ export function SessionScreen() {
     <main className={s.session}>
       <div className={s.top}>
         {!nativeBack && (
-          <Button variant="ghost" size="icon-lg" className="size-11" onClick={leave} aria-label="Закрыть занятие">
+          <Button variant="ghost" size="icon-lg" className="size-11" onClick={leave} aria-label="Закрыть тренировку">
             <X />
           </Button>
         )}

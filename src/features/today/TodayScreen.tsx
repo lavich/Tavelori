@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ItemGroup } from "@/components/ui/item";
 import { Screen } from "../../app/Screen";
 import { localDay } from "../../domain/learning";
+import { unitKey } from "../../domain/refs";
 import { byTargetDate, preparedByCourse } from "../../domain/schedule";
 import { useAction } from "../../shared/action";
 import { useNow } from "../../shared/clock";
@@ -24,7 +25,7 @@ export function TodayScreen() {
   const { settings } = useSettings();
   const now = useNow();
   const navigate = useNavigate();
-  const { busy, problem, setProblem, run } = useAction("Не удалось начать занятие");
+  const { busy, problem, setProblem, run } = useAction("Не удалось начать тренировку");
   const plan = usePlan(now);
   const installed = useLessons(true);
   const unfinished = useActiveSession();
@@ -45,6 +46,17 @@ export function TodayScreen() {
   // Очередь пуста: план дня выполнен или карточки ещё не подошли. Вместо «Начать занятие» — тренировка урока.
   const idle = !!plan && !unfinished && !plan.newRefs.length && !plan.reviews.length && !plan.preview.length;
   const drill = lesson ?? last ?? lessons[0];
+  // «Выполнен» — только когда сегодня правда были новые карточки; пустая очередь по другой причине так и называется.
+  const own = (courses ?? []).filter((course) => lessons.some((item) => item.courseId === course.id));
+  const zeroLimit = !!own.length && own.every((course) => course.newItemsPerDay === 0);
+  const verdict = plan?.introducedToday
+    ? "План на сегодня выполнен."
+    : zeroLimit
+      ? "Дневной предел новых карточек — 0, поэтому новых сегодня нет."
+      : "Новых карточек и повторений на сегодня нет.";
+  // Сколько из сегодняшних новых — к ближайшему занятию: заголовок и панель говорят об одном числе.
+  const forLesson =
+    (next && plan?.newRefs.filter((ref) => plan.origins.get(unitKey(ref))?.lessonId === next.lessonId).length) || 0;
 
   const multi = (plan?.courses ?? []).filter((item) => item.newRefs.length);
   const split =
@@ -56,7 +68,7 @@ export function TodayScreen() {
   /** Заголовок называет объём дня, а не девиз: что ждёт в занятии, если начать его сейчас. */
   const headline = () => {
     if (!plan || !installed || unfinished === undefined) return "Сегодня";
-    if (unfinished) return "Занятие не закончено";
+    if (unfinished) return "Тренировка не закончена";
     if (!installed.length) return "Начните с курса";
     const fresh = plan.newRefs.length;
     const reviews = plan.reviews.length;
@@ -100,8 +112,8 @@ export function TodayScreen() {
       <Screen>
         <h1 data-testid="today-title">{headline()}</h1>
         <div aria-busy="true" aria-label="План дня загружается" className="grid gap-3">
-          <Skeleton className="h-[150px] rounded-[var(--radius-card)] motion-reduce:animate-none" />
           <Skeleton className="h-[54px] rounded-[14px] motion-reduce:animate-none" />
+          <Skeleton className="h-[150px] rounded-[var(--radius-card)] motion-reduce:animate-none" />
         </div>
       </Screen>
     );
@@ -136,6 +148,31 @@ export function TodayScreen() {
         </p>
       )}
 
+      {/* Главное действие — сразу под объёмом дня: его место не зависит от панели и заметок ниже. */}
+      <div className="mb-4 grid">
+        {idle && drill ? (
+          <>
+            <p className={`${ui.note} mb-2.5`} data-testid="day-done">
+              {verdict} Тренировка урока не сдвигает интервалы повторений.
+            </p>
+            <Button size="xl" onClick={practice} disabled={busy}>
+              <Dumbbell data-icon="inline-start" />
+              Потренировать {lessonIn(drill.title, "урок")}
+            </Button>
+          </>
+        ) : (
+          <Button size="xl" onClick={begin} disabled={busy || !ready}>
+            {unfinished ? "Продолжить тренировку" : "Начать тренировку"}
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        )}
+        {problem && (
+          <p className={ui.error} role="alert">
+            {problem}
+          </p>
+        )}
+      </div>
+
       {next && lesson ? (
         <Link to={`/lessons/${lesson.id}`} className="mb-3 block rounded-[var(--radius-card)] no-underline">
           <Card className="bg-soft ring-0 transition-colors hover:bg-[color-mix(in_srgb,var(--soft),var(--primary)_6%)]">
@@ -151,13 +188,20 @@ export function TodayScreen() {
                   </CardDescription>
                   <CardTitle className="text-2xl font-bold [overflow-wrap:anywhere]">{lesson.title}</CardTitle>
                   <CardDescription className="text-foreground/75">
-                    {withCount(next.newLeft, CARDS)} ·{" "}
-                    {next.daysLeft === 0 ? "сегодня день занятия" : `${withCount(next.daysLeft, DAYS)} на подготовку`}
+                    {forLesson && forLesson < next.newLeft
+                      ? `Сегодня ${forLesson} из ${withCount(next.newLeft, CARDS)}`
+                      : forLesson
+                        ? `Сегодня все ${withCount(next.newLeft, CARDS)}`
+                        : withCount(next.newLeft, CARDS)}{" "}
+                    · {next.daysLeft === 0 ? "сегодня день занятия" : `${withCount(next.daysLeft, DAYS)} на подготовку`}
                   </CardDescription>
                 </div>
                 <ChevronRight className="shrink-0 text-accent-foreground" />
               </div>
-              {!!lesson.cardCount && lesson.progress && <LessonProgressBar progress={lesson.progress} />}
+              {/* Полоса появляется, когда в уроке есть что-то освоенное: пустая дорожка с «36 новых» лишь повторяла число выше. */}
+              {!!lesson.cardCount && lesson.progress && lesson.progress.solid + lesson.progress.review > 0 && (
+                <LessonProgressBar progress={lesson.progress} onSoft />
+              )}
             </CardHeader>
           </Card>
         </Link>
@@ -179,30 +223,9 @@ export function TodayScreen() {
         </Link>
       )}
 
-      {idle && drill ? (
-        <>
-          <p className={`${ui.note} mb-2.5`} data-testid="day-done">
-            План на сегодня выполнен. Тренировка урока не сдвигает интервалы повторений.
-          </p>
-          <Button size="xl" variant="soft" onClick={practice} disabled={busy}>
-            <Dumbbell data-icon="inline-start" />
-            Потренировать {lessonIn(drill.title, "урок")}
-          </Button>
-        </>
-      ) : (
-        <Button size="xl" onClick={begin} disabled={busy || !ready}>
-          {unfinished ? "Продолжить занятие" : "Начать занятие"}
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      )}
-      {problem && (
-        <p className={ui.error} role="alert">
-          {problem}
-        </p>
-      )}
       {plan && <DayNotes plan={plan} now={now} />}
 
-      {!!around.length && <h2>Мои занятия</h2>}
+      {!!around.length && <h2>Уроки рядом</h2>}
       {!!around.length && (
         <ItemGroup className="gap-2.5">
           {around.map((item) => (

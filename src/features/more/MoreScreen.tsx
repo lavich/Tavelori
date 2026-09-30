@@ -27,7 +27,7 @@ import ui from "../../shared/ui.module.css";
 
 const LINKS = [
   { to: "/more/stats", label: "Статистика", sub: "Ответы, сроки и слабые навыки", Icon: BarChart3 },
-  { to: "/more/settings", label: "Настройки", sub: "Дневной лимит, размер занятия, зона", Icon: Settings },
+  { to: "/more/settings", label: "Настройки", sub: "Дневной лимит, размер тренировки, зона", Icon: Settings },
   { to: "/more/import", label: "Импорт слов", sub: "Вставка из Quizlet или TSV", Icon: Upload },
   { to: "/more/backup", label: "Копия данных", sub: "Полный экспорт и восстановление", Icon: Download },
 ];
