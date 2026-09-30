@@ -34,7 +34,7 @@ export function SettingsScreen() {
     event.preventDefault();
     const sessionSize = Number(size);
     if (!Number.isInteger(sessionSize) || sessionSize < 2 || sessionSize > 100)
-      return setProblem("Размер занятия — целое число от 2 до 100.");
+      return setProblem("Размер тренировки — целое число от 2 до 100.");
     setProblem("");
     await saveSettings({ ...settings, sessionSize, timezone: zone });
     setSaved(true);
@@ -60,7 +60,7 @@ export function SettingsScreen() {
             <FieldDescription>Сколько новых слов Lexi может ввести за сутки.</FieldDescription>
           </Field>
           <Field data-invalid={problem.includes("Размер") || undefined}>
-            <FieldLabel htmlFor="size">Упражнений в занятии</FieldLabel>
+            <FieldLabel htmlFor="size">Упражнений в тренировке</FieldLabel>
             <Input
               id="size"
               type="number"
@@ -109,7 +109,7 @@ export function SettingsScreen() {
         </Button>
         {saved && (
           <p className="mt-2 text-sm text-(--ok)" role="status">
-            Сохранено. Новые значения применятся к следующим занятиям, история ответов не изменилась.
+            Сохранено. Новые значения применятся к следующим тренировкам, история ответов не изменилась.
           </p>
         )}
       </form>

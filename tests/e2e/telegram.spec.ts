@@ -92,7 +92,7 @@ test.describe("навигация, тема и размеры", () => {
       ],
       TG_DB,
     );
-    await page.getByRole("button", { name: /Начать занятие/ }).click();
+    await page.getByRole("button", { name: /Начать тренировку/ }).click();
     await page.waitForURL("**/session");
     await page.getByTestId("option").and(page.locator(":not([disabled])")).first().click();
     await expect(page.getByRole("button", { name: "Далее", exact: true })).toBeVisible();
@@ -100,12 +100,12 @@ test.describe("навигация, тема и размеры", () => {
     expect(calls.filter((call) => call.startsWith("haptic:"))).toHaveLength(1);
     // Закрытие Mini App после ответа: перезагрузка возвращает в сохранённое занятие, ответ учтён один раз.
     await page.goto("/");
-    await page.getByRole("button", { name: /Продолжить занятие/ }).click();
+    await page.getByRole("button", { name: /Продолжить тренировку/ }).click();
     await expect(page.getByTestId("prompt").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Далее", exact: true })).toHaveCount(0); // продолжаем со следующего упражнения
     await bridge.back(); // нативный «Назад» = существующий выход из занятия
     await expect(page.getByTestId("today-title")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Начать занятие/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Начать тренировку/ })).toBeVisible();
     const events = await page.evaluate(async () => {
       const request = indexedDB.open("lexi-tg-TaveloriBot-1001");
       const database = await new Promise<IDBDatabase>((resolve) => {
@@ -138,7 +138,7 @@ test.describe("навигация, тема и размеры", () => {
     expect((await color("--muted-foreground")).length).toBeGreaterThan(0);
     await onlyReviews(page);
     await seedQueue(page, [{ wordId: "w11-01", tested: ["recall"] }], TG_DB);
-    await page.getByRole("button", { name: /Начать занятие/ }).click();
+    await page.getByRole("button", { name: /Начать тренировку/ }).click();
     await page.waitForURL("**/session");
     const prompt = await page.getByTestId("prompt").first().innerText();
     await tg(page).setTheme("light", LIGHT);
@@ -173,9 +173,9 @@ test.describe("навигация, тема и размеры", () => {
     await installLessons(page, ["lesson-1-1"]);
     await onlyReviews(page);
     await seedQueue(page, [{ wordId: "w11-01", tested: ["recall"] }], TG_DB);
-    await page.getByRole("button", { name: /Начать занятие/ }).click();
+    await page.getByRole("button", { name: /Начать тренировку/ }).click();
     await page.waitForURL("**/session");
-    await expect(page.getByRole("button", { name: "Закрыть занятие" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Закрыть тренировку" })).toHaveCount(0);
     const bar = await page.getByRole("progressbar").boundingBox();
     expect(bar!.y).toBeGreaterThanOrEqual(47);
     expect(bar!.y + bar!.height).toBeLessThanOrEqual(47 + 46);
@@ -228,10 +228,10 @@ test.describe("навигация, тема и размеры", () => {
       history.pushState({}, "", "session/result/done");
       dispatchEvent(new PopStateEvent("popstate"));
     });
-    await expect(page.getByRole("heading", { name: "Занятие завершено" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Тренировка завершена" })).toBeVisible();
     const main = page.locator("main").first();
     await expect.poll(() => main.evaluate((node) => parseFloat(getComputedStyle(node).paddingTop))).toBe(24 + 47 + 46);
-    const heading = await page.getByRole("heading", { name: "Занятие завершено" }).boundingBox();
+    const heading = await page.getByRole("heading", { name: "Тренировка завершена" }).boundingBox();
     expect(heading!.y).toBeGreaterThanOrEqual(47 + 46); // заголовок не заезжает под кнопки клиента
     await tg(page).setFullscreen(false, 0, 0);
     await expect.poll(() => main.evaluate((node) => parseFloat(getComputedStyle(node).paddingTop))).toBe(24); // свернули — остаётся только собственный воздух экрана
@@ -244,7 +244,7 @@ test.describe("навигация, тема и размеры", () => {
     await installLessons(page, ["lesson-1-1"]);
     await onlyReviews(page);
     await seedQueue(page, [{ wordId: "w11-01", tested: ["recall", "recognition", "assembly", "assembly"] }], TG_DB);
-    await page.getByRole("button", { name: /Начать занятие/ }).click();
+    await page.getByRole("button", { name: /Начать тренировку/ }).click();
     await page.waitForURL("**/session");
     await expect(page.getByTestId("prompt").first()).toHaveText("Напиши по-гречески");
     const overflow = () =>
@@ -284,7 +284,7 @@ test.describe("навигация, тема и размеры", () => {
     await installLessons(page, ["lesson-1-1"]);
     await onlyReviews(page);
     await seedQueue(page, [{ wordId: "w11-01", tested: ["recall"] }], TG_DB);
-    await page.getByRole("button", { name: /Начать занятие/ }).click();
+    await page.getByRole("button", { name: /Начать тренировку/ }).click();
     await page.waitForURL("**/session");
     const prompt = await page.getByTestId("prompt").first().innerText();
     const height = () =>
@@ -384,7 +384,7 @@ test.describe("аудио, копии и облако", () => {
       [{ wordId: "w11-01", tested: ["recall", "recognition", "assembly", "assembly", "spelling"], audio: true }],
       TG_DB,
     );
-    await page.getByRole("button", { name: /Начать занятие/ }).click();
+    await page.getByRole("button", { name: /Начать тренировку/ }).click();
     await page.waitForURL("**/session");
     await expect(page.getByTestId("prompt").first()).toHaveText("Что прозвучало?");
     await expect(page.getByTestId("audio-failed")).toBeVisible();
@@ -393,7 +393,7 @@ test.describe("аудио, копии и облако", () => {
     await page.getByRole("button", { name: "Продолжить без аудио" }).click();
     await expect(
       page
-        .getByRole("heading", { name: "Занятие завершено" })
+        .getByRole("heading", { name: "Тренировка завершена" })
         .or(page.getByTestId("today-title"))
         .or(page.getByTestId("prompt").first()),
     ).toBeVisible();
@@ -478,7 +478,7 @@ test.describe("аудио, копии и облако", () => {
       ],
       TG_DB,
     );
-    await page.getByRole("button", { name: /Начать занятие/ }).click();
+    await page.getByRole("button", { name: /Начать тренировку/ }).click();
     await page.waitForURL("**/session");
     await page.getByTestId("option").and(page.locator(":not([disabled])")).first().click();
     await page.getByRole("button", { name: "Далее", exact: true }).click();

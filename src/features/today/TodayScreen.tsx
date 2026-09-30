@@ -25,7 +25,7 @@ export function TodayScreen() {
   const { settings } = useSettings();
   const now = useNow();
   const navigate = useNavigate();
-  const { busy, problem, setProblem, run } = useAction("Не удалось начать занятие");
+  const { busy, problem, setProblem, run } = useAction("Не удалось начать тренировку");
   const plan = usePlan(now);
   const installed = useLessons(true);
   const unfinished = useActiveSession();
@@ -46,6 +46,14 @@ export function TodayScreen() {
   // Очередь пуста: план дня выполнен или карточки ещё не подошли. Вместо «Начать занятие» — тренировка урока.
   const idle = !!plan && !unfinished && !plan.newRefs.length && !plan.reviews.length && !plan.preview.length;
   const drill = lesson ?? last ?? lessons[0];
+  // «Выполнен» — только когда сегодня правда были новые карточки; пустая очередь по другой причине так и называется.
+  const own = (courses ?? []).filter((course) => lessons.some((item) => item.courseId === course.id));
+  const zeroLimit = !!own.length && own.every((course) => course.newItemsPerDay === 0);
+  const verdict = plan?.introducedToday
+    ? "План на сегодня выполнен."
+    : zeroLimit
+      ? "Дневной предел новых карточек — 0, поэтому новых сегодня нет."
+      : "Новых карточек и повторений на сегодня нет.";
   // Сколько из сегодняшних новых — к ближайшему занятию: заголовок и панель говорят об одном числе.
   const forLesson =
     (next && plan?.newRefs.filter((ref) => plan.origins.get(unitKey(ref))?.lessonId === next.lessonId).length) || 0;
@@ -60,7 +68,7 @@ export function TodayScreen() {
   /** Заголовок называет объём дня, а не девиз: что ждёт в занятии, если начать его сейчас. */
   const headline = () => {
     if (!plan || !installed || unfinished === undefined) return "Сегодня";
-    if (unfinished) return "Занятие не закончено";
+    if (unfinished) return "Тренировка не закончена";
     if (!installed.length) return "Начните с курса";
     const fresh = plan.newRefs.length;
     const reviews = plan.reviews.length;
@@ -193,16 +201,16 @@ export function TodayScreen() {
       {idle && drill ? (
         <>
           <p className={`${ui.note} mb-2.5`} data-testid="day-done">
-            План на сегодня выполнен. Тренировка урока не сдвигает интервалы повторений.
+            {verdict} Тренировка урока не сдвигает интервалы повторений.
           </p>
-          <Button size="xl" variant="soft" onClick={practice} disabled={busy}>
+          <Button size="xl" onClick={practice} disabled={busy}>
             <Dumbbell data-icon="inline-start" />
             Потренировать {lessonIn(drill.title, "урок")}
           </Button>
         </>
       ) : (
         <Button size="xl" onClick={begin} disabled={busy || !ready}>
-          {unfinished ? "Продолжить занятие" : "Начать занятие"}
+          {unfinished ? "Продолжить тренировку" : "Начать тренировку"}
           <ArrowRight data-icon="inline-end" />
         </Button>
       )}
@@ -213,7 +221,7 @@ export function TodayScreen() {
       )}
       {plan && <DayNotes plan={plan} now={now} />}
 
-      {!!around.length && <h2>Мои занятия</h2>}
+      {!!around.length && <h2>Уроки рядом</h2>}
       {!!around.length && (
         <ItemGroup className="gap-2.5">
           {around.map((item) => (

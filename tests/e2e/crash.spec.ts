@@ -37,12 +37,12 @@ test("падение во время занятия: экран сбоя с пе
   await page.goto("/");
   await ready(page);
   await installLessons(page, ["lesson-1-1", "lesson-1-2", "lesson-1-3", "lesson-1-4"]);
-  await page.getByRole("button", { name: "Начать занятие" }).click();
+  await page.getByRole("button", { name: "Начать тренировку" }).click();
   await page.waitForURL("**/session");
   await expect(page.getByTestId("lesson-label")).toBeVisible();
   // Хранилище отказывает навсегда: чтение при рендере бросает исключение, три переоткрытия не помогают.
   // Экран занятия обычно падает сам на живом запросе; иначе его валит возврат на «Сегодня» историей —
-  // без «Закрыть занятие», которое штатно завершило бы занятие записью.
+  // без «Закрыть тренировку», которое штатно завершило бы занятие записью.
   await breakStorage(page, true);
   const crash = page.getByTestId("recovery-failed");
   if (!(await crash.isVisible())) await page.goBack();
@@ -54,5 +54,5 @@ test("падение во время занятия: экран сбоя с пе
   // Граница ошибок в базу не писала: занятие осталось активным, и «Сегодня» предлагает продолжить его.
   await page.goto("/");
   await ready(page);
-  await expect(page.getByRole("button", { name: "Продолжить занятие" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Продолжить тренировку" })).toBeVisible();
 });

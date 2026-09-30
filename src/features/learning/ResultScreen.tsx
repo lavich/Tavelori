@@ -66,11 +66,11 @@ export function ResultScreen() {
   };
   return (
     <Screen bare roomy>
-      <h1>Занятие завершено</h1>
+      <h1>Тренировка завершена</h1>
       <div className={ui.tiles}>
         <StatTile
           value={unique.size}
-          label={`${plural(unique.size, mixed ? CARDS : WORDS)} в занятии`}
+          label={`${plural(unique.size, mixed ? CARDS : WORDS)} в тренировке`}
           testId="composition"
           note={mixed && compositionText(byKind)}
         />
@@ -84,7 +84,7 @@ export function ResultScreen() {
           <p className="m-0 text-sm text-muted-foreground">
             {objective.length
               ? `Объективная точность (выбор, сборка, аудирование, написание, пропуск): ${Math.round((objective.filter((event) => event.correct).length / objective.length) * 100)}% из ${withCount(objective.length, ["ответа", "ответов", "ответов"])}`
-              : "Объективных проверок в этом занятии не было — только самооценка. Точность: нет данных."}
+              : "Объективных проверок в этой тренировке не было — только самооценка. Точность: нет данных."}
           </p>
           <p className="m-0 text-sm text-muted-foreground">Активное время: {minutes(session?.activeTimeMs ?? 0)}</p>
         </CardContent>
@@ -99,8 +99,8 @@ export function ResultScreen() {
             <Info />
             <AlertDescription>
               Карточки с ошибками вернутся
-              {nextDue ? ` ${formatDay(localDay(nextDue, settings.timezone))}` : " в ближайшем занятии"} — так интервалы
-              остаются честными.
+              {nextDue ? ` ${formatDay(localDay(nextDue, settings.timezone))}` : " в ближайшей тренировке"} — так
+              интервалы остаются честными.
             </AlertDescription>
           </Alert>
         ))}

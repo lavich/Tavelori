@@ -27,7 +27,7 @@ export function StatsScreen() {
               <ChartNoAxesColumn />
             </EmptyMedia>
             <EmptyTitle>Ответов пока нет</EmptyTitle>
-            <EmptyDescription>Статистика появится после первого занятия.</EmptyDescription>
+            <EmptyDescription>Статистика появится после первой тренировки.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : null}
