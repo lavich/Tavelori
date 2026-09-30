@@ -63,6 +63,14 @@ typography:
     fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
     fontSize: "12px"
     fontWeight: 400
+  button-md:
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "15px"
+    fontWeight: 500
+  button-sm:
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "0.8rem"
+    fontWeight: 500
 rounded:
   hairline: "4px"
   focus: "8px"
@@ -231,7 +239,7 @@ Lexi — спокойный репетитор в кармане: он гово�
 - **Greek Display** (700, 40 px, 1.1, −0.01em): греческое слово на карточке и в упражнении; в тесных местах 30 px. Переносится где угодно (`overflow-wrap: anywhere`), чтобы длинные слова не ломали ширину.
 - **Headline** (700, 30 px, 1.15, −0.02em): заголовок экрана (`h1`); на «Сегодня» он называет объём дня: «12 новых карточек».
 - **Title** (600, 19 px): заголовок раздела (`h2`: «Мои занятия»); `h3` — 600, 16 px.
-- **Body Large** (17 px): варианты ответа, поля ввода, кнопки `xl`, перевод слова. Кнопки `md` (46 px) — 15 px.
+- **Body Large** (17 px): варианты ответа, поля ввода, кнопки `xl`, перевод слова. Кнопки `md` (46 px) — 15 px (`button-md`), служебные `sm` в занятии и на экране урока — 0.8rem (`button-sm`).
 - **Body** (400, 16 px, 1.45): основной текст.
 - **Note** (14 px, `hint-gray`): самая частая роль — подписи, подсказки, метаданные («59 карточек · предстоит»).
 - **Nav Label** (12 px): подписи нижней навигации; у активной вкладки — 600.

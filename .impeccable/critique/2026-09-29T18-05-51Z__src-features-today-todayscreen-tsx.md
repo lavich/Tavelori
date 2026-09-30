@@ -10,6 +10,7 @@ target_fingerprint: "sha256:b8d7beea24b3c3322332a51e633d3d548e0e81951a0671e2b550
 target_path: /Users/lavich/Projects/lexi/src/features/today/TodayScreen.tsx
 timestamp: 2026-09-29T18-05-51Z
 slug: src-features-today-todayscreen-tsx
+closed: true
 ---
 # Critique: экран «Сегодня» (src/features/today/TodayScreen.tsx)
 
