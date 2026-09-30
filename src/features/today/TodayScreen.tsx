@@ -1,6 +1,5 @@
-import { ArrowRight, CalendarDays, ChevronRight, Dumbbell, History, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronRight, Dumbbell } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ItemGroup } from "@/components/ui/item";
@@ -9,14 +8,18 @@ import { localDay } from "../../domain/learning";
 import { byTargetDate, preparedByCourse } from "../../domain/schedule";
 import { useAction } from "../../shared/action";
 import { useNow } from "../../shared/clock";
-import { CARDS, dativeWeekday, dayMonth, DAYS, LESSONS, shortTitle, withCount } from "../../shared/format";
+import { CARDS, dativeWeekday, dayMonth, DAYS, shortTitle, withCount } from "../../shared/format";
 import { useActiveSession, useCatalog, useCourses, useLessons, usePlan, useSettings } from "../../shared/store";
 import { startSession } from "../learning/session-actions";
 import { LessonProgressBar, LessonRow } from "../lessons/LessonRow";
 import { nextLessonIds } from "../lessons/courses";
 import { dexieSource } from "../../storage/queries";
+import { DayNotes } from "./DayNotes";
 import { FirstRun } from "./FirstRun";
 import ui from "../../shared/ui.module.css";
+
+/** «Урок 1.4» → «уроку 1.4», свой набор — в кавычках. */
+const lessonDative = (title: string) => (/^Урок\s/i.test(title) ? `уроку ${shortTitle(title)}` : `«${title}»`);
 
 export function TodayScreen() {
   const { settings } = useSettings();
@@ -47,6 +50,9 @@ export function TodayScreen() {
   const multi = (plan?.courses ?? []).filter((item) => item.newRefs.length);
   const split =
     multi.length > 1 && multi.map((item) => `${shortTitle(item.title)}: ${item.newRefs.length}`).join(" · ");
+
+  // Подготовка к занятию идёт сверх плана; отдельной строкой — только когда заголовок называет план, а не её.
+  const extra = !!plan?.preview.length && !!(plan.newRefs.length || plan.reviews.length);
 
   /** Заголовок называет объём дня, а не девиз: что ждёт в занятии, если начать его сейчас. */
   const headline = () => {
@@ -100,17 +106,20 @@ export function TodayScreen() {
   return (
     <Screen>
       <h1 data-testid="today-title">{headline()}</h1>
-      {plan && (split || !!plan.preview.length) && (
+      {plan && (split || extra) && (
         <p className={`${ui.note} -mt-3 mb-4`}>
           {split && <span data-testid="new-by-course">{split}</span>}
-          {split && !!plan.preview.length && " · "}
-          {!!plan.preview.length && (
+          {split && extra && " · "}
+          {extra && (
             <span data-testid="preview-count">
-              Подготовка:{" "}
               {plan.courses
                 .filter((item) => item.preview.length)
-                .map((item) => `${item.deadlines[0]!.title} — ${item.preview.length}`)
-                .join(" · ")}
+                .map(
+                  (item) =>
+                    `ещё ${withCount(item.preview.length, CARDS)} для подготовки к ${lessonDative(item.deadlines[0]!.title)}`,
+                )
+                .join(" · ")
+                .replace(/^е/, split ? "е" : "Е")}
             </span>
           )}
         </p>
@@ -149,7 +158,7 @@ export function TodayScreen() {
                 <div className="grid min-w-0 flex-1 gap-1">
                   <CardTitle className="text-xl font-bold">Занятие не назначено</CardTitle>
                   <CardDescription className="text-foreground/75">
-                    Задайте расписание или дату набора на экране «Уроки», чтобы Lexi распределила карточки по дням.
+                    Задайте расписание на экране «Уроки», и план распределит карточки по дням занятий.
                   </CardDescription>
                 </div>
                 <ChevronRight className="shrink-0 text-accent-foreground" />
@@ -158,41 +167,6 @@ export function TodayScreen() {
           </Card>
         </Link>
       )}
-
-      {!!plan?.backlog.lessons && (
-        <Alert className="mb-3" data-testid="backlog">
-          <History />
-          <AlertTitle>Хвост прошедших занятий</AlertTitle>
-          <AlertDescription>
-            {withCount(plan.backlog.refs.length, CARDS)} из {withCount(plan.backlog.lessons, LESSONS)} ещё ни разу не
-            показывали. Lexi добирает их в «Новые» после карточек ближайшего занятия: подготовка к нему важнее долгов.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {!!plan?.unavailable.length && (
-        <Alert className="mb-3" data-testid="unavailable">
-          <History />
-          <AlertTitle>Нет доступного упражнения</AlertTitle>
-          <AlertDescription>
-            {withCount(plan.unavailable.length, CARDS)} без перевода и озвучки: они доступны для просмотра на экране
-            урока, но не расходуют дневную квоту и не входят в темп.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {(plan?.courses ?? [])
-        .filter((item) => item.shortfall)
-        .map((item) => (
-          <Alert key={item.courseId} variant="warning" className="mb-3">
-            <TriangleAlert />
-            <AlertTitle>«{item.title}»: дневного предела не хватает</AlertTitle>
-            <AlertDescription>
-              Чтобы успеть к сроку, нужно {withCount(item.requiredPerDay, CARDS)} в день, а предел курса —{" "}
-              {item.newItemsPerDay}. Увеличьте предел в группе курса на экране «Уроки» или перенесите дату.
-            </AlertDescription>
-          </Alert>
-        ))}
 
       {idle && drill ? (
         <>
@@ -215,6 +189,7 @@ export function TodayScreen() {
           {problem}
         </p>
       )}
+      {plan && <DayNotes plan={plan} now={now} />}
 
       {!!around.length && <h2>Мои занятия</h2>}
       {!!around.length && (
