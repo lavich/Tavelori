@@ -1,14 +1,16 @@
 import { ArrowRight, CalendarDays, ChevronRight, Dumbbell } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "cn";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ItemGroup } from "@/components/ui/item";
 import { Screen } from "../../app/Screen";
 import { localDay } from "../../domain/learning";
 import { byTargetDate, preparedByCourse } from "../../domain/schedule";
 import { useAction } from "../../shared/action";
 import { useNow } from "../../shared/clock";
-import { CARDS, dativeWeekday, dayMonth, DAYS, shortTitle, withCount } from "../../shared/format";
+import { CARDS, dativeWeekday, dayMonth, DAYS, lessonIn, shortTitle, withCount } from "../../shared/format";
 import { useActiveSession, useCatalog, useCourses, useLessons, usePlan, useSettings } from "../../shared/store";
 import { startSession } from "../learning/session-actions";
 import { LessonProgressBar, LessonRow } from "../lessons/LessonRow";
@@ -17,9 +19,6 @@ import { dexieSource } from "../../storage/queries";
 import { DayNotes } from "./DayNotes";
 import { FirstRun } from "./FirstRun";
 import ui from "../../shared/ui.module.css";
-
-/** «Урок 1.4» → «уроку 1.4», свой набор — в кавычках. */
-const lessonDative = (title: string) => (/^Урок\s/i.test(title) ? `уроку ${shortTitle(title)}` : `«${title}»`);
 
 export function TodayScreen() {
   const { settings } = useSettings();
@@ -95,7 +94,19 @@ export function TodayScreen() {
       void navigate("/session");
     });
 
-  if (installed && !installed.length && ready)
+  // Пока план читается, панель и кнопка — заглушками: иначе на миг мелькает «Занятие не назначено».
+  if (!ready)
+    return (
+      <Screen>
+        <h1 data-testid="today-title">{headline()}</h1>
+        <div aria-busy="true" aria-label="План дня загружается" className="grid gap-3">
+          <Skeleton className="h-[150px] rounded-[var(--radius-card)] motion-reduce:animate-none" />
+          <Skeleton className="h-[54px] rounded-[14px] motion-reduce:animate-none" />
+        </div>
+      </Screen>
+    );
+
+  if (!installed.length)
     return (
       <Screen>
         <h1 data-testid="today-title">{headline()}</h1>
@@ -116,7 +127,7 @@ export function TodayScreen() {
                 .filter((item) => item.preview.length)
                 .map(
                   (item) =>
-                    `ещё ${withCount(item.preview.length, CARDS)} для подготовки к ${lessonDative(item.deadlines[0]!.title)}`,
+                    `ещё ${withCount(item.preview.length, CARDS)} для подготовки к ${lessonIn(item.deadlines[0]!.title, "уроку")}`,
                 )
                 .join(" · ")
                 .replace(/^е/, split ? "е" : "Е")}
@@ -175,7 +186,7 @@ export function TodayScreen() {
           </p>
           <Button size="xl" variant="soft" onClick={practice} disabled={busy}>
             <Dumbbell data-icon="inline-start" />
-            Потренировать {/^Урок\s/i.test(drill.title) ? `урок ${shortTitle(drill.title)}` : `«${drill.title}»`}
+            Потренировать {lessonIn(drill.title, "урок")}
           </Button>
         </>
       ) : (
@@ -200,10 +211,10 @@ export function TodayScreen() {
         </ItemGroup>
       )}
       {!!lessons.length && (
-        <Button size="md" variant="soft" className="mt-2.5" render={<Link to="/lessons" />}>
+        <Link to="/lessons" className={cn(buttonVariants({ variant: "soft", size: "md" }), "mt-2.5")}>
           Все уроки · {lessons.length}
           <ChevronRight data-icon="inline-end" />
-        </Button>
+        </Link>
       )}
     </Screen>
   );

@@ -1,6 +1,7 @@
 import { BookOpen, GraduationCap, RefreshCw, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "cn";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Course } from "../../domain/types";
 import { installCourse } from "../../content/client";
@@ -30,10 +31,10 @@ export function FirstRun({ courses, entries }: { courses: Course[]; entries: Sto
             </CardDescription>
           </CardHeader>
         </Card>
-        <Button size="xl" variant="soft" render={<Link to="/more/import" />}>
+        <Link to="/more/import" className={buttonVariants({ variant: "soft", size: "xl" })}>
           <Upload data-icon="inline-start" />
           Импортировать слова
-        </Button>
+        </Link>
       </>
     );
 
@@ -68,10 +69,10 @@ export function FirstRun({ courses, entries }: { courses: Course[]; entries: Sto
       ) : (
         <p className={ui.hint}>Уроки загрузятся на устройство; расписание занятий можно задать потом.</p>
       )}
-      <Button size="md" variant="soft" className="mt-4" render={<Link to="/lessons" />}>
+      <Link to="/lessons" className={cn(buttonVariants({ variant: "soft", size: "md" }), "mt-4")}>
         <BookOpen data-icon="inline-start" />
         Выбрать отдельный урок
-      </Button>
+      </Link>
     </>
   );
 }

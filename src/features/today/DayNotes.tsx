@@ -1,19 +1,17 @@
 import { useState } from "react";
 import { CalendarDays, ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "cn";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DailyPlan } from "../../domain/learning";
-import { CARDS, LESSONS, shortTitle, withCount } from "../../shared/format";
+import { CARDS, LESSONS, lessonIn, withCount } from "../../shared/format";
 import { saveCourseTempo } from "../../storage/ops";
 import ui from "../../shared/ui.module.css";
 
 /** Предел курса задаётся на «Уроках» от 0 до 100; кнопка на «Сегодня» не выходит за те же границы. */
 const MAX_PER_DAY = 100;
 const GENITIVE_CARDS: [string, string, string] = ["карточки", "карточек", "карточек"];
-
-/** «Урок 1.4» → «урока 1.4», свой набор — в кавычках: подпись кнопки переноса даты. */
-const lessonGenitive = (title: string) => (/^Урок\s/i.test(title) ? `урока ${shortTitle(title)}` : `«${title}»`);
 
 /**
  * Всё, что уточняет план дня, идёт под кнопкой занятия, а не перед ней. Нехватка предела — решение
@@ -96,10 +94,13 @@ function Shortfall(props: {
             {saving ? "Сохраняем…" : `Поднять предел до ${target}`}
           </Button>
         )}
-        <Button size="md" variant="quiet" className="w-auto" render={<Link to={`/lessons/${props.lessonId}`} />}>
+        <Link
+          to={`/lessons/${props.lessonId}`}
+          className={cn(buttonVariants({ variant: "quiet", size: "md" }), "w-auto")}
+        >
           <CalendarDays data-icon="inline-start" />
-          Перенести дату {lessonGenitive(props.lessonTitle)}
-        </Button>
+          Перенести дату {lessonIn(props.lessonTitle, "урока")}
+        </Link>
       </CardContent>
     </Card>
   );

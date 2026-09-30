@@ -27,5 +27,8 @@ export const dayMonth = (value: string) =>
   day(value).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
 export const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 export const shortTitle = (title: string) => title.replace(/^Урок\s+/i, "");
+/** Название урока внутри фразы: «Урок 1.4» склоняется («урока 1.4»), свой набор идёт в кавычках. */
+export const lessonIn = (title: string, form: "урок" | "урока" | "уроку") =>
+  /^Урок\s/i.test(title) ? `${form} ${shortTitle(title)}` : `«${title}»`;
 export const minutes = (ms: number) =>
   `${Math.max(1, Math.round(ms / 60000))} ${plural(Math.max(1, Math.round(ms / 60000)), ["минута", "минуты", "минут"])}`;
