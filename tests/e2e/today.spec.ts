@@ -39,14 +39,19 @@ test("нехватка предела: решение под кнопкой за
   await useSchedule(page, "leeke", "lexi", 2);
   const shortfall = page.getByTestId("shortfall");
   await expect(shortfall).toContainText(/Чтобы успеть к сроку, нужно \d+ карточ/);
-  await expect(shortfall).toContainText("Дневной предел курса «Греческий A2» — 1.");
+  await expect(shortfall).toContainText("а дневной предел курса «Греческий A2» — 1.");
   // Кнопка занятия стоит выше справки: план сначала, объяснения потом.
   const cta = await page.getByRole("button", { name: /Начать тренировку/ }).boundingBox();
   expect(cta!.y).toBeLessThan((await shortfall.boundingBox())!.y);
   await expect(shortfall.getByRole("link", { name: "Перенести дату урока 1.1" })).toBeVisible();
   await shortfall.getByRole("button", { name: /^Поднять предел до \d+$/ }).click();
   await expect(shortfall).toHaveCount(0);
-  await expect(page.getByTestId("today-title")).not.toHaveText("1 новая карточка");
+  // Изменение видно и отменяется на месте.
+  const raised = page.getByTestId("limit-raised");
+  await expect(raised).toContainText(/Дневной предел «Греческий A2»: 1 → \d+/);
+  await raised.getByRole("button", { name: "Отменить" }).click();
+  await expect(raised).toHaveCount(0);
+  await expect(shortfall).toContainText("а дневной предел курса «Греческий A2» — 1.");
 });
 
 test("фокус с клавиатуры не прячется под нижней навигацией", async ({ page }) => {
