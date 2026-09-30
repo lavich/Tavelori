@@ -1,8 +1,8 @@
-import { ArrowRight, BookOpen, CalendarDays, ChevronRight, History, TriangleAlert } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronRight, Dumbbell, History, TriangleAlert } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ItemGroup } from "@/components/ui/item";
 import { Screen } from "../../app/Screen";
 import { localDay } from "../../domain/learning";
@@ -14,6 +14,8 @@ import { useActiveSession, useCatalog, useCourses, useLessons, usePlan, useSetti
 import { startSession } from "../learning/session-actions";
 import { LessonProgressBar, LessonRow } from "../lessons/LessonRow";
 import { nextLessonIds } from "../lessons/courses";
+import { dexieSource } from "../../storage/queries";
+import { FirstRun } from "./FirstRun";
 import ui from "../../shared/ui.module.css";
 
 export function TodayScreen() {
@@ -38,9 +40,9 @@ export function TodayScreen() {
     .filter((item) => item.status === "completed" && item.targetDate && item.targetDate <= today)
     .at(-1);
   const around = [...(last ? [last] : []), ...lessons.filter((item) => nextIds.has(item.id) && item.id !== lesson?.id)];
-  const available = (catalog?.entries ?? []).filter(
-    (entry) => !catalog?.packages.some((pack) => pack.lessonId === entry.id),
-  ).length;
+  // Очередь пуста: план дня выполнен или карточки ещё не подошли. Вместо «Начать занятие» — тренировка урока.
+  const idle = !!plan && !unfinished && !plan.newRefs.length && !plan.reviews.length && !plan.preview.length;
+  const drill = lesson ?? last ?? lessons[0];
 
   const multi = (plan?.courses ?? []).filter((item) => item.newRefs.length);
   const split =
@@ -50,8 +52,7 @@ export function TodayScreen() {
   const headline = () => {
     if (!plan || !installed || unfinished === undefined) return "Сегодня";
     if (unfinished) return "Занятие не закончено";
-    // Без уроков объём дня называть нечем; что делать, объясняет карточка каталога ниже.
-    if (!installed.length) return "Сегодня";
+    if (!installed.length) return "Начните с курса";
     const fresh = plan.newRefs.length;
     const reviews = plan.reviews.length;
     if (fresh && reviews)
@@ -77,6 +78,24 @@ export function TodayScreen() {
         );
       void navigate("/session");
     });
+
+  // Ручная тренировка идёт в режиме practice: навык фиксируется, интервалы не сдвигаются.
+  const practice = () =>
+    run(async () => {
+      if (!drill) return;
+      const refs = await dexieSource().lessonRefs(drill.id);
+      const session = refs.length ? await startSession(now, { refs, mode: "practice" }) : null;
+      if (!session) return setProblem("В уроке нет доступных заданий.");
+      void navigate("/session");
+    });
+
+  if (installed && !installed.length && ready)
+    return (
+      <Screen>
+        <h1 data-testid="today-title">{headline()}</h1>
+        <FirstRun courses={courses ?? []} entries={catalog?.entries ?? []} />
+      </Screen>
+    );
 
   return (
     <Screen>
@@ -123,14 +142,21 @@ export function TodayScreen() {
           </Card>
         </Link>
       ) : (
-        <Card className="mb-3 bg-soft ring-0">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">Занятие не назначено</CardTitle>
-            <CardDescription className="text-foreground/75">
-              Задайте расписание или дату набора на экране «Уроки», чтобы Lexi распределила карточки по дням.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <Link to="/lessons" className="mb-3 block rounded-[var(--radius-card)] no-underline">
+          <Card className="bg-soft ring-0 transition-colors hover:bg-[color-mix(in_srgb,var(--soft),var(--primary)_6%)]">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="grid min-w-0 flex-1 gap-1">
+                  <CardTitle className="text-xl font-bold">Занятие не назначено</CardTitle>
+                  <CardDescription className="text-foreground/75">
+                    Задайте расписание или дату набора на экране «Уроки», чтобы Lexi распределила карточки по дням.
+                  </CardDescription>
+                </div>
+                <ChevronRight className="shrink-0 text-accent-foreground" />
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
       )}
 
       {!!plan?.backlog.lessons && (
@@ -168,31 +194,29 @@ export function TodayScreen() {
           </Alert>
         ))}
 
-      <Button size="xl" onClick={begin} disabled={busy || !ready}>
-        {unfinished ? "Продолжить занятие" : "Начать занятие"}
-        <ArrowRight data-icon="inline-end" />
-      </Button>
-      {problem && <p className={ui.error}>{problem}</p>}
-
-      {(!!around.length || (installed && !installed.length)) && <h2>Мои занятия</h2>}
-      {installed && !installed.length && (
-        <Card className="mb-3">
-          <CardHeader>
-            <CardTitle className="text-lg">Уроков на устройстве пока нет</CardTitle>
-            <CardDescription>
-              {available
-                ? `В каталоге ${withCount(available, ["урок", "урока", "уроков"])}: откройте урок, и его слова загрузятся на устройство.`
-                : "Каталог ещё не загружен. Проверьте сеть или импортируйте свои слова."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button size="md" variant="soft" render={<Link to="/lessons" />}>
-              <BookOpen data-icon="inline-start" />
-              Открыть каталог
-            </Button>
-          </CardContent>
-        </Card>
+      {idle && drill ? (
+        <>
+          <p className={`${ui.note} mb-2.5`} data-testid="day-done">
+            План на сегодня выполнен. Тренировка урока не сдвигает интервалы повторений.
+          </p>
+          <Button size="xl" variant="soft" onClick={practice} disabled={busy}>
+            <Dumbbell data-icon="inline-start" />
+            Потренировать {/^Урок\s/i.test(drill.title) ? `урок ${shortTitle(drill.title)}` : `«${drill.title}»`}
+          </Button>
+        </>
+      ) : (
+        <Button size="xl" onClick={begin} disabled={busy || !ready}>
+          {unfinished ? "Продолжить занятие" : "Начать занятие"}
+          <ArrowRight data-icon="inline-end" />
+        </Button>
       )}
+      {problem && (
+        <p className={ui.error} role="alert">
+          {problem}
+        </p>
+      )}
+
+      {!!around.length && <h2>Мои занятия</h2>}
       {!!around.length && (
         <ItemGroup className="gap-2.5">
           {around.map((item) => (
