@@ -82,6 +82,9 @@ export const useShippedWord = (id: string | undefined) =>
     [id],
   );
 export const useCourses = () => useLiveQuery(() => db.courses.toArray(), []);
+/** Слова по идентификаторам в том же порядке; удалённые и отсутствующие пропускаются. */
+export const useWordsById = (ids: string[]) =>
+  useLiveQuery(async () => (await db.words.bulkGet(ids)).filter((word) => !!word && !word.deletedAt), [ids.join(" ")]);
 export const useCoursePhase = (courseId: string | undefined) =>
   useSyncExternalStore(subscribeInstall, () => coursePhase(courseId ?? ""));
 export const useReadiness = (lessonId: string | undefined) =>

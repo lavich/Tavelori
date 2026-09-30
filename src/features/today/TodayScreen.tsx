@@ -16,6 +16,7 @@ import { nextLessonIds } from "../lessons/courses";
 import { dexieSource } from "../../storage/queries";
 import { DayNotes } from "./DayNotes";
 import { FirstRun } from "./FirstRun";
+import { TodayWords } from "./TodayWords";
 import ui from "../../shared/ui.module.css";
 
 /** «Урок 1.4» → «уроку 1.4», свой набор — в кавычках. */
@@ -106,6 +107,7 @@ export function TodayScreen() {
   return (
     <Screen>
       <h1 data-testid="today-title">{headline()}</h1>
+      {plan && !unfinished && <TodayWords refs={plan.newRefs} />}
       {plan && (split || extra) && (
         <p className={`${ui.note} -mt-3 mb-4`}>
           {split && <span data-testid="new-by-course">{split}</span>}

@@ -74,3 +74,17 @@ test("фокус с клавиатуры не прячется под нижне
   }
   expect(checked).toBeGreaterThan(10);
 });
+
+test("первые новые слова дня видны по-гречески и открывают свою карточку", async ({ page }) => {
+  await page.goto("/");
+  await ready(page);
+  await installLessons(page, ["lesson-1-1"]);
+  const words = page.getByTestId("today-words").getByRole("link");
+  await expect(words.first()).toBeVisible();
+  expect(await words.count()).toBeLessThanOrEqual(4);
+  const first = (await words.first().innerText()).trim();
+  expect(first).toMatch(/[Ͱ-Ͽἀ-῿]/);
+  await words.first().click();
+  await page.waitForURL(/\/words\/[^/]+$/);
+  await expect(page.getByText(first, { exact: true }).first()).toBeVisible();
+});
