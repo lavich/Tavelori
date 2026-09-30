@@ -45,7 +45,7 @@ export function FirstRun({ courses, entries }: { courses: Course[]; entries: Sto
     <>
       <Card className="mb-3 bg-soft ring-0" data-testid="first-course">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold">{course.title}</CardTitle>
+          <CardTitle className="text-2xl font-bold [overflow-wrap:anywhere]">{course.title}</CardTitle>
           <CardDescription className="text-foreground/75">
             {withCount(own.length, LESSONS_COUNT)} · {withCount(cards, CARDS)}
           </CardDescription>
